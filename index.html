@@ -291,6 +291,7 @@
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     overflow: auto;
+    max-height: 70vh;
   }
 
   table {
@@ -309,6 +310,158 @@
     white-space: nowrap;
   }
   thead th:last-child { border-right: 0; }
+
+  /* ── EXCEL-LIKE COLUMN FILTERS (Checkbox Multi-Select) ── */
+  thead tr.filter-row th {
+    background: #f0f7f3;
+    padding: 4px 3px;
+    border-bottom: 2px solid #b8dfc8;
+    border-right: 1px solid #cde8d8;
+    position: static;
+    z-index: auto;
+    white-space: nowrap;
+    overflow: visible;
+  }
+  thead tr.filter-row th:last-child { border-right: 0; }
+  .cf-wrap { position: relative; display: inline-block; width: 100%; }
+  .cf-btn {
+    width: 100%;
+    padding: 2px 16px 2px 5px;
+    border: 1px solid #c8d8e4;
+    border-radius: 4px;
+    font: 500 9.5px 'Inter', sans-serif;
+    color: var(--ink2);
+    background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%237a8e9c'/%3E%3C/svg%3E") no-repeat right 4px center;
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 42px;
+    max-width: 130px;
+    height: 22px;
+    line-height: 18px;
+    transition: all 0.12s;
+  }
+  .cf-btn:hover { border-color: var(--solar-2); }
+  .cf-btn.active {
+    border-color: var(--solar-2);
+    background-color: #e6f7f1;
+    color: var(--solar-1);
+    font-weight: 700;
+  }
+  .cf-panel {
+    display: none;
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    z-index: 1000;
+    background: #fff;
+    border: 1px solid var(--line2);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(15,25,35,0.18);
+    min-width: 200px;
+    max-width: 300px;
+    padding: 8px;
+    animation: cfIn 0.12s ease;
+  }
+  @keyframes cfIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+  .cf-panel.open { display: block; }
+  .cf-search {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid var(--line2);
+    border-radius: 5px;
+    font: 11px 'Inter', sans-serif;
+    color: var(--ink);
+    margin-bottom: 6px;
+    box-sizing: border-box;
+  }
+  .cf-search:focus { outline: none; border-color: var(--solar-2); }
+  .cf-actions {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+  }
+  .cf-actions button {
+    flex: 1;
+    padding: 4px 6px;
+    border: 1px solid var(--line2);
+    border-radius: 4px;
+    font: 600 9.5px 'Inter', sans-serif;
+    cursor: pointer;
+    background: #f8fafb;
+    color: var(--ink2);
+    transition: all 0.1s;
+  }
+  .cf-actions button:hover { background: var(--solar-bg); color: var(--solar-1); border-color: var(--solar-2); }
+  .cf-list {
+    max-height: 220px;
+    overflow-y: auto;
+    margin-bottom: 6px;
+    scrollbar-width: thin;
+  }
+  .cf-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 5px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--ink2);
+    transition: background 0.08s;
+    user-select: none;
+  }
+  .cf-item:hover { background: #f0f7f3; }
+  .cf-item input[type="checkbox"] {
+    accent-color: var(--solar-2);
+    width: 14px; height: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .cf-item-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    line-height: 1.3;
+  }
+  .cf-item-count {
+    font-size: 9px;
+    color: var(--muted);
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .cf-footer {
+    display: flex; gap: 4px;
+  }
+  .cf-apply {
+    flex: 1;
+    padding: 6px;
+    border: none;
+    border-radius: 5px;
+    background: var(--solar-1);
+    color: #fff;
+    font: 700 11px 'Inter', sans-serif;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .cf-apply:hover { background: var(--solar-2); }
+  .cf-reset {
+    padding: 6px 10px;
+    border: 1px solid var(--line2);
+    border-radius: 5px;
+    background: #fff;
+    color: var(--danger);
+    font: 600 11px 'Inter', sans-serif;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .cf-reset:hover { background: var(--danger-bg); border-color: #fca5a5; }
 
   /* Column group headers */
   thead tr.group-row th {
@@ -617,7 +770,7 @@
   @media print {
     header { position: static; background: #0b6e4f; -webkit-print-color-adjust: exact; }
     .header-actions, .toolbar .btn, .row-btn, .modal-overlay { display: none !important; }
-    .table-wrap { overflow: visible; box-shadow: none; }
+    .table-wrap { overflow: visible; box-shadow: none; max-height: none; }
     table { min-width: 0; }
   }
 
@@ -1026,6 +1179,18 @@
           <th class="num" style="min-width:90px" data-tip="Total power: auto from Module Wp OR from inline generation input">Total Power</th>
           <th class="center">✎ / ✗</th>
         </tr>
+        <tr class="filter-row" id="filterRow-resultBody">
+          <th><div class="cf-wrap" data-col="0" data-tbody="resultBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+          <th></th>
+          <th><div class="cf-wrap" data-col="2" data-tbody="resultBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+          <th><div class="cf-wrap" data-col="3" data-tbody="resultBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+          <th><div class="cf-wrap" data-col="4" data-tbody="resultBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+          <th></th><th></th><th></th>
+          <th><div class="cf-wrap" data-col="8" data-tbody="resultBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+          <th></th><th></th><th></th><th></th><th></th>
+          <th><div class="cf-wrap" data-col="14" data-tbody="resultBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+          <th></th>
+        </tr>
       </thead>
       <tbody id="resultBody"></tbody>
     </table>
@@ -1115,6 +1280,15 @@
               <th class="num">Pending Planned Qty</th>
               <th class="num">Total Power</th>
             </tr>
+            <tr class="filter-row" id="filterRow-planOrderBody">
+              <th><div class="cf-wrap" data-col="0" data-tbody="planOrderBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+              <th><div class="cf-wrap" data-col="1" data-tbody="planOrderBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+              <th><div class="cf-wrap" data-col="2" data-tbody="planOrderBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+              <th><div class="cf-wrap" data-col="3" data-tbody="planOrderBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+              <th><div class="cf-wrap" data-col="4" data-tbody="planOrderBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+              <th><div class="cf-wrap" data-col="5" data-tbody="planOrderBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+              <th><div class="cf-wrap" data-col="6" data-tbody="planOrderBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+            </tr>
           </thead>
           <tbody id="planOrderBody"></tbody>
         </table>
@@ -1166,6 +1340,19 @@
                 <th class="num" style="background:#991b1b; color:#fff;">Shortage / Surplus</th>
                 <th class="center">Discard / Map</th>
               </tr>
+              <tr class="filter-row" id="filterRow-consolidatedBody">
+                <th><div class="cf-wrap" data-col="0" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+                <th><div class="cf-wrap" data-col="1" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+                <th><div class="cf-wrap" data-col="2" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+                <th></th>
+                <th><div class="cf-wrap" data-col="4" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+                <th></th>
+                <th></th>
+                <th><div class="cf-wrap" data-col="7" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+                <th></th>
+                <th><div class="cf-wrap" data-col="9" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+                <th></th>
+              </tr>
             </thead>
             <tbody id="consolidatedBody"></tbody>
           </table>
@@ -1192,6 +1379,15 @@
               <th class="num" style="background:#0d4f38;color:#fff;">Available Stock</th>
               <th class="num" style="background:#991b1b;color:#fff;">Shortage (Buy)</th>
               <th class="center">Status</th>
+            </tr>
+            <tr class="filter-row" id="filterRow-resultBodyPlan">
+              <th><div class="cf-wrap" data-col="0" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+              <th><div class="cf-wrap" data-col="1" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+              <th><div class="cf-wrap" data-col="2" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+              <th><div class="cf-wrap" data-col="3" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+              <th></th><th></th><th></th><th></th>
+              <th></th><th></th><th></th>
+              <th><div class="cf-wrap" data-col="11" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
             </tr>
           </thead>
           <tbody id="resultBodyPlan"></tbody>
@@ -1267,6 +1463,14 @@
           <th class="num">$ / Cell</th>
           <th class="num">Amount</th>
           <th class="center">✗</th>
+        </tr>
+        <tr class="filter-row" id="filterRow-cellBody">
+          <th></th>
+          <th><div class="cf-wrap" data-col="1" data-tbody="cellBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+          <th><div class="cf-wrap" data-col="2" data-tbody="cellBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+          <th><div class="cf-wrap" data-col="3" data-tbody="cellBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+          <th></th><th></th><th></th><th></th><th></th>
+          <th></th>
         </tr>
       </thead>
       <tbody id="cellBody"></tbody>
@@ -1454,6 +1658,245 @@ function fmtPower(watts) {
   if (watts >= 1e6) return { val: (watts/1e6).toFixed(3), unit: "MW", full: fmt2.format(watts/1e6)+" MW" };
   if (watts >= 1000) return { val: (watts/1000).toFixed(2), unit: "kW", full: fmt2.format(watts/1000)+" kW" };
   return { val: Math.round(watts), unit: "W", full: fmt2.format(watts)+" W" };
+}
+
+// ── EXCEL-LIKE COLUMN FILTERS (Checkbox Multi-Select) ─────────────────
+const _filterState = {}; // { tbodyId: { colIndex: Set([selectedValues]) } }
+let _openPanel = null;
+
+function _extractCellText(cell) {
+  const inp = cell.querySelector('input');
+  if (inp) return (inp.value || inp.placeholder || '').trim();
+  const sel = cell.querySelector('select');
+  if (sel) return (sel.options[sel.selectedIndex]?.text || '').trim();
+  const clone = cell.cloneNode(true);
+  clone.querySelectorAll('button,.row-actions,.row-btn,.cell-del,.gen-reset,.reset-btn').forEach(b => b.remove());
+  return (clone.textContent || '').trim().replace(/\s+/g, ' ');
+}
+
+function _getColumnValues(tbodyId, col) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return [];
+  const countMap = {};
+  tbody.querySelectorAll('tr').forEach(row => {
+    const cells = row.querySelectorAll('td');
+    if (cells[col]) {
+      const text = _extractCellText(cells[col]);
+      if (text && text !== '—' && text.length < 100) {
+        countMap[text] = (countMap[text] || 0) + 1;
+      }
+    }
+  });
+  const entries = Object.entries(countMap);
+  entries.sort((a, b) => {
+    const na = parseFloat(a[0].replace(/[^0-9.\-]/g, ''));
+    const nb = parseFloat(b[0].replace(/[^0-9.\-]/g, ''));
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return a[0].localeCompare(b[0]);
+  });
+  return entries; // [[value, count], ...]
+}
+
+window.cfToggle = function(btn) {
+  const wrap = btn.closest('.cf-wrap');
+  let panel = wrap.querySelector('.cf-panel');
+
+  if (_openPanel && _openPanel !== panel) {
+    _openPanel.classList.remove('open');
+    _openPanel = null;
+  }
+  if (panel && panel.classList.contains('open')) {
+    panel.classList.remove('open');
+    _openPanel = null;
+    return;
+  }
+
+  const tbodyId = wrap.dataset.tbody;
+  const col = parseInt(wrap.dataset.col);
+  const entries = _getColumnValues(tbodyId, col);
+
+  if (!_filterState[tbodyId]) _filterState[tbodyId] = {};
+  const selected = _filterState[tbodyId][col];
+  const isAllSelected = !selected || selected.size === 0;
+
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.className = 'cf-panel';
+    wrap.appendChild(panel);
+  }
+
+  panel.innerHTML =
+    '<input class="cf-search" placeholder="Search values..." oninput="cfSearchItems(this)">' +
+    '<div class="cf-actions">' +
+      '<button onclick="cfSelectAll(this)">\u2713 Select All</button>' +
+      '<button onclick="cfClearAll(this)">\u2715 Clear All</button>' +
+    '</div>' +
+    '<div class="cf-list">' +
+      entries.map(function(e) {
+        var v = e[0], cnt = e[1];
+        var esc = v.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+        var label = v.length > 40 ? v.substring(0, 40) + '\u2026' : v;
+        var labelEsc = label.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+        var checked = isAllSelected || (selected && selected.has(v));
+        return '<div class="cf-item" onclick="cfItemClick(event,this)">' +
+          '<input type="checkbox" value="' + esc + '"' + (checked ? ' checked' : '') + '>' +
+          '<span class="cf-item-label" title="' + esc + '">' + labelEsc + '</span>' +
+          '<span class="cf-item-count">(' + cnt + ')</span>' +
+        '</div>';
+      }).join('') +
+    '</div>' +
+    '<div class="cf-footer">' +
+      '<button class="cf-apply" onclick="cfApply(this)">\u2713 Apply Filter</button>' +
+      '<button class="cf-reset" onclick="cfReset(this)">\u21ba</button>' +
+    '</div>';
+
+  panel.classList.add('open');
+  _openPanel = panel;
+  panel.querySelector('.cf-search').focus();
+};
+
+window.cfItemClick = function(e, item) {
+  if (e.target.tagName !== 'INPUT') {
+    var cb = item.querySelector('input');
+    cb.checked = !cb.checked;
+  }
+};
+
+window.cfSearchItems = function(input) {
+  var term = input.value.toLowerCase();
+  var items = input.closest('.cf-panel').querySelectorAll('.cf-item');
+  items.forEach(function(item) {
+    var label = item.querySelector('.cf-item-label').textContent.toLowerCase();
+    item.style.display = (!term || label.includes(term)) ? '' : 'none';
+  });
+};
+
+window.cfSelectAll = function(btn) {
+  btn.closest('.cf-panel').querySelectorAll('.cf-item').forEach(function(item) {
+    if (item.style.display !== 'none') item.querySelector('input').checked = true;
+  });
+};
+
+window.cfClearAll = function(btn) {
+  btn.closest('.cf-panel').querySelectorAll('.cf-item').forEach(function(item) {
+    if (item.style.display !== 'none') item.querySelector('input').checked = false;
+  });
+};
+
+window.cfApply = function(btn) {
+  var panel = btn.closest('.cf-panel');
+  var wrap = panel.closest('.cf-wrap');
+  var tbodyId = wrap.dataset.tbody;
+  var col = parseInt(wrap.dataset.col);
+  var cfBtn = wrap.querySelector('.cf-btn');
+
+  if (!_filterState[tbodyId]) _filterState[tbodyId] = {};
+
+  var allCBs = panel.querySelectorAll('.cf-item input[type="checkbox"]');
+  var checkedVals = [];
+  var total = allCBs.length;
+  allCBs.forEach(function(cb) { if (cb.checked) checkedVals.push(cb.value); });
+
+  if (checkedVals.length === total || checkedVals.length === 0) {
+    delete _filterState[tbodyId][col];
+    cfBtn.textContent = '\u25bc All';
+    cfBtn.classList.remove('active');
+  } else {
+    _filterState[tbodyId][col] = new Set(checkedVals);
+    var lbl = checkedVals.length === 1
+      ? '\u25bc ' + (checkedVals[0].length > 10 ? checkedVals[0].substring(0,10) + '\u2026' : checkedVals[0])
+      : '\u25bc ' + checkedVals.length + '/' + total;
+    cfBtn.textContent = lbl;
+    cfBtn.classList.add('active');
+  }
+
+  panel.classList.remove('open');
+  _openPanel = null;
+  applyColumnFilters(tbodyId);
+};
+
+window.cfReset = function(btn) {
+  var panel = btn.closest('.cf-panel');
+  panel.querySelectorAll('.cf-item input[type="checkbox"]').forEach(function(cb) { cb.checked = true; });
+  cfApply(btn);
+};
+
+document.addEventListener('click', function(e) {
+  if (_openPanel && !e.target.closest('.cf-wrap')) {
+    _openPanel.classList.remove('open');
+    _openPanel = null;
+  }
+});
+
+function refreshFilterOptions(tbodyId) {
+  var filterRow = document.getElementById('filterRow-' + tbodyId);
+  if (!filterRow) return;
+  filterRow.querySelectorAll('.cf-wrap').forEach(function(wrap) {
+    var col = parseInt(wrap.dataset.col);
+    var btn = wrap.querySelector('.cf-btn');
+    var state = _filterState[tbodyId];
+    if (state && state[col] && state[col].size > 0) {
+      var allEntries = _getColumnValues(tbodyId, col);
+      var allVals = allEntries.map(function(e) { return e[0]; });
+      var valid = new Set();
+      state[col].forEach(function(v) { if (allVals.includes(v)) valid.add(v); });
+      if (valid.size === 0 || valid.size === allVals.length) {
+        delete state[col];
+        btn.textContent = '\u25bc All';
+        btn.classList.remove('active');
+      } else {
+        state[col] = valid;
+        var lbl = valid.size === 1
+          ? '\u25bc ' + ([...valid][0].length > 10 ? [...valid][0].substring(0,10) + '\u2026' : [...valid][0])
+          : '\u25bc ' + valid.size + '/' + allVals.length;
+        btn.textContent = lbl;
+        btn.classList.add('active');
+      }
+    } else {
+      btn.textContent = '\u25bc All';
+      btn.classList.remove('active');
+    }
+    // Remove stale panel so it rebuilds with fresh data
+    var oldPanel = wrap.querySelector('.cf-panel');
+    if (oldPanel) oldPanel.remove();
+  });
+  applyColumnFilters(tbodyId);
+}
+
+function applyColumnFilters(tbodyId) {
+  var tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  var state = _filterState[tbodyId] || {};
+  var activeFilters = {};
+  Object.entries(state).forEach(function(pair) {
+    if (pair[1] && pair[1].size > 0) activeFilters[pair[0]] = pair[1];
+  });
+  var rows = tbody.querySelectorAll('tr');
+  rows.forEach(function(row) {
+    if (row.querySelector('td[colspan]')) return;
+    if (row.dataset.searchHidden === '1') { row.style.display = 'none'; return; }
+    var cells = row.querySelectorAll('td');
+    var visible = true;
+    for (var col in activeFilters) {
+      if (cells[col]) {
+        var cellText = _extractCellText(cells[col]);
+        if (!activeFilters[col].has(cellText)) { visible = false; break; }
+      }
+    }
+    row.style.display = visible ? '' : 'none';
+  });
+}
+
+function clearTableFilters(tbodyId) {
+  _filterState[tbodyId] = {};
+  var filterRow = document.getElementById('filterRow-' + tbodyId);
+  if (filterRow) {
+    filterRow.querySelectorAll('.cf-btn').forEach(function(btn) {
+      btn.textContent = '\u25bc All';
+      btn.classList.remove('active');
+    });
+  }
+  applyColumnFilters(tbodyId);
 }
 
 // ── SAVE ──────────────────────────────────────────────────────────────────
@@ -2020,6 +2463,7 @@ function renderTable() {
   });
 
   renderSummary(visibleRows);
+  refreshFilterOptions('resultBody');
 }
 
 // ── CLEAR INDIVIDUAL ROW OVERRIDE ─────────────────────────────────────────
@@ -2917,6 +3361,7 @@ function renderOrdersTable(orders) {
     </tr>`;
   });
   document.getElementById('planOrderBody').innerHTML = html;
+  refreshFilterOptions('planOrderBody');
 }
 
 // ── RENDER: Module Summary ────────────────────────────────────────────
@@ -3028,6 +3473,7 @@ function renderConsolidatedTable(consolidated) {
   });
 
   document.getElementById('consolidatedBody').innerHTML = html;
+  refreshFilterOptions('consolidatedBody');
 }
 
 // ── RENDER: Detailed Table ──────────────────────────────────────────
@@ -3075,6 +3521,7 @@ function renderDetailedTable(plannedModules, consolidated) {
   });
 
   document.getElementById('resultBodyPlan').innerHTML = html;
+  refreshFilterOptions('resultBodyPlan');
 }
 
 // ── DISCARD / SUBSTITUTE ──────────────────────────────────────────────
@@ -3328,9 +3775,10 @@ document.getElementById('rateRMB').addEventListener('change', (e) => {
 
 window.filterPlanViews = function() {
   const term = document.getElementById('planSearchBox').value.toLowerCase();
-  // Filter customer order rows
+  // Filter customer order rows — mark with data attr, then apply column filters
   document.querySelectorAll('#planOrderBody tr').forEach(tr => {
-    tr.style.display = tr.textContent.toLowerCase().includes(term) ? '' : 'none';
+    const matchesSearch = !term || tr.textContent.toLowerCase().includes(term);
+    tr.dataset.searchHidden = matchesSearch ? '' : '1';
   });
   // Filter customer summary cards
   document.querySelectorAll('#custSummaryGrid .cust-card').forEach(card => {
@@ -3342,12 +3790,18 @@ window.filterPlanViews = function() {
   });
   // Filter consolidated rows
   document.querySelectorAll('#consolidatedBody tr:not(.group-row)').forEach(tr => {
-    tr.style.display = tr.textContent.toLowerCase().includes(term) ? '' : 'none';
+    const matchesSearch = !term || tr.textContent.toLowerCase().includes(term);
+    tr.dataset.searchHidden = matchesSearch ? '' : '1';
   });
   // Filter detailed rows
   document.querySelectorAll('#resultBodyPlan tr').forEach(tr => {
-    tr.style.display = tr.textContent.toLowerCase().includes(term) ? '' : 'none';
+    const matchesSearch = !term || tr.textContent.toLowerCase().includes(term);
+    tr.dataset.searchHidden = matchesSearch ? '' : '1';
   });
+  // Re-apply column filters on top of search
+  applyColumnFilters('planOrderBody');
+  applyColumnFilters('consolidatedBody');
+  applyColumnFilters('resultBodyPlan');
 };
 
 window.onDateRangeChange = function() {
@@ -3672,6 +4126,7 @@ loadAnalysisState();
       </tr>
     `).join('');
     cellUpdateTotals();
+    refreshFilterOptions('cellBody');
   };
 
   window.cellAddRow = function (d) {
