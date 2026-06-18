@@ -3734,7 +3734,17 @@ function _collectTableExport(tbodyId) {
 const _EX_BORDER = { style: 'thin', color: { rgb: 'D5E5DC' } };
 const _EX_BORDERS = { top: _EX_BORDER, bottom: _EX_BORDER, left: _EX_BORDER, right: _EX_BORDER };
 
-function _sheetFromExport(data, title) {
+/* ── Column-letter helper & per-table formula templates ({r} = Excel row) ── */
+function _colLetter(c){let s='';for(let n=c;n>=0;n=Math.floor(n/26)-1)s=String.fromCharCode(65+(n%26))+s;return s}
+const _TABLE_FORMULAS={
+  resultBody:{7:'F{r}*(1+G{r}/100)',9:'H{r}*I{r}'},
+  consolidatedBody:{6:'D{r}*F{r}',9:'I{r}-G{r}'},
+  resultBodyPlan:{6:'E{r}*(1+F{r}/100)',8:'G{r}*H{r}',10:'J{r}-I{r}'},
+  cellBody:{5:'D{r}*E{r}',7:'G{r}*D{r}',8:'H{r}*E{r}'},
+  planOrderBody:{6:'E{r}*F{r}'}
+};
+
+function _sheetFromExport(data, title, formulas) {
   const XS = _XS();
   const ncol = data.headers.length;
   const lastC = ncol - 1;
@@ -3747,8 +3757,10 @@ function _sheetFromExport(data, title) {
 
   aoa.push(data.headers.slice());
   const headerR = 1;
+  const dataRowIndices = [];
 
   let r = 2;
+  let hasTotalRow = false;
   data.rows.forEach(row => {
     if (row.type === 'group') {
       aoa.push([row.label].concat(Array(ncol - 1).fill('')));
@@ -3761,9 +3773,19 @@ function _sheetFromExport(data, title) {
       });
       aoa.push(out);
       styleRows.push({ r, kind: row.type, cells: row.cells });
+      if (row.type === 'data') dataRowIndices.push(r);
+      if (row.type === 'total') hasTotalRow = true;
     }
     r++;
   });
+
+  /* If formulas defined and no footer total row exists, append a SUM row */
+  if (formulas && dataRowIndices.length && !hasTotalRow) {
+    const sumRow = data.headers.map((_,c) => c === 0 ? 'Total' : '');
+    aoa.push(sumRow);
+    styleRows.push({ r, kind:'total', cells: sumRow });
+    r++;
+  }
 
   const ws = XS.utils.aoa_to_sheet(aoa);
 
@@ -3803,6 +3825,28 @@ function _sheetFromExport(data, title) {
       if (typeof ws[ref].v === 'number') ws[ref].z = '#,##0.##';
     }
   });
+
+  /* ── Apply live Excel formulas ── */
+  if (formulas && dataRowIndices.length) {
+    const fdr = dataRowIndices[0] + 1, ldr = dataRowIndices[dataRowIndices.length - 1] + 1;
+    Object.keys(formulas).forEach(ci => {
+      const c = +ci, cl = _colLetter(c), tmpl = formulas[c];
+      dataRowIndices.forEach(ri => {
+        const ref = cl + (ri + 1), f = tmpl.replace(/\{r\}/g, String(ri + 1));
+        if (ws[ref]) ws[ref].f = f; else ws[ref] = { t:'n', f:f, s:{} };
+      });
+    });
+    /* SUM formulas for total / footer rows */
+    styleRows.forEach(info => {
+      if (info.kind !== 'total') return;
+      for (let c = 0; c < ncol; c++) {
+        if (!(data.meta[c] || {}).isNum) continue;
+        const ref = _colLetter(c) + (info.r + 1);
+        if (!ws[ref]) ws[ref] = { t:'n', v:0, s:{} };
+        ws[ref].f = 'SUM(' + _colLetter(c) + fdr + ':' + _colLetter(c) + ldr + ')';
+      }
+    });
+  }
 
   ws['!merges'] = merges;
   const lastRow = aoa.length - 1;
@@ -3909,7 +3953,7 @@ function _exportWorkbook(specs, filename) {
   specs.forEach(sp => {
     const data = _collectTableExport(sp.tbodyId);
     if (!data || !data.rows.some(r => r.type === 'data')) return;
-    XS.utils.book_append_sheet(wb, _sheetFromExport(data, sp.title), sp.sheetName.substring(0, 31));
+    XS.utils.book_append_sheet(wb, _sheetFromExport(data, sp.title, _TABLE_FORMULAS[sp.tbodyId]), sp.sheetName.substring(0, 31));
     freezeRows.push(2); // freeze the title row + column-header row
     added++;
   });
