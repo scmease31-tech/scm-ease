@@ -2737,6 +2737,8 @@ function cellShowView(which, btn) {
   document.getElementById('calcMain').style.display = which === 'calc' ? 'block' : 'none';
   document.getElementById('planningMain').style.display = which === 'plan' ? 'block' : 'none';
   document.getElementById('cellInvMain').style.display = which === 'cell' ? 'block' : 'none';
+  /* Re-run planning analysis with latest consumption data when switching to Planning tab */
+  if (which === 'plan' && lastAnalysis && typeof planRaw !== 'undefined' && planRaw) runAnalysisAuto();
 }
 
 function setupDropZone(zoneId, inputId, onFile) {
@@ -3120,7 +3122,7 @@ function detectModuleType(oaDesc, wp) {
     return Number(wp) >= 600 ? 'g12r' : 'm10r';
   }
   // Try matching by module key names
-  for (const mod of baseModules) {
+  for (const mod of modules) {
     if (desc.includes(mod.key.toLowerCase())) return mod.key;
     if (desc.includes(mod.name.toLowerCase().split(' ')[0].toLowerCase())) return mod.key;
   }
@@ -3297,7 +3299,7 @@ function runAnalysisAuto() {
 
   // 4. Include all label/barcode materials by default (user can discard individually)
   const labelGroups = ['label', 'barcode', 'sticker', 'tag', 'ribbon'];
-  baseModules.forEach(m => m.rows.forEach(r => {
+  modules.forEach(m => m.rows.forEach(r => {
     const g = (r.group || '').toLowerCase();
     if (labelGroups.some(lg => g.includes(lg))) activeLabels.add(r.spec);
   }));
@@ -3307,7 +3309,7 @@ function runAnalysisAuto() {
 
   Object.keys(plannedModules).forEach(mk => {
     const mq = plannedModules[mk].qty;
-    const mod = baseModules.find(m => m.key === mk);
+    const mod = modules.find(m => m.key === mk);
     if (!mod) return;
 
     mod.rows.forEach(row => {
@@ -3443,7 +3445,7 @@ function renderCustomerSummary(orders) {
   let html = '';
   sorted.forEach(([name, data]) => {
     const modChips = data.orders.map(o => {
-      const mod = baseModules.find(m => m.key === o.modKey);
+      const mod = modules.find(m => m.key === o.modKey);
       return `<span class="cust-order-chip">${mod ? mod.name.split(' ')[0] : o.modKey} ${o.wp}Wp × ${fmt2.format(o.qty)}</span>`;
     }).join('');
 
@@ -3463,7 +3465,7 @@ function renderCustomerSummary(orders) {
 function renderOrdersTable(orders) {
   let html = '';
   orders.forEach(ord => {
-    const mod = baseModules.find(m => m.key === ord.modKey);
+    const mod = modules.find(m => m.key === ord.modKey);
     const tpwr = fmtPower(ord.qty * ord.wp);
     const lineClass = ord.line ? 'line-' + ord.line.toLowerCase() : '';
     html += `<tr>
@@ -3486,7 +3488,7 @@ function renderModuleSummary(plannedModules) {
   let grandTotalWp = 0, totMods = 0;
 
   Object.keys(plannedModules).forEach(mk => {
-    const mod = baseModules.find(m => m.key === mk);
+    const mod = modules.find(m => m.key === mk);
     const qty = plannedModules[mk].qty;
     const wpValues = plannedModules[mk].wpValues;
     const avgWp = wpValues.length ? wpValues.reduce((s,v) => s+v, 0) / wpValues.length : 0;
@@ -3597,7 +3599,7 @@ function renderDetailedTable(plannedModules, consolidated) {
   let html = '';
 
   Object.keys(plannedModules).forEach(mk => {
-    const mod = baseModules.find(m => m.key === mk);
+    const mod = modules.find(m => m.key === mk);
     if (!mod) return;
     const mQty = plannedModules[mk].qty;
 
