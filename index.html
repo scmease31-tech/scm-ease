@@ -310,6 +310,9 @@
     white-space: nowrap;
   }
   thead th:last-child { border-right: 0; }
+  /* Header cells with tooltips get position:relative from the global [data-tip]
+     rule, which breaks the sticky freeze on the right-side columns. Force sticky. */
+  thead th[data-tip] { position: sticky; }
 
   /* ── EXCEL-LIKE COLUMN FILTERS (Checkbox Multi-Select) ── */
   thead tr.filter-row th {
