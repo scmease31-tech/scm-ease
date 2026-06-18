@@ -472,8 +472,12 @@
     border-bottom: 1px solid rgba(255,255,255,0.2);
     border-right: 1px solid rgba(255,255,255,0.15);
     letter-spacing: 0.06em;
-    position: sticky; top: 0; z-index: 11;
+    height: 26px; box-sizing: border-box;
+    position: sticky; top: 0; z-index: 12;
   }
+  /* When a table has a group row, freeze the column-header row directly BELOW it
+     so BOTH header rows stay visible while scrolling */
+  thead tr.group-row ~ tr:not(.filter-row) th { top: 26px; z-index: 11; }
 
   tbody tr { transition: background 0.1s; }
   tbody tr:hover td { background: #f4fbf7; }
@@ -3808,19 +3812,116 @@ function _sheetFromExport(data, title) {
   return ws;
 }
 
+// ── Minimal ZIP reader/writer to inject frozen header panes (the Excel lib has no freeze support) ──
+const _CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; }
+  return t;
+})();
+function _crc32(bytes) { let c = 0xFFFFFFFF; for (let i = 0; i < bytes.length; i++) c = _CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function _u16(b, o) { return b[o] | (b[o + 1] << 8); }
+function _u32(b, o) { return (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0; }
+
+function _unzipStored(buf) {
+  const b = new Uint8Array(buf);
+  const entries = [];
+  let o = 0;
+  while (o + 4 <= b.length && _u32(b, o) === 0x04034b50) {
+    const method = _u16(b, o + 8), time = _u16(b, o + 10), date = _u16(b, o + 12);
+    const compSize = _u32(b, o + 18);
+    const nameLen = _u16(b, o + 26), extraLen = _u16(b, o + 28);
+    const name = new TextDecoder().decode(b.subarray(o + 30, o + 30 + nameLen));
+    const dataStart = o + 30 + nameLen + extraLen;
+    entries.push({ name, method, time, date, data: b.subarray(dataStart, dataStart + compSize).slice() });
+    o = dataStart + compSize;
+  }
+  return entries;
+}
+
+function _zipStore(entries) {
+  const enc = new TextEncoder();
+  const chunks = [], central = [];
+  let offset = 0;
+  entries.forEach(e => {
+    const nameBytes = enc.encode(e.name);
+    const crc = _crc32(e.data), size = e.data.length;
+    const lh = new Uint8Array(30 + nameBytes.length);
+    const dv = new DataView(lh.buffer);
+    dv.setUint32(0, 0x04034b50, true); dv.setUint16(4, 20, true); dv.setUint16(6, 0, true);
+    dv.setUint16(8, 0, true); dv.setUint16(10, e.time || 0, true); dv.setUint16(12, e.date || 0x21, true);
+    dv.setUint32(14, crc, true); dv.setUint32(18, size, true); dv.setUint32(22, size, true);
+    dv.setUint16(26, nameBytes.length, true); dv.setUint16(28, 0, true);
+    lh.set(nameBytes, 30);
+    chunks.push(lh, e.data);
+    const cd = new Uint8Array(46 + nameBytes.length);
+    const cv = new DataView(cd.buffer);
+    cv.setUint32(0, 0x02014b50, true); cv.setUint16(4, 20, true); cv.setUint16(6, 20, true);
+    cv.setUint16(8, 0, true); cv.setUint16(10, 0, true); cv.setUint16(12, e.time || 0, true); cv.setUint16(14, e.date || 0x21, true);
+    cv.setUint32(16, crc, true); cv.setUint32(20, size, true); cv.setUint32(24, size, true);
+    cv.setUint16(28, nameBytes.length, true);
+    cv.setUint32(42, offset, true);
+    cd.set(nameBytes, 46);
+    central.push(cd);
+    offset += lh.length + size;
+  });
+  const centralStart = offset;
+  let centralSize = 0;
+  central.forEach(c => { chunks.push(c); centralSize += c.length; });
+  const eocd = new Uint8Array(22);
+  const ev = new DataView(eocd.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, entries.length, true); ev.setUint16(10, entries.length, true);
+  ev.setUint32(12, centralSize, true); ev.setUint32(16, centralStart, true);
+  chunks.push(eocd);
+  let total = 0; chunks.forEach(c => total += c.length);
+  const out = new Uint8Array(total);
+  let p = 0; chunks.forEach(c => { out.set(c, p); p += c.length; });
+  return out;
+}
+
+function _injectFreeze(entries, freezeRows) {
+  let idx = 0;
+  entries.forEach(e => {
+    if (!/^xl\/worksheets\/sheet\d+\.xml$/.test(e.name)) return;
+    const n = freezeRows[idx]; idx++;
+    if (!n) return;
+    let xml = new TextDecoder().decode(e.data);
+    const tl = 'A' + (n + 1);
+    const pane = '<pane ySplit="' + n + '" topLeftCell="' + tl + '" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="' + tl + '" sqref="' + tl + '"/>';
+    if (/<sheetView [^>]*\/>/.test(xml)) xml = xml.replace(/<sheetView ([^>]*?)\/>/, '<sheetView $1>' + pane + '</sheetView>');
+    else xml = xml.replace(/<sheetView ([^>]*?)>/, '<sheetView $1>' + pane);
+    e.data = new TextEncoder().encode(xml);
+  });
+}
+
 function _exportWorkbook(specs, filename) {
   const XS = _XS();
-  if (!XS || !XS.utils || !XS.writeFile) { alert('Excel library is still loading — please try again in a moment.'); return; }
+  if (!XS || !XS.utils || !XS.write) { alert('Excel library is still loading — please try again in a moment.'); return; }
   const wb = XS.utils.book_new();
+  const freezeRows = [];
   let added = 0;
   specs.forEach(sp => {
     const data = _collectTableExport(sp.tbodyId);
     if (!data || !data.rows.some(r => r.type === 'data')) return;
     XS.utils.book_append_sheet(wb, _sheetFromExport(data, sp.title), sp.sheetName.substring(0, 31));
+    freezeRows.push(2); // freeze the title row + column-header row
     added++;
   });
   if (!added) { alert('Nothing to export — no visible rows (check your filters).'); return; }
-  XS.writeFile(wb, filename, { bookType: 'xlsx' });
+  try {
+    const buf = XS.write(wb, { bookType: 'xlsx', type: 'array', compression: false });
+    const entries = _unzipStored(buf);
+    if (!entries.length || entries.some(e => e.method !== 0)) throw new Error('zip-store-unavailable');
+    _injectFreeze(entries, freezeRows);
+    const blob = new Blob([_zipStore(entries)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  } catch (err) {
+    XS.writeFile(wb, filename, { bookType: 'xlsx' }); // fallback without freeze
+  }
 }
 
 function _activeView() {
