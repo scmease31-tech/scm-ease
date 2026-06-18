@@ -3512,6 +3512,12 @@ loadAnalysisState();
   };
   const num = v => parseFloat(v) || 0;
 
+  // Per-browser local persistence (each visitor's data stays on their own device)
+  const CELL_KEY = 'scmCellInv';
+  function cellSave() {
+    try { localStorage.setItem(CELL_KEY, JSON.stringify({ rows: cellRows, nextId: cellNextId })); } catch (e) {}
+  }
+
   window.cellSetGlobalActive = function (type) {
     ['amount', 'pwp', 'pcp'].forEach(t => {
       const el = document.getElementById('cellMc-' + t);
@@ -3545,6 +3551,7 @@ loadAnalysisState();
 
     cellRenderTable();
     cellUpdateTotals();
+    cellSave();
   };
 
   window.cellOnRowInput = function (id, field) {
@@ -3609,6 +3616,7 @@ loadAnalysisState();
 
     cellSetGlobalActive(null);
     cellUpdateTotals();
+    cellSave();
   };
 
   window.cellUpdateTotals = function () {
@@ -3670,11 +3678,13 @@ loadAnalysisState();
     d = d || {};
     cellRows.push({ id: cellNextId++, size: d.size || '', eff: d.eff || '', wp: d.wp || '', qty: d.qty || '', pwp: d.pwp || 0, pcp: d.pcp || 0, amt: 0 });
     cellRenderTable();
+    cellSave();
   };
 
   window.cellRemoveRow = function (id) {
     cellRows = cellRows.filter(x => x.id !== id);
     cellRenderTable();
+    cellSave();
   };
 
   window.cellClearAll = function () {
@@ -3683,6 +3693,7 @@ loadAnalysisState();
     document.getElementById('cellInAmount').value = '';
     document.getElementById('cellInPwp').value = '';
     document.getElementById('cellInPcp').value = '';
+    cellSave();
   };
 
   window.cellLoadSample = function () {
@@ -3692,9 +3703,22 @@ loadAnalysisState();
     cellAddRow({ size: '182.3x210', eff: '25.5', wp: '9.74', qty: '2657280', pwp: 0.105, pcp: 1.0227 });
     cellSetGlobalActive(null);
     cellRenderTable();
+    cellSave();
   };
 
-  cellLoadSample();
+  // On load: restore this browser's saved data; if none, show the default sample.
+  (function cellInit() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(CELL_KEY) || 'null'); } catch (e) { saved = null; }
+    if (saved && Array.isArray(saved.rows)) {
+      cellRows = saved.rows;
+      cellNextId = saved.nextId || (cellRows.reduce((m, r) => Math.max(m, r.id || 0), 0) + 1);
+      cellSetGlobalActive(null);
+      cellRenderTable();
+    } else {
+      cellLoadSample();
+    }
+  })();
 })();
 </script>
 </body>
