@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://sohildobariya31-blip.github.io/scm-ease/sitemap.xml
