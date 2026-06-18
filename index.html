@@ -1149,6 +1149,11 @@
   .admin-toolbar .atb-deploy:disabled{opacity:.5;cursor:not-allowed;transform:none}
   .admin-toolbar .atb-logout{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3)}
   .admin-toolbar .atb-logout:hover{background:rgba(239,68,68,.25)}
+  .admin-toolbar .atb-add-module{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff}
+  .admin-toolbar .atb-add-module:hover{filter:brightness(1.1);transform:translateY(-1px)}
+  .tab-del{display:none;margin-left:6px;background:none;border:none;color:rgba(220,38,38,.6);font-size:13px;font-weight:700;cursor:pointer;padding:0 2px;line-height:1;vertical-align:middle}
+  .tab-del:hover{color:#dc2626}
+  body.admin-active .tab-del{display:inline}
   body.admin-active{padding-bottom:52px}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
@@ -1723,6 +1728,30 @@
   </div>
 </div>
 
+<!-- ADD MODULE TYPE MODAL -->
+<div class="modal-overlay" id="addModuleModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--solar-1)">+ Add New Module Type</div>
+      <button class="modal-close" onclick="closeModal('addModuleModal')">×</button>
+    </div>
+    <div class="modal-fields">
+      <div class="modal-field">
+        <label>Module Name</label>
+        <input type="text" id="newModuleName" placeholder="e.g. M14 PERC"/>
+      </div>
+      <div class="modal-field">
+        <label>Copy Materials From (optional)</label>
+        <select id="cloneFromModule"></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal('addModuleModal')">Cancel</button>
+      <button class="btn-modal-save" onclick="saveAddModuleModal()">Create Module Type</button>
+    </div>
+  </div>
+</div>
+
 <!-- ADD ROW MODAL -->
 <div class="modal-overlay" id="addRowModal">
   <div class="modal">
@@ -2245,12 +2274,22 @@ function renderPricingSummary() {
 // ── TABS ──────────────────────────────────────────────────────────────────
 function renderTabs() {
   const tabs = document.getElementById("tabs");
+  const isAdmin = document.body.classList.contains('admin-active');
   const opts = [{ key: "all", name: "All Types" }, ...modules];
   tabs.innerHTML = opts.map(item =>
-    `<button class="tab ${activeModule === item.key ? "active" : ""}" data-tab="${item.key}">${item.name}</button>`
+    `<button class="tab ${activeModule === item.key ? "active" : ""}" data-tab="${item.key}">${item.name}${isAdmin && item.key !== 'all' ? '<span class="tab-del" data-del-module="' + item.key + '" title="Delete module type">×</span>' : ''}</button>`
   ).join("");
   document.querySelectorAll("[data-tab]").forEach(btn => {
-    btn.addEventListener("click", () => { activeModule = btn.dataset.tab; saveState(); render(); });
+    btn.addEventListener("click", (e) => {
+      if (e.target.classList.contains('tab-del')) return;
+      activeModule = btn.dataset.tab; saveState(); render();
+    });
+  });
+  document.querySelectorAll("[data-del-module]").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      deleteModuleType(btn.dataset.delModule);
+    });
   });
 }
 
@@ -2730,6 +2769,47 @@ document.querySelectorAll(".modal-overlay").forEach(overlay => {
 });
 
 // ── MAIN RENDER ───────────────────────────────────────────────────────────
+// ── ADD / DELETE MODULE TYPE (admin) ──────────────────────────────────────
+function openAddModuleModal() {
+  const sel = document.getElementById('cloneFromModule');
+  sel.innerHTML = '<option value="">— Start blank (no materials) —</option>' +
+    modules.map(m => `<option value="${m.key}">${m.name}</option>`).join('');
+  document.getElementById('newModuleName').value = '';
+  document.getElementById('addModuleModal').classList.add('open');
+  setTimeout(() => document.getElementById('newModuleName').focus(), 100);
+}
+function saveAddModuleModal() {
+  const name = document.getElementById('newModuleName').value.trim();
+  if (!name) { alert('Please enter a module name'); return; }
+  const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  if (!key) { alert('Invalid name — use at least one letter or number'); return; }
+  if (modules.find(m => m.key === key)) { alert('A module with a similar name already exists.\nTry a different name.'); return; }
+  const cloneFrom = document.getElementById('cloneFromModule').value;
+  let rows = [];
+  if (cloneFrom) {
+    const source = modules.find(m => m.key === cloneFrom);
+    if (source) rows = JSON.parse(JSON.stringify(source.rows));
+  }
+  modules.push({ key, name, rows });
+  moduleQty[key] = 0;
+  moduleWp[key] = 0;
+  closeModal('addModuleModal');
+  saveState(); renderControls(); render();
+}
+function deleteModuleType(key) {
+  const mod = modules.find(m => m.key === key);
+  if (!mod) return;
+  if (!confirm(`Delete module type "${mod.name}" and all its ${mod.rows.length} material rows?\n\nThis cannot be undone (until next deploy).`)) return;
+  modules.splice(modules.indexOf(mod), 1);
+  delete moduleQty[key];
+  delete moduleWp[key];
+  Object.keys(rowOverrides).forEach(k => { if (k.startsWith(key + ':')) delete rowOverrides[k]; });
+  Object.keys(rowGeneration).forEach(k => { if (k.startsWith(key + ':')) delete rowGeneration[k]; });
+  Object.keys(rowPricing).forEach(k => { if (k.startsWith(key + ':')) delete rowPricing[k]; });
+  if (activeModule === key) activeModule = 'all';
+  saveState(); renderControls(); render();
+}
+
 function render() {
   renderTabs();
   renderWattSummary();
@@ -4621,6 +4701,7 @@ loadAnalysisState();
 <!-- ADMIN TOOLBAR (shown when logged in) -->
 <div class="admin-toolbar" id="adminToolbar">
   <span class="atb-label">🔓 Admin Mode — changes will be deployed to all users</span>
+  <button class="atb-btn atb-add-module" id="adminAddModuleBtn">📦 Add Module Type</button>
   <button class="atb-btn atb-deploy" id="adminDeployBtn">🚀 Deploy Changes</button>
   <button class="atb-btn atb-logout" id="adminLogoutBtn">Logout</button>
 </div>
@@ -4648,6 +4729,7 @@ loadAnalysisState();
     toolbar.classList.add('show');
     document.body.classList.add('admin-active');
     document.getElementById('adminLoginBtn').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span style="color:#10b981">Admin ✓</span>';
+    if (typeof render === 'function') render();
   }
 
   function exitAdminMode() {
@@ -4758,6 +4840,12 @@ loadAnalysisState();
   document.getElementById('adminLogoutBtn').addEventListener('click', () => {
     clearToken();
     exitAdminMode();
+    render(); // re-render tabs to hide delete buttons
+  });
+
+  // add module type (admin)
+  document.getElementById('adminAddModuleBtn').addEventListener('click', () => {
+    openAddModuleModal();
   });
 })();
 </script>
