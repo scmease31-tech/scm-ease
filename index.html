@@ -1,0 +1,3688 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>RM Consumption Calculator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  :root {
+    --bg: #f0f4f8;
+    --panel: #ffffff;
+    --ink: #0f1923;
+    --ink2: #3a4a56;
+    --muted: #7a8e9c;
+    --line: #e2eaf0;
+    --line2: #c8d8e4;
+    --solar-1: #0b6e4f;    /* deep emerald */
+    --solar-2: #1a9e72;    /* mid green */
+    --solar-3: #25d19a;    /* accent mint */
+    --solar-bg: #e6f7f1;
+    --amber: #f59e0b;
+    --amber-bg: #fef3c7;
+    --blue: #1d6fbf;
+    --blue-bg: #dbeafe;
+    --danger: #dc2626;
+    --danger-bg: #fee2e2;
+    --purple: #7c3aed;
+    --purple-bg: #ede9fe;
+    --shadow-sm: 0 1px 3px rgba(15,25,35,0.08);
+    --shadow: 0 4px 16px rgba(15,25,35,0.10);
+    --shadow-lg: 0 8px 32px rgba(15,25,35,0.14);
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    font-size: 13px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: linear-gradient(135deg, var(--solar-1) 0%, #0d4f38 100%);
+    padding: 0 24px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 12px rgba(11,110,79,0.3);
+  }
+
+  .header-inner {
+    max-width: 1680px;
+    margin: 0 auto;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .logo-mark {
+    width: 32px; height: 32px;
+    background: var(--solar-3);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .logo-mark svg { width: 18px; height: 18px; }
+
+  .header-title {
+    flex: 1;
+    min-width: 0;
+  }
+  .header-title h1 {
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.2px;
+    line-height: 1;
+  }
+  .header-title .sub {
+    font-size: 10px;
+    color: rgba(255,255,255,0.55);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    border-radius: var(--radius-sm);
+    padding: 0 11px;
+    height: 32px;
+    font-size: 11.5px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  .btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+  .btn-ghost { background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.2); }
+  .btn-ghost:hover { background: rgba(255,255,255,0.2); }
+  .btn-primary { background: var(--solar-3); color: var(--solar-1); border-color: var(--solar-3); }
+  .btn-primary:hover { background: #1fc288; }
+  .btn-solid { background: #fff; color: var(--solar-1); }
+  .btn-solid:hover { background: var(--solar-bg); }
+  .btn-danger { background: var(--danger-bg); color: var(--danger); border-color: #fca5a5; }
+  .btn-danger:hover { background: #fecaca; }
+
+  /* page btns (inside main, not header) */
+  .btn-outline { background: #fff; color: var(--ink2); border-color: var(--line2); }
+  .btn-outline:hover { border-color: var(--solar-2); color: var(--solar-1); }
+
+  /* ── MAIN ── */
+  main { max-width: 1680px; margin: 0 auto; padding: 18px 24px 40px; }
+
+  /* ── CONTROLS GRID ── */
+  .controls-section { margin-bottom: 16px; }
+  .section-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .controls-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 10px;
+  }
+
+  .module-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.15s, border-color 0.15s;
+  }
+  .module-card:focus-within { border-color: var(--solar-2); box-shadow: var(--shadow), 0 0 0 3px rgba(26,158,114,0.12); }
+
+  .module-card-header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+  }
+  .module-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--solar-3); flex-shrink: 0;
+  }
+  .module-card-label {
+    font-size: 11px; font-weight: 700; color: var(--ink2);
+    flex: 1; min-width: 0; line-height: 1.2;
+  }
+  .module-wp-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; font-weight: 600;
+    background: var(--solar-bg); color: var(--solar-1);
+    padding: 2px 6px; border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  .module-inputs { display: flex; flex-direction: column; gap: 7px; }
+  .input-row { display: flex; gap: 6px; align-items: center; }
+  .input-label { font-size: 10px; color: var(--muted); font-weight: 500; width: 60px; flex-shrink: 0; }
+  .input-field-wrap { flex: 1; position: relative; }
+  .input-field-wrap input {
+    width: 100%; border: 1px solid var(--line2); border-radius: var(--radius-sm);
+    padding: 5px 8px; font: 600 12px 'JetBrains Mono', monospace;
+    color: var(--ink); background: #f8fafb;
+    transition: border-color 0.15s, background 0.15s;
+    -moz-appearance: textfield;
+  }
+  .input-field-wrap input::-webkit-outer-spin-button,
+  .input-field-wrap input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .input-field-wrap input:focus { outline: none; border-color: var(--solar-2); background: #fff; }
+  .input-unit {
+    font-size: 10px; color: var(--muted); font-weight: 600; flex-shrink: 0;
+    text-align: right; min-width: 32px;
+  }
+
+  /* Power generation mini-display on each card */
+  .power-pill {
+    margin-top: 8px; padding: 6px 10px;
+    background: linear-gradient(90deg, #0b6e4f11, #25d19a18);
+    border: 1px solid #c1edd9; border-radius: var(--radius-sm);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .power-pill-icon { color: var(--solar-3); font-size: 13px; }
+  .power-pill-text { font-size: 11px; color: var(--solar-1); font-weight: 600; flex: 1; }
+  .power-pill-val { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: var(--solar-1); }
+
+  /* ── SUMMARY CARDS ── */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .kpi {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px; border-radius: 3px 0 0 3px;
+  }
+  .kpi.green::before { background: var(--solar-2); }
+  .kpi.amber::before { background: var(--amber); }
+  .kpi.blue::before { background: var(--blue); }
+  .kpi.purple::before { background: var(--purple); }
+  .kpi.teal::before { background: var(--solar-3); }
+
+  .kpi-label { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .kpi-val { font-size: 20px; font-weight: 800; color: var(--ink); line-height: 1; }
+  .kpi-sub { font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+  /* ── TOOLBAR ── */
+  .toolbar {
+    display: flex; gap: 8px; align-items: center;
+    margin-bottom: 12px; flex-wrap: wrap;
+  }
+  .search-wrap { flex: 1; min-width: 200px; max-width: 360px; position: relative; }
+  .search-wrap svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); width: 14px; height: 14px; pointer-events: none; }
+  .search-wrap input {
+    width: 100%; padding: 7px 10px 7px 30px;
+    border: 1px solid var(--line2); border-radius: var(--radius-sm);
+    font: 13px 'Inter', sans-serif; background: var(--panel);
+    color: var(--ink);
+  }
+  .search-wrap input:focus { outline: none; border-color: var(--solar-2); }
+
+  /* Exchange Rates Toolbar */
+  .rates-wrap { display: flex; gap: 8px; align-items: center; background: #fffbeb; padding: 4px 10px; border-radius: var(--radius-sm); border: 1px solid #fde68a; }
+  .rates-wrap label { font-size: 10px; font-weight: 700; color: #92400e; text-transform: uppercase; }
+  .rate-input { display: flex; align-items: center; gap: 4px; }
+  .rate-input span { font-size: 11px; font-weight: 600; color: #b45309; }
+  .rate-input input { width: 55px; padding: 3px 5px; border: 1px solid #fcd34d; border-radius: 4px; font: 600 11px 'JetBrains Mono', monospace; color: #92400e; text-align: right; }
+  .rate-input input:focus { outline: none; border-color: #d97706; background: #fff; }
+
+  .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .tab {
+    padding: 6px 12px; border-radius: 20px;
+    font-size: 11.5px; font-weight: 600;
+    cursor: pointer; border: 1px solid var(--line2);
+    background: var(--panel); color: var(--ink2);
+    transition: all 0.15s;
+  }
+  .tab:hover { border-color: var(--solar-2); color: var(--solar-1); }
+  .tab.active { background: var(--solar-1); color: #fff; border-color: var(--solar-1); }
+
+  /* ── TABLE ── */
+  .table-wrap {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: auto;
+  }
+
+  table {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+    min-width: 1680px;
+  }
+
+  thead th {
+    background: linear-gradient(180deg, #e8f5ef 0%, #dff0e8 100%);
+    color: var(--solar-1); font-size: 10.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 9px 10px;
+    border-bottom: 2px solid #b8dfc8;
+    border-right: 1px solid #cde8d8;
+    position: sticky; top: 0; z-index: 10;
+    white-space: nowrap;
+  }
+  thead th:last-child { border-right: 0; }
+
+  /* Column group headers */
+  thead tr.group-row th {
+    background: var(--solar-1);
+    color: rgba(255,255,255,0.9);
+    font-size: 9.5px; text-align: center;
+    padding: 5px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.2);
+    border-right: 1px solid rgba(255,255,255,0.15);
+    letter-spacing: 0.06em;
+    position: sticky; top: 0; z-index: 11;
+  }
+
+  tbody tr { transition: background 0.1s; }
+  tbody tr:hover td { background: #f4fbf7; }
+  tbody tr:hover td.watt-cell { background: #ecf9f2; }
+
+  td {
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--line);
+    border-right: 1px solid #edf4f0;
+    font-size: 12.5px;
+    vertical-align: middle;
+  }
+  td:last-child { border-right: 0; }
+  tr:last-child td { border-bottom: 0; }
+
+  td.num, th.num { text-align: right; }
+  td.center, th.center { text-align: center; }
+
+  td.spec { min-width: 240px; max-width: 380px; line-height: 1.4; color: var(--ink2); font-size: 12px; }
+  td.group-cell { font-weight: 700; color: var(--ink); min-width: 140px; }
+  td.module-type { font-weight: 800; font-size: 11px; }
+
+  /* Module type badge */
+  .mod-badge {
+    display: inline-flex; align-items: center;
+    background: var(--solar-bg); color: var(--solar-1);
+    border: 1px solid #b6e2ce; border-radius: 4px;
+    padding: 2px 7px; font-size: 10.5px; font-weight: 700;
+    white-space: nowrap;
+  }
+
+  /* Editable inputs in table */
+  td.edit-cell { padding: 4px 8px; }
+  .edit-cell input {
+    width: 90px; text-align: right;
+    padding: 4px 7px;
+    border: 1px solid var(--line2); border-radius: 5px;
+    font: 600 11.5px 'JetBrains Mono', monospace;
+    color: var(--ink); background: #f8fafb;
+    -moz-appearance: textfield;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .edit-cell input::-webkit-outer-spin-button,
+  .edit-cell input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .edit-cell input:focus { outline: none; border-color: var(--solar-2); background: #fff; }
+
+  td.total-cell {
+    font-weight: 800; font-size: 12.5px;
+    color: var(--solar-1); background: #f2fbf6;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 4px 8px;
+  }
+
+  /* Required Qty editable input */
+  .total-cell input {
+    width: 100px; text-align: right;
+    padding: 4px 7px;
+    border: 1.5px solid var(--solar-2); border-radius: 5px;
+    font: 700 12px 'JetBrains Mono', monospace;
+    color: var(--solar-1); background: #f0fbf5;
+    -moz-appearance: textfield;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  }
+  .total-cell input::-webkit-outer-spin-button,
+  .total-cell input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .total-cell input:focus {
+    outline: none; border-color: var(--solar-1);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(11,110,79,0.15);
+  }
+
+  /* Computed Module Qty cell (back-calculated) */
+  td.modqty-cell {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700; font-size: 12px;
+    text-align: right; padding: 4px 10px;
+    transition: background 0.2s;
+  }
+  td.modqty-cell.derived {
+    color: var(--blue);
+    background: #eff6ff;
+  }
+  td.modqty-cell.normal {
+    color: var(--muted);
+  }
+
+  /* Direction indicator badge */
+  .calc-dir {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 9px; font-weight: 700; padding: 1px 5px;
+    border-radius: 3px; letter-spacing: 0.03em;
+    vertical-align: middle; margin-left: 4px;
+    user-select: none;
+  }
+  .calc-dir.from-module { background: var(--solar-bg); color: var(--solar-1); }
+  .calc-dir.from-required { background: var(--blue-bg); color: var(--blue); }
+
+  /* Watt generation cells */
+  td.watt-cell {
+    background: linear-gradient(90deg, #f0fbf6, #e8f9f0);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700; font-size: 12px;
+    text-align: right; white-space: nowrap;
+  }
+  td.watt-cell.not-cell { color: var(--muted); font-style: italic; font-weight: 400; font-family: 'Inter', sans-serif; font-size: 11px; }
+  .watt-val { color: var(--solar-1); }
+  .watt-unit { font-size: 9.5px; color: var(--muted); font-weight: 600; margin-left: 2px; vertical-align: super; }
+
+  /* Inline generation editable input + unit dropdown */
+  td.gen-edit-cell {
+    background: linear-gradient(90deg, #f0fbf6, #e8f9f0);
+    padding: 4px 6px;
+    white-space: nowrap;
+  }
+  .gen-inline-wrap {
+    display: inline-flex; align-items: center; gap: 3px;
+  }
+  .gen-inline-wrap input {
+    width: 72px; text-align: right;
+    padding: 4px 6px;
+    border: 1.5px solid #25d19a; border-radius: 5px 0 0 5px;
+    font: 600 11.5px 'JetBrains Mono', monospace;
+    color: var(--solar-1); background: #f0fbf5;
+    -moz-appearance: textfield;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  }
+  .gen-inline-wrap input::-webkit-outer-spin-button,
+  .gen-inline-wrap input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .gen-inline-wrap input:focus {
+    outline: none; border-color: var(--solar-1);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(11,110,79,0.15);
+  }
+  .gen-inline-wrap select {
+    padding: 4px 2px 4px 4px;
+    border: 1.5px solid #25d19a; border-left: none; border-radius: 0 5px 5px 0;
+    font: 700 10px 'Inter', sans-serif;
+    color: var(--solar-1); background: #e6f7f1;
+    cursor: pointer;
+    appearance: none; -webkit-appearance: none;
+    text-align: center;
+    min-width: 32px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .gen-inline-wrap select:focus {
+    outline: none; border-color: var(--solar-1); background: #d5f0e5;
+  }
+  .gen-inline-wrap .gen-reset {
+    width: 16px; height: 16px; border-radius: 3px;
+    border: 1px solid #25d19a; background: #e6f7f1;
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    color: var(--solar-1); font-size: 9px; font-weight: 700; line-height: 1;
+    margin-left: 2px; transition: all 0.12s;
+  }
+  .gen-inline-wrap .gen-reset:hover { background: #c1edd9; border-color: #0b6e4f; }
+  .gen-tag {
+    font-size: 8px; font-weight: 700; color: #065f46;
+    background: #d1fae5; border: 1px solid #6ee7b7;
+    border-radius: 3px; padding: 0px 3px;
+    margin-left: 2px; vertical-align: middle;
+  }
+
+  /* Action column */
+  td.action-cell { width: 60px; text-align: center; padding: 4px; }
+  .row-actions { display: flex; gap: 4px; justify-content: center; }
+  .row-btn {
+    width: 26px; height: 26px; border-radius: 5px;
+    border: 1px solid var(--line2); background: var(--panel);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; color: var(--muted);
+  }
+  .row-btn:hover.edit-btn { border-color: var(--blue); color: var(--blue); background: var(--blue-bg); }
+  .row-btn:hover.del-btn { border-color: var(--danger); color: var(--danger); background: var(--danger-bg); }
+  .row-btn svg { width: 12px; height: 12px; }
+
+  /* Empty state */
+  .empty-state {
+    padding: 48px 24px; text-align: center; color: var(--muted);
+  }
+  .empty-state svg { width: 40px; height: 40px; margin-bottom: 12px; color: var(--line2); }
+  .empty-state p { font-size: 14px; font-weight: 500; }
+  .empty-state small { font-size: 12px; }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(15,25,35,0.45); z-index: 500;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--panel); border-radius: 12px;
+    box-shadow: var(--shadow-lg); padding: 24px;
+    width: 480px; max-width: 96vw;
+    animation: modalIn 0.2s ease;
+  }
+  @keyframes modalIn { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .modal-title { font-size: 16px; font-weight: 800; color: var(--ink); }
+  .modal-close { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--line2); background: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 16px; }
+  .modal-close:hover { background: var(--danger-bg); border-color: #fca5a5; color: var(--danger); }
+
+  .modal-fields { display: flex; flex-direction: column; gap: 12px; }
+  .modal-field label { display: block; font-size: 11px; font-weight: 700; color: var(--ink2); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .modal-field input, .modal-field select, .modal-field textarea {
+    width: 100%; padding: 8px 10px;
+    border: 1px solid var(--line2); border-radius: var(--radius-sm);
+    font: 13px 'Inter', sans-serif; color: var(--ink); background: #f8fafb;
+  }
+  .modal-field textarea { resize: vertical; min-height: 60px; }
+  .modal-field input:focus, .modal-field select:focus, .modal-field textarea:focus { outline: none; border-color: var(--solar-2); background: #fff; }
+  .modal-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .modal-footer { margin-top: 20px; display: flex; gap: 8px; justify-content: flex-end; }
+  .btn-modal-cancel { background: var(--panel); color: var(--ink2); border: 1px solid var(--line2); height: 36px; padding: 0 16px; border-radius: var(--radius-sm); font: 600 13px 'Inter',sans-serif; cursor: pointer; }
+  .btn-modal-save { background: var(--solar-1); color: #fff; border: none; height: 36px; padding: 0 20px; border-radius: var(--radius-sm); font: 700 13px 'Inter',sans-serif; cursor: pointer; }
+  .btn-modal-cancel:hover { background: var(--bg); }
+  .btn-modal-save:hover { background: var(--solar-2); }
+
+  /* Confirm delete */
+  .confirm-text { font-size: 13px; color: var(--ink2); line-height: 1.6; margin-bottom: 20px; }
+  .confirm-highlight { font-weight: 700; color: var(--ink); }
+  .btn-modal-del { background: var(--danger); color: #fff; border: none; height: 36px; padding: 0 20px; border-radius: var(--radius-sm); font: 700 13px 'Inter',sans-serif; cursor: pointer; }
+  .btn-modal-del:hover { background: #b91c1c; }
+
+  /* Watt summary panel */
+  .watt-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px; margin-bottom: 16px;
+  }
+  .watt-card {
+    background: linear-gradient(135deg, #0b6e4f, #0d4f38);
+    border-radius: var(--radius);
+    padding: 13px 16px;
+    color: #fff;
+    position: relative; overflow: hidden;
+    box-shadow: 0 4px 16px rgba(11,110,79,0.25);
+  }
+  .watt-card::after {
+    content: ''; position: absolute; right: -12px; top: -12px;
+    width: 80px; height: 80px;
+    background: rgba(37,209,154,0.12); border-radius: 50%;
+  }
+  .watt-card-label { font-size: 9.5px; font-weight: 700; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .watt-card-name { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.8); margin-bottom: 6px; }
+  .watt-card-val { font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; line-height: 1; }
+  .watt-card-unit { font-size: 12px; font-weight: 500; color: var(--solar-3); margin-left: 4px; }
+  .watt-card-sub { font-size: 10px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+  .watt-card-full { color: var(--solar-3); }
+
+  /* Pricing Summary panel */
+  .price-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px; margin-bottom: 16px;
+  }
+  .price-card {
+    background: linear-gradient(135deg, #78350f, #451a03);
+    border-radius: var(--radius);
+    padding: 13px 16px;
+    color: #fff;
+    position: relative; overflow: hidden;
+    box-shadow: 0 4px 16px rgba(120,53,15,0.25);
+  }
+  .price-card::after {
+    content: ''; position: absolute; right: -12px; top: -12px;
+    width: 80px; height: 80px;
+    background: rgba(251,191,36,0.12); border-radius: 50%;
+  }
+  .price-card-label { font-size: 9.5px; font-weight: 700; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .price-card-name { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.8); margin-bottom: 6px; }
+  .price-card-val { font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 700; line-height: 1; color: #fde68a; }
+  .price-card-unit { font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.6); margin-left: 2px; }
+  .price-card-sub { font-size: 11.5px; font-weight: 600; color: #fcd34d; margin-top: 6px; font-family: 'JetBrains Mono', monospace; }
+  .price-card-sub-label { font-size: 9px; font-weight: 500; color: rgba(255,255,255,0.5); font-family: 'Inter', sans-serif; text-transform: uppercase; }
+
+  .divider { height: 1px; background: var(--line); margin: 16px 0; }
+
+  /* Tooltip */
+  [data-tip] { position: relative; cursor: help; }
+  [data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute; bottom: 120%; left: 50%; transform: translateX(-50%);
+    background: var(--ink); color: #fff; font-size: 10px; padding: 4px 8px;
+    border-radius: 5px; white-space: nowrap; z-index: 999; pointer-events: none;
+  }
+
+  @media (max-width: 860px) {
+    header { position: static; }
+    main { padding: 12px 14px 32px; }
+    .header-actions .btn-label { display: none; }
+  }
+
+  @media print {
+    header { position: static; background: #0b6e4f; -webkit-print-color-adjust: exact; }
+    .header-actions, .toolbar .btn, .row-btn, .modal-overlay { display: none !important; }
+    .table-wrap { overflow: visible; box-shadow: none; }
+    table { min-width: 0; }
+  }
+
+  /* ── INDIVIDUAL ROW OVERRIDE ── */
+  tr.row-overridden > td { background-color: #fffbeb !important; }
+  tr.row-overridden > td.total-cell { background-color: #fef3c7 !important; }
+  tr.row-overridden > td.watt-cell  { background-color: #fef9ec !important; }
+  tr.row-overridden > td.modqty-cell { background-color: #fffbeb !important; }
+
+  .reset-btn {
+    width: 16px; height: 16px; border-radius: 3px;
+    border: 1px solid #fbbf24; background: #fef9c3;
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    color: #92400e; font-size: 9px; font-weight: 700; line-height: 1;
+    margin-left: 4px; vertical-align: middle;
+    transition: all 0.12s;
+  }
+  .reset-btn:hover { background: #fde68a; border-color: #d97706; }
+
+  .override-tag {
+    font-size: 9px; font-weight: 700; color: #92400e;
+    background: #fef3c7; border: 1px solid #fbbf24;
+    border-radius: 3px; padding: 0px 4px;
+    margin-left: 3px; vertical-align: middle;
+  }
+  td.modqty-cell.overridden-implied { color: #b45309; background-color: #fffbeb !important; }
+
+  /* ── PRICING COLUMNS ── */
+  .price-cell { padding: 4px 4px; }
+  .price-inline-wrap {
+    display: inline-flex; align-items: center; gap: 0;
+  }
+  .price-inline-wrap input {
+    width: 60px; text-align: right;
+    padding: 4px 4px;
+    border: 1px solid #e2b96a; border-radius: 5px 0 0 5px;
+    font: 600 11px 'JetBrains Mono', monospace;
+    color: #92400e; background: #fffbeb;
+    -moz-appearance: textfield;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .price-inline-wrap input::-webkit-outer-spin-button,
+  .price-inline-wrap input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .price-inline-wrap input:focus { outline: none; border-color: #d97706; background: #fff; z-index: 2; position: relative; }
+  .price-inline-wrap select {
+    padding: 4px 2px 4px 4px;
+    border: 1px solid #e2b96a; border-left: none; border-radius: 0 5px 5px 0;
+    font: 700 9.5px 'Inter', sans-serif;
+    color: #92400e; background: #fef3c7;
+    cursor: pointer; appearance: none; -webkit-appearance: none;
+    text-align: center; min-width: 32px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .price-inline-wrap select:focus { outline: none; border-color: #d97706; background: #fde68a; z-index: 2; position: relative; }
+  
+  .price-input-wrap {
+    display: inline-flex; align-items: center; gap: 0;
+  }
+  .price-input-wrap input {
+    width: 65px; text-align: right;
+    padding: 4px 4px;
+    border: 1px solid #e2b96a; border-radius: 5px 0 0 5px;
+    font: 600 11px 'JetBrains Mono', monospace;
+    color: #92400e; background: #fffbeb;
+    -moz-appearance: textfield;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .price-input-wrap input::-webkit-outer-spin-button,
+  .price-input-wrap input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .price-input-wrap input:focus { outline: none; border-color: #d97706; background: #fff; z-index: 2; position: relative; }
+  .price-input-wrap select {
+    padding: 4px 2px 4px 4px;
+    border: 1px solid #e2b96a; border-left: none; border-radius: 0 5px 5px 0;
+    font: 700 9.5px 'Inter', sans-serif;
+    color: #92400e; background: #fef3c7;
+    cursor: pointer; appearance: none; -webkit-appearance: none;
+    text-align: center; min-width: 38px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .price-input-wrap select:focus { outline: none; border-color: #d97706; background: #fde68a; z-index: 2; position: relative; }
+  
+  td.cost-cell {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700; font-size: 11.5px;
+    color: #92400e; background: #fffbeb;
+    white-space: nowrap; text-align: right;
+    padding: 7px 10px;
+  }
+  .cost-cell.has-value { background: linear-gradient(90deg, #fef3c7, #fefce8); }
+
+  /* Planning Mode Styles */
+  .mode-switch { display: flex; gap: 8px; margin-top: 10px; }
+  .mode-btn {
+    padding: 6px 14px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(0,0,0,0.1); color: #fff; font: 600 12px 'Inter', sans-serif; cursor: pointer;
+  }
+  .mode-btn.active { background: #fff; color: var(--solar-1); border-color: #fff; }
+
+  /* ── Cell INV — Amount-wise Pricing ── */
+  .cell-master-strip {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow-sm);
+    padding: 14px 18px; margin-bottom: 14px;
+  }
+  .cell-mc-item {
+    flex: 1; min-width: 200px;
+    display: flex; flex-direction: column; gap: 5px;
+    padding: 10px 14px; border-radius: var(--radius-sm);
+    border: 1px solid var(--line); background: #f8fafb;
+    transition: all 0.15s;
+  }
+  .cell-mc-item.active { border-color: var(--solar-2); background: var(--solar-bg); box-shadow: 0 0 0 3px rgba(37,209,154,0.12); }
+  .cell-mc-label {
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--muted);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .cell-tag { font-size: 8.5px; font-weight: 700; background: var(--solar-bg); color: var(--solar-1); padding: 2px 5px; border-radius: 3px; opacity: 0; transition: opacity 0.15s; }
+  .cell-mc-item.active .cell-tag { opacity: 1; }
+  .cell-mc-input-row { display: flex; align-items: center; gap: 6px; }
+  .cell-mc-input-row span { color: var(--muted); font-size: 15px; font-weight: 600; }
+  .cell-mc-input-row input {
+    background: transparent; border: none; outline: none; width: 100%;
+    font: 700 19px 'JetBrains Mono', monospace; color: var(--ink);
+    letter-spacing: -0.5px;
+  }
+  .cell-mc-item.active .cell-mc-input-row input { color: var(--solar-1); }
+  .cell-mc-input-row input::-webkit-outer-spin-button,
+  .cell-mc-input-row input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .cell-mc-input-row input { -moz-appearance: textfield; }
+
+  #cellTable { min-width: 980px; }
+  #cellTable td { padding: 4px 8px; }
+  #cellTable td.cell-num { text-align: center; color: var(--muted); font-weight: 600; font-size: 11px; }
+  #cellTable td input {
+    width: 100%; text-align: right;
+    padding: 5px 8px; border: 1px solid var(--line2); border-radius: 5px;
+    font: 600 12px 'JetBrains Mono', monospace;
+    color: var(--ink); background: #f8fafb;
+    -moz-appearance: textfield; transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  }
+  #cellTable td input.txt { text-align: left; }
+  #cellTable td input.ctr { text-align: center; }
+  #cellTable td input::-webkit-outer-spin-button,
+  #cellTable td input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  #cellTable td input:focus { outline: none; border-color: var(--solar-2); background: #fff; box-shadow: 0 0 0 3px rgba(37,209,154,0.12); }
+  #cellTable td.amt-col input { border-color: var(--solar-2); background: #f0fbf5; color: var(--solar-1); font-weight: 700; }
+  #cellTable td.amt-col input:focus { border-color: var(--solar-1); background: #fff; box-shadow: 0 0 0 3px rgba(11,110,79,0.15); }
+  #cellTable tfoot td {
+    background: #f2fbf6; border-top: 2px solid #b8dfc8;
+    font: 800 12.5px 'JetBrains Mono', monospace; color: var(--solar-1);
+    padding: 10px 10px;
+  }
+  #cellTable .cell-del {
+    width: 26px; height: 26px; border-radius: 5px;
+    border: 1px solid var(--line2); background: var(--panel);
+    cursor: pointer; color: var(--muted); font-size: 14px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center; transition: all 0.15s;
+  }
+  #cellTable .cell-del:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-bg); }
+
+  .upload-zone {
+    border: 2px dashed var(--line2); border-radius: var(--radius); padding: 24px; text-align: center;
+    background: #f8fafb; cursor: pointer; transition: all 0.2s;
+  }
+  .upload-zone.dragover { border-color: var(--solar-2); background: var(--solar-bg); }
+  .upload-zone h3 { font-size: 14px; color: var(--ink); margin-bottom: 4px; }
+  .upload-zone p { font-size: 11px; color: var(--muted); }
+  .mapper-panel { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-top: 12px; }
+  .mapper-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .mapper-field label { font-size: 11px; font-weight: 700; color: var(--muted); display: block; margin-bottom: 4px; }
+  .mapper-field select { width: 100%; padding: 6px 8px; border: 1px solid var(--line2); border-radius: 4px; font-size: 12px; }
+  .label-config-panel { background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+  .label-config-header { font-size: 13px; font-weight: 700; color: #92400e; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .label-list { display: flex; gap: 10px; flex-wrap: wrap; }
+  .label-item { display: flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #fcd34d; padding: 6px 10px; border-radius: 6px; }
+  .label-item input[type="checkbox"] { accent-color: #d97706; }
+  .status-ok { color: var(--solar-1); font-weight: 700; background: var(--solar-bg); padding: 2px 6px; border-radius: 4px; }
+  .status-short { color: var(--danger); font-weight: 700; background: var(--danger-bg); padding: 2px 6px; border-radius: 4px; }
+
+  /* ── ENHANCED PLANNING MODE ── */
+  .plan-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .plan-toolbar .btn { height: 34px; }
+
+  /* Customer summary cards */
+  .cust-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .cust-card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px 16px; box-shadow: var(--shadow-sm); position: relative;
+    overflow: hidden; transition: box-shadow 0.2s;
+  }
+  .cust-card:hover { box-shadow: var(--shadow); }
+  .cust-card::before { content: ''; position: absolute; left:0; top:0; bottom:0; width:3px; background: var(--blue); border-radius: 3px 0 0 3px; }
+  .cust-card-name { font-size: 13px; font-weight: 800; color: var(--ink); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cust-card-detail { font-size: 11px; color: var(--muted); line-height: 1.6; }
+  .cust-card-detail strong { color: var(--ink2); }
+  .cust-card-mw { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 800; color: var(--blue); margin-top: 4px; }
+  .cust-card-mw span { font-size: 11px; font-weight: 600; color: var(--muted); }
+  .cust-order-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--blue-bg); color: var(--blue); font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; margin: 2px 2px 0 0; }
+
+  /* Consolidated material table */
+  .consolidated-wrap { margin-bottom: 20px; }
+  .consolidated-wrap .table-wrap { max-height: 70vh; overflow-y: auto; }
+
+  /* Status badges */
+  .status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+  .status-badge.ok { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+  .status-badge.low { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+  .status-badge.short { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+  .status-badge.na { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
+  .status-badge svg { width: 12px; height: 12px; }
+
+  /* Stock mapping pills */
+  .stock-pills { display: flex; flex-wrap: wrap; gap: 4px; max-width: 280px; }
+  .stock-pill { display: inline-flex; align-items: center; gap: 3px; background: #eff6ff; color: #1e40af; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; border: 1px solid #bfdbfe; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stock-pill.matched { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+  .stock-pill.manual { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+
+  /* Discard toggle */
+  .discard-toggle { display: flex; align-items: center; gap: 5px; }
+  .discard-toggle input[type="checkbox"] { accent-color: var(--danger); width: 14px; height: 14px; }
+  .discard-toggle label { font-size: 10px; color: var(--muted); font-weight: 600; cursor: pointer; }
+  tr.discarded > td { opacity: 0.4; text-decoration: line-through; }
+
+  /* Mapping modal */
+  .mapping-modal { width: 580px; max-width: 96vw; max-height: 80vh; display: flex; flex-direction: column; }
+  .mapping-modal .modal-fields { overflow-y: auto; max-height: 50vh; }
+  .mapping-search { width: 100%; padding: 8px 10px; border: 1px solid var(--line2); border-radius: var(--radius-sm); font: 13px 'Inter', sans-serif; margin-bottom: 10px; }
+  .mapping-search:focus { outline: none; border-color: var(--solar-2); }
+  .mapping-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); margin-bottom: 6px; cursor: pointer; transition: all 0.15s; }
+  .mapping-item:hover { border-color: var(--solar-2); background: var(--solar-bg); }
+  .mapping-item.selected { border-color: var(--solar-1); background: #d1fae5; }
+  .mapping-item input[type="checkbox"] { accent-color: var(--solar-1); width: 15px; height: 15px; flex-shrink: 0; }
+  .mapping-item-desc { font-size: 12px; font-weight: 600; color: var(--ink); flex: 1; }
+  .mapping-item-qty { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: var(--solar-1); white-space: nowrap; }
+  .mapping-item-uom { font-size: 10px; color: var(--muted); }
+
+  /* View tabs for planning */
+  .plan-view-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+  .plan-view-tab {
+    padding: 7px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    cursor: pointer; border: 1px solid var(--line2); background: var(--panel); color: var(--ink2); transition: all 0.15s;
+  }
+  .plan-view-tab:hover { border-color: var(--solar-2); color: var(--solar-1); }
+  .plan-view-tab.active { background: var(--solar-1); color: #fff; border-color: var(--solar-1); }
+
+  /* Shortage summary bar */
+  .shortage-bar { display: flex; gap: 12px; align-items: center; padding: 10px 16px; background: linear-gradient(90deg, #fef2f2, #fff1f2); border: 1px solid #fca5a5; border-radius: var(--radius); margin-bottom: 14px; }
+  .shortage-bar.all-ok { background: linear-gradient(90deg, #ecfdf5, #d1fae5); border-color: #6ee7b7; }
+  .shortage-bar-icon { font-size: 20px; }
+  .shortage-bar-text { flex: 1; font-size: 12px; font-weight: 600; color: #991b1b; }
+  .shortage-bar.all-ok .shortage-bar-text { color: #065f46; }
+  .shortage-bar-count { font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 800; color: #dc2626; }
+  .shortage-bar.all-ok .shortage-bar-count { color: #059669; }
+
+  /* Stock mapping button */
+  .map-btn { 
+    width: 24px; height: 24px; border-radius: 5px; border: 1px solid var(--line2); background: var(--panel);
+    cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; color: var(--muted); font-size: 11px;
+  }
+  .map-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-bg); }
+
+  /* Production line badge */
+  .line-badge { display: inline-flex; padding: 1px 5px; border-radius: 3px; font-size: 9px; font-weight: 700; margin-left: 4px; }
+  .line-badge.line-a { background: #dbeafe; color: #1e40af; }
+  .line-badge.line-b { background: #d1fae5; color: #065f46; }
+  .line-badge.line-c { background: #fef3c7; color: #92400e; }
+  .line-badge.line-d { background: #ede9fe; color: #5b21b6; }
+  .line-badge.line-oem { background: #f1f5f9; color: #475569; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="header-inner">
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#0b6e4f" stroke-width="2.5" stroke-linecap="round">
+        <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+        <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+        <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+      </svg>
+    </div>
+    <div class="header-title">
+      <h1>RM Consumption Calculator</h1>
+      <div class="sub">Consumption · Planning vs Stock · Cell INV Pricing</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-ghost" id="exportExcel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/></svg>
+        <span class="btn-label">Excel</span>
+      </button>
+      <button class="btn btn-ghost" id="exportCsv">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16,3 21,3 21,8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21,16 21,21 16,21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
+        <span class="btn-label">CSV</span>
+      </button>
+      <button class="btn btn-ghost" id="printPage">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6,9 6,2 18,2 18,9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        <span class="btn-label">Print</span>
+      </button>
+      <button class="btn btn-ghost" id="resetConsumption">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+        <span class="btn-label">Reset</span>
+      </button>
+    </div>
+  </div>
+  <div class="header-inner" style="height:48px; border-top: 1px solid rgba(255,255,255,0.1);">
+    <div class="mode-switch">
+      <button class="mode-btn active" id="modeCalc">Consumption Calculator</button>
+      <button class="mode-btn" id="modePlan">Planning vs Stock Analysis</button>
+      <button class="mode-btn" id="modeCell">Cell INV — Amount-wise Pricing</button>
+    </div>
+  </div>
+</header>
+
+<main id="calcMain">
+
+  <!-- MODULE INPUTS -->
+  <div class="controls-section">
+    <div class="section-label">Module Configuration — Qty &amp; Watt Peak</div>
+    <div class="controls-grid" id="moduleControls"></div>
+  </div>
+
+  <!-- POWER GENERATION SUMMARY -->
+  <div style="display:flex; gap: 24px; flex-wrap: wrap;">
+    <div style="flex:1; min-width: 300px;">
+      <div class="section-label">⚡ Power Generation Potential</div>
+      <div class="watt-summary" id="wattSummary"></div>
+    </div>
+    <div style="flex:1; min-width: 300px;">
+      <div class="section-label">💰 Module Material Cost</div>
+      <div class="price-summary" id="priceSummary"></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- KPI SUMMARY -->
+  <div class="summary-grid" id="summary"></div>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar">
+    <div class="search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="searchBox" placeholder="Search material group or specification…"/>
+    </div>
+    <div class="rates-wrap">
+      <label>Rates:</label>
+      <div class="rate-input">
+        <span>$1 = ₹</span>
+        <input type="number" step="0.01" id="rateUSD" placeholder="83.50"/>
+      </div>
+      <div class="rate-input">
+        <span>¥1 = ₹</span>
+        <input type="number" step="0.01" id="rateRMB" placeholder="11.50"/>
+      </div>
+    </div>
+    <div class="tabs" id="tabs"></div>
+    <button class="btn btn-outline" id="clearQty" style="margin-left:auto">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      Clear Qty
+    </button>
+    <button class="btn btn-primary" id="addRowBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      Add Row
+    </button>
+  </div>
+
+  <!-- INFO BANNER -->
+  <div style="background:linear-gradient(90deg,#dbeafe,#e0f2fe);border:1px solid #93c5fd;border-radius:8px;padding:9px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:12px;color:#1e3a5f;">
+    <span style="font-size:16px">⇄</span>
+    <span><strong>Three ways to calculate:</strong> (1) Set Module Qty → all rows auto-calculate. (2) Type <em>Required Qty</em> → back-calculates Module Qty + Power. (3) Type <em>Generation</em> value + unit → back-calculates Module Qty + Required Qty. Each row is <strong>independent</strong>. Click <strong>↺</strong> to reset any row.</span>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr class="group-row">
+          <th colspan="5" style="text-align:left">Material Details</th>
+          <th colspan="3" style="text-align:center">Per Module Consumption</th>
+          <th colspan="2" style="text-align:center">⇄ Calculated Totals (editable either way)</th>
+          <th colspan="3" style="text-align:center;background:#78350f">💰 Pricing (Per Module)</th>
+          <th colspan="2" style="text-align:center;background:#064430">⚡ Generation (Editable — W/KW/MW/GW)</th>
+          <th style="background:#1a1a2e">Actions</th>
+        </tr>
+        <tr>
+          <th>Module Type</th>
+          <th class="num">Sr.</th>
+          <th>Material Group</th>
+          <th>Technical Specifications</th>
+          <th class="center">UOM</th>
+          <th class="num">Qty / Module</th>
+          <th class="num">Wastage %</th>
+          <th class="num">Consumption / Module</th>
+          <th class="num" data-tip="Auto-computed from Required Qty, or set via Module Qty above">Module Qty ↕</th>
+          <th class="num" data-tip="Edit this to back-calculate Module Qty automatically">Required Qty ✎</th>
+          <th class="num" style="min-width:110px" data-tip="Qty for which you have a price + its UOM">Price Qty (UOM)</th>
+          <th class="num" style="min-width:120px" data-tip="Price for the specified quantity + Currency">Unit Price (Cur)</th>
+          <th class="num" style="min-width:100px" data-tip="Auto-calculated material cost per module in INR">Cost / Mod ₹</th>
+          <th class="num" style="min-width:140px" data-tip="Enter generation value and select unit — independent per row">Generation ✏ (Unit Selectable)</th>
+          <th class="num" style="min-width:90px" data-tip="Total power: auto from Module Wp OR from inline generation input">Total Power</th>
+          <th class="center">✎ / ✗</th>
+        </tr>
+      </thead>
+      <tbody id="resultBody"></tbody>
+    </table>
+  </div>
+</main>
+
+<main id="planningMain" style="display:none; max-width: 1680px; margin: 0 auto; padding: 18px 24px 40px;">
+  <div id="uploadContainer" style="display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 300px;">
+      <div class="section-label">1. Upload Production Planning Sheet</div>
+      <div class="upload-zone" id="planUpload">
+        <h3 id="planUploadName">Drop Planning Sheet Here</h3>
+        <p>Excel with Customer Name, OA No, Module Wp, daily planned quantities</p>
+        <input type="file" id="planFileInput" accept=".xlsx,.xls" style="display:none">
+      </div>
+    </div>
+    <div style="flex: 1; min-width: 300px;">
+      <div class="section-label">2. Upload Store Stock Report</div>
+      <div class="upload-zone" id="stockUpload">
+        <h3 id="stockUploadName">Drop Store Stock Report Here</h3>
+        <p>Excel with Item Description and Quantity columns</p>
+        <input type="file" id="stockFileInput" accept=".xlsx,.xls" style="display:none">
+      </div>
+    </div>
+  </div>
+  <div id="savedDataBanner" style="display:none; background:linear-gradient(90deg,#d1fae5,#ecfdf5); border:1px solid #6ee7b7; border-radius:8px; padding:10px 16px; margin-bottom:14px; display:none; align-items:center; gap:12px; font-size:13px; color:#065f46;">
+    <span style="font-size:18px">💾</span>
+    <span style="flex:1;"><strong>Previous analysis loaded from saved data.</strong> Upload new files to replace.</span>
+    <button class="btn btn-outline" style="font-size:11px;padding:4px 10px;" onclick="clearSavedAnalysis()">🗑 Clear Saved Data</button>
+  </div>
+
+  <div id="loadingIndicator" style="display:none; text-align:center; padding: 20px; color: var(--solar-1); font-weight: 600;">
+    ⏳ Analyzing files, mapping materials to stock, and calculating requirements...
+  </div>
+
+  <div id="analysisResults" style="display:none;">
+    <!-- KPI Summary -->
+    <div class="summary-grid" id="planKpi"></div>
+
+    <!-- Shortage/Surplus Bar -->
+    <div id="shortageBar"></div>
+
+    <!-- Date Range Selector -->
+    <div id="dateRangeBar" style="background:linear-gradient(90deg,#f0f9ff,#e0f2fe); border:1px solid #7dd3fc; border-radius:8px; padding:10px 16px; margin-bottom:10px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+      <span style="font-size:16px">📅</span>
+      <span style="font-size:12px; font-weight:600; color:#0c4a6e;">Planning Period:</span>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <label style="font-size:11px; color:#64748b; font-weight:600;">From</label>
+        <input type="date" id="planDateFrom" style="padding:4px 8px; border:1px solid #94a3b8; border-radius:5px; font-size:12px; font-family:inherit;" onchange="onDateRangeChange()">
+      </div>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <label style="font-size:11px; color:#64748b; font-weight:600;">To</label>
+        <input type="date" id="planDateTo" style="padding:4px 8px; border:1px solid #94a3b8; border-radius:5px; font-size:12px; font-family:inherit;" onchange="onDateRangeChange()">
+      </div>
+      <button class="btn btn-outline" style="font-size:11px; padding:4px 10px;" onclick="resetDateRange()">↺ Reset to All</button>
+      <span id="planDateRange" style="font-size:11px; color:#64748b; margin-left:auto;"></span>
+    </div>
+
+    <!-- View Tabs + Global Search -->
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom: 10px;">
+      <div class="plan-view-tabs" style="margin-bottom:0;">
+        <button class="plan-view-tab active" data-planview="customers" onclick="switchPlanView('customers')">👥 Customer Orders</button>
+        <button class="plan-view-tab" data-planview="modules" onclick="switchPlanView('modules')">📦 Module Summary</button>
+        <button class="plan-view-tab" data-planview="consolidated" onclick="switchPlanView('consolidated')">📋 Consolidated Materials</button>
+        <button class="plan-view-tab" data-planview="detailed" onclick="switchPlanView('detailed')">🔍 Detailed Breakdown</button>
+      </div>
+      <div style="margin-left:auto; display:flex; align-items:center; gap:6px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" style="width:16px;height:16px;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="planSearchBox" class="mapping-search" placeholder="Search all tabs..." oninput="filterPlanViews()" style="margin:0; width:260px; padding:6px 12px; border-radius:6px; border:1px solid #cbd5e1; font-size:12px;">
+      </div>
+    </div>
+
+    <!-- Customer-wise Summary View -->
+    <div id="planViewCustomers">
+      <div class="section-label" id="orderTitle">Customer-wise Planning Summary</div>
+      <div class="cust-grid" id="custSummaryGrid"></div>
+      <div class="section-label" style="margin-top: 10px;">All Orders Detail</div>
+      <div class="table-wrap" style="margin-bottom: 20px; max-height: 300px; overflow-y: auto;">
+        <table style="min-width: 900px;">
+          <thead>
+            <tr>
+              <th>Customer Name</th>
+              <th>OA No / Line</th>
+              <th>Production Line</th>
+              <th>Module Matched</th>
+              <th class="num">Module Wp</th>
+              <th class="num">Pending Planned Qty</th>
+              <th class="num">Total Power</th>
+            </tr>
+          </thead>
+          <tbody id="planOrderBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Module Summary View -->
+    <div id="planViewModules" style="display:none;">
+      <div class="section-label" id="planningTitle">Planned Module Details & Power Output</div>
+      <div class="watt-summary" id="planModuleSummary" style="margin-bottom: 20px;"></div>
+    </div>
+
+    <!-- Consolidated Material View -->
+    <div id="planViewConsolidated" style="display:none;">
+      <div class="plan-toolbar">
+        <div class="section-label" style="margin:0; flex:1;">Consolidated Material Requirements vs Stock</div>
+        <button class="btn btn-outline" onclick="exportPlanningReport()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+          Export Report
+        </button>
+      </div>
+
+
+      <div style="background:linear-gradient(90deg,#dbeafe,#e0f2fe);border:1px solid #93c5fd;border-radius:8px;padding:9px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:12px;color:#1e3a5f;">
+        <span style="font-size:16px">🔗</span>
+        <span><strong>Smart Stock Mapping:</strong> Materials are auto-matched to stock items using keywords, dimensions & specs. Click the <strong>🔗</strong> button on any row to manually override the mapping. Click the <strong>❌</strong> button to discard materials you don't need.</span>
+      </div>
+
+      <div class="consolidated-wrap">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr class="group-row">
+                <th colspan="5" style="text-align:left">Material Details</th>
+                <th colspan="2" style="text-align:center">Requirement</th>
+                <th colspan="3" style="text-align:center; background:#0d4f38">Stock Analysis</th>
+                <th style="background:#1a1a2e">Actions</th>
+              </tr>
+              <tr>
+                <th>Material Group</th>
+                <th>Technical Specifications</th>
+                <th class="center">UOM</th>
+                <th class="num">Per Module</th>
+                <th>Used By</th>
+                <th class="num">Total Modules</th>
+                <th class="num" style="background:#e6f7f1; color:var(--solar-1);">Required Qty</th>
+                <th>Mapped Stock Item(s)</th>
+                <th class="num" style="background:#0d4f38; color:#fff;">Available</th>
+                <th class="num" style="background:#991b1b; color:#fff;">Shortage / Surplus</th>
+                <th class="center">Discard / Map</th>
+              </tr>
+            </thead>
+            <tbody id="consolidatedBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detailed Module-wise Breakdown -->
+    <div id="planViewDetailed" style="display:none;">
+      <div class="section-label" style="margin-top: 10px;">Detailed Material Breakdown per Module Type</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Module Type</th>
+              <th>Material Group</th>
+              <th>Technical Specifications</th>
+              <th class="center">UOM</th>
+              <th class="num">Qty / Module</th>
+              <th class="num">Wastage %</th>
+              <th class="num">Consumption</th>
+              <th class="num">Module Qty</th>
+              <th class="num" style="background:#e6f7f1;color:var(--solar-1);">Required Qty</th>
+              <th class="num" style="background:#0d4f38;color:#fff;">Available Stock</th>
+              <th class="num" style="background:#991b1b;color:#fff;">Shortage (Buy)</th>
+              <th class="center">Status</th>
+            </tr>
+          </thead>
+          <tbody id="resultBodyPlan"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- CELL INV — AMOUNT-WISE PRICING -->
+<main id="cellInvMain" style="display:none; max-width: 1680px; margin: 0 auto; padding: 18px 24px 40px;">
+
+  <!-- GLOBAL MASTER CONTROLS -->
+  <div class="section-label">Global Pricing Controls — Editing any value overwrites all rows</div>
+  <div class="cell-master-strip">
+    <div class="cell-mc-item" id="cellMc-amount">
+      <div class="cell-mc-label">Total Amount <span class="cell-tag">GLOBAL</span></div>
+      <div class="cell-mc-input-row">
+        <span>$</span>
+        <input type="number" id="cellInAmount" placeholder="0.00" onfocus="cellSetGlobalActive('amount')" oninput="cellOnGlobalInput('amount')" step="0.01" />
+      </div>
+    </div>
+    <div class="cell-mc-item" id="cellMc-pwp">
+      <div class="cell-mc-label">Blended $/Wp <span class="cell-tag">GLOBAL</span></div>
+      <div class="cell-mc-input-row">
+        <span>$</span>
+        <input type="number" id="cellInPwp" placeholder="0.0000" onfocus="cellSetGlobalActive('pwp')" oninput="cellOnGlobalInput('pwp')" step="0.0001" />
+      </div>
+    </div>
+    <div class="cell-mc-item" id="cellMc-pcp">
+      <div class="cell-mc-label">Avg $/Cell <span class="cell-tag">GLOBAL</span></div>
+      <div class="cell-mc-input-row">
+        <span>$</span>
+        <input type="number" id="cellInPcp" placeholder="0.0000" onfocus="cellSetGlobalActive('pcp')" oninput="cellOnGlobalInput('pcp')" step="0.0001" />
+      </div>
+    </div>
+  </div>
+
+  <!-- INFO BANNER -->
+  <div style="background:linear-gradient(90deg,#dbeafe,#e0f2fe);border:1px solid #93c5fd;border-radius:8px;padding:9px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:12px;color:#1e3a5f;">
+    <span style="font-size:16px">⇄</span>
+    <span><strong>Every value is editable &amp; calculates the rest:</strong> Cell Size + Eff% auto-fill Wp/Cell. Edit <em>Total Wp</em>, <em>$/Wp</em>, <em>$/Cell</em> or <em>Amount</em> on any row to back-calculate the others. Global controls above overwrite all row pricing at once.</span>
+  </div>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar">
+    <div class="section-label" style="margin:0; flex:1;">Cell Pricing — Amount &amp; Wp Wise</div>
+    <button class="btn btn-primary" onclick="cellAddRow()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      Add Row
+    </button>
+    <button class="btn btn-outline" onclick="cellLoadSample()">Load Sample</button>
+    <button class="btn btn-outline" onclick="cellClearAll()">Clear</button>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-wrap">
+    <table id="cellTable">
+      <thead>
+        <tr class="group-row">
+          <th colspan="6" style="text-align:left">Cell Specifications</th>
+          <th colspan="3" style="text-align:center;background:#78350f">💰 Pricing (Editable Both Ways)</th>
+          <th style="background:#1a1a2e">Actions</th>
+        </tr>
+        <tr>
+          <th class="num">#</th>
+          <th>Cell Size</th>
+          <th class="center">Eff %</th>
+          <th class="center">Wp / Cell</th>
+          <th class="num">Qty</th>
+          <th class="num">Total Wp</th>
+          <th class="num">$ / Wp</th>
+          <th class="num">$ / Cell</th>
+          <th class="num">Amount</th>
+          <th class="center">✗</th>
+        </tr>
+      </thead>
+      <tbody id="cellBody"></tbody>
+      <tfoot id="cellFoot"></tfoot>
+    </table>
+  </div>
+</main>
+
+<!-- STOCK MAPPING MODAL -->
+<div class="modal-overlay" id="stockMapModal">
+  <div class="modal mapping-modal">
+    <div class="modal-header">
+      <div class="modal-title">🔗 Map Stock Items</div>
+      <button class="modal-close" onclick="closeModal('stockMapModal')">×</button>
+    </div>
+    <div style="padding: 0 0 8px; font-size: 12px; color: var(--ink2);">
+      <strong id="mapModalMaterial">—</strong><br>
+      <span style="color: var(--muted); font-size: 11px;" id="mapModalSpec">—</span>
+    </div>
+    <input type="text" class="mapping-search" id="mapModalSearch" placeholder="Search stock items..." oninput="filterMappingItems()">
+    <div class="modal-fields" id="mapModalItems"></div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal('stockMapModal')">Cancel</button>
+      <button class="btn-modal-save" onclick="saveStockMapping()">Apply Mapping</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT ROW MODAL -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Edit Row</div>
+      <button class="modal-close" onclick="closeModal('editModal')">×</button>
+    </div>
+    <div class="modal-fields">
+      <input type="hidden" id="editModuleKey"/>
+      <input type="hidden" id="editRowIndex"/>
+      <div class="modal-field">
+        <label>Material Group</label>
+        <input type="text" id="editGroup" placeholder="e.g. Solar Cell"/>
+      </div>
+      <div class="modal-field">
+        <label>Technical Specifications</label>
+        <textarea id="editSpec" placeholder="Detailed spec…"></textarea>
+      </div>
+      <div class="modal-row2">
+        <div class="modal-field">
+          <label>UOM</label>
+          <input type="text" id="editUom" placeholder="Kg / Nos / SQM…"/>
+        </div>
+        <div class="modal-field">
+          <label>Wastage %</label>
+          <input type="number" id="editWastage" step="0.01" min="0" placeholder="1.5"/>
+        </div>
+      </div>
+      <div class="modal-row2">
+        <div class="modal-field">
+          <label>Qty / Module</label>
+          <input type="number" id="editQty" step="0.000001" min="0" placeholder="72"/>
+        </div>
+        <div class="modal-field" style="display:flex;flex-direction:column;justify-content:flex-end">
+          <small style="font-size:10px;color:var(--muted);padding-bottom:6px">Consumption auto-calculated from Qty + Wastage</small>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal('editModal')">Cancel</button>
+      <button class="btn-modal-save" onclick="saveEditModal()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE CONFIRM MODAL -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal" style="width:380px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--danger)">Delete Row</div>
+      <button class="modal-close" onclick="closeModal('deleteModal')">×</button>
+    </div>
+    <div class="confirm-text">
+      Are you sure you want to delete<br>
+      <span class="confirm-highlight" id="deleteRowDesc"></span>?<br><br>
+      This will permanently remove this row from the module's material list.
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal('deleteModal')">Cancel</button>
+      <button class="btn-modal-del" onclick="confirmDelete()">Delete Row</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD ROW MODAL -->
+<div class="modal-overlay" id="addRowModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--solar-1)">+ Add New Row</div>
+      <button class="modal-close" onclick="closeModal('addRowModal')">×</button>
+    </div>
+    <div class="modal-fields">
+      <div class="modal-field">
+        <label>Module Type</label>
+        <select id="addModuleKey"></select>
+      </div>
+      <div class="modal-field">
+        <label>Material Group</label>
+        <input type="text" id="addGroup" placeholder="e.g. Solar Cell"/>
+      </div>
+      <div class="modal-field">
+        <label>Technical Specifications</label>
+        <textarea id="addSpec" placeholder="Detailed spec…"></textarea>
+      </div>
+      <div class="modal-row2">
+        <div class="modal-field">
+          <label>UOM</label>
+          <input type="text" id="addUom" placeholder="Kg / Nos / SQM…"/>
+        </div>
+        <div class="modal-field">
+          <label>Wastage %</label>
+          <input type="number" id="addWastage" step="0.01" min="0" value="1" placeholder="1.5"/>
+        </div>
+      </div>
+      <div class="modal-field">
+        <label>Qty / Module</label>
+        <input type="number" id="addQty" step="0.000001" min="0" placeholder="e.g. 72"/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal('addRowModal')">Cancel</button>
+      <button class="btn-modal-save" onclick="saveAddRowModal()">Add Row</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── DATA ─────────────────────────────────────────────────────────────────
+const baseModules = [{"key":"m10r","name":"M10R Topcon","rows":[{"sr":1,"group":"Solar Cell","spec":"TopCon Crystalline 182.2 x 183.75 mm, M10R- 16 BB","uom":"Nos","qty":72,"wastage":1.5,"consumption":73.08},{"sr":2,"group":"Solar Glass","spec":"Low Iron Semi tempered ARC glass 2272x1128x2 mm","uom":"Nos","qty":1,"wastage":0.2,"consumption":1.002},{"sr":3,"group":"Solar Glass","spec":"Low Iron Semi tempered ARC glass 2272x1128x2 mm With 3 Hole (Dia 12 mm) & White Pattern","uom":"Nos","qty":1,"wastage":0.2,"consumption":1.002},{"sr":4,"group":"EPE Front side","spec":"Encapsulant 480 GSM 2277 1126","uom":"SQM","qty":2.563902,"wastage":0.5,"consumption":2.57672151},{"sr":5,"group":"EPE Back Side","spec":"Encapsulant 480 GSM 2277 1126","uom":"SQM","qty":2.563902,"wastage":0.5,"consumption":2.57672151},{"sr":6,"group":"Cell Connector- Ribbon","spec":"Sn/Pb- 60/40 or 63/37 Diameter (0.26mm)","uom":"Kg","qty":0.191,"wastage":1.5,"consumption":0.193865},{"sr":7,"group":"String Connector- Busbar","spec":"Sn/Pb- 60/40 or 63/37 6mm x 0.35mm","uom":"Kg","qty":0.0205,"wastage":0.5,"consumption":0.0206025},{"sr":8,"group":"String Connector- Busbar","spec":"Sn/Pb- 60/40 or 63/37 4mm x 0.35mm","uom":"Kg","qty":0.0245,"wastage":0.5,"consumption":0.0246225},{"sr":9,"group":"Junction box","spec":"3-Split JB, IP68, 1500V, 30A diode, Cable 1×4mm²_ 0.4Mtr","uom":"Set","qty":1,"wastage":0.2,"consumption":1.002},{"sr":10,"group":"RTV (Junction Box+Frame)","spec":"White RTV","uom":"Kg","qty":0.392,"wastage":1,"consumption":0.39592},{"sr":11,"group":"Potting Material","spec":"Part A","uom":"Kg","qty":0.021666666667,"wastage":2,"consumption":0.0221},{"sr":12,"group":"Potting Material","spec":"Part B","uom":"Kg","qty":0.004333333333,"wastage":2,"consumption":0.00442},{"sr":13,"group":"Aluminium Frame Long","spec":"2278 x 35 x 33mm-6005 T6 or 6063 T5, X- 1086 mm","uom":"Pcs","qty":2,"wastage":0.5,"consumption":2.01},{"sr":14,"group":"Aluminium Frame Short","spec":"1134 x 35 x 18mm -6005 T6 or 6063 T5","uom":"Pcs","qty":2,"wastage":0.5,"consumption":2.01},{"sr":15,"group":"Fluxing agent","spec":"Low Solids, No clean Flux","uom":"Ltr","qty":0.026,"wastage":2,"consumption":0.02652},{"sr":16,"group":"Glass Edge sealing Tape","spec":"Edge Sealing Tape 30mm","uom":"Roll","qty":0.004712,"wastage":0.5,"consumption":0.00473556},{"sr":17,"group":"EVA Patch","spec":"Width: 30 mm, Thickness 0.4 mm 40 30","uom":"SQM","qty":0.0036,"wastage":0.5,"consumption":0.003618},{"sr":18,"group":"Cell fixing tape","spec":"Anti UV PET tape 10mm -4134","uom":"Roll","qty":0.005303030303,"wastage":1,"consumption":0.005356060606},{"sr":19,"group":"Back Label","spec":"Silver Printed 15 x 180 mm","uom":"Nos","qty":1,"wastage":1,"consumption":1.01},{"sr":20,"group":"Barcode sticker (Inside)","spec":"White 85X10mm UL Solex LOGO Printed","uom":"Nos","qty":1,"wastage":1,"consumption":1.01},{"sr":21,"group":"Barcode sticker (Back Side)","spec":"White 50X15mm UL","uom":"Nos","qty":1,"wastage":1,"consumption":1.01},{"sr":22,"group":"Barcode sticker (Frame)","spec":"White 50X10mm Chromo Non UL","uom":"Nos","qty":1,"wastage":1,"consumption":1.01},{"sr":23,"group":"RFID tag (if required)","spec":"RFID UID TAG UHF UL/UV HPC","uom":"Nos","qty":1,"wastage":1,"consumption":1.01},{"sr":24,"group":"Wooden Pallet","spec":"31 in 1 2300X1125X132mm (Pinewood)","uom":"Nos","qty":0.032258064516,"wastage":1,"consumption":0.032580645161},{"sr":25,"group":"Corrugated Box 5 PLY With Cover","spec":"5 Ply 31in1 2282X1115X1140mm","uom":"Nos","qty":0.032258064516,"wastage":1,"consumption":0.032580645161},{"sr":26,"group":"Retainer Strip","spec":"3Ply Retainer Strip  31in1 1261.5 x 36.5mm","uom":"Nos","qty":0.064516129032,"wastage":1,"consumption":0.065161290323},{"sr":27,"group":"Corrugated Corner","spec":"Corrugated Corner 35X18mm","uom":"Nos","qty":2.064516129032,"wastage":1,"consumption":2.085161290323},{"sr":28,"group":"Plastic Corner","spec":"Plastic (35mm x 35mm)","uom":"Nos","qty":0.645161290323,"wastage":1,"consumption":0.651612903226},{"sr":29,"group":"Edge Board","spec":"Corrugated Edge Board 45X45X3 1045mm","uom":"Nos","qty":0.129032258065,"wastage":1,"consumption":0.130322580645},{"sr":30,"group":"PET Strap","spec":"16 x 0.69 mm","uom":"Kg","qty":0.0604,"wastage":1,"consumption":0.061004},{"sr":31,"group":"Plastic Stretch film","spec":"23 micron (600mm width)","uom":"Kg","qty":0.011806451613,"wastage":1,"consumption":0.011924516129},{"sr":32,"group":"Packing List","spec":"A4 Sticker Paper","uom":"Nos","qty":0.064516129032,"wastage":1,"consumption":0.065161290323},{"sr":33,"group":"Current Grading Sticker","spec":"I1, I2, I3, I4, I5, I6","uom":"Nos","qty":1,"wastage":1,"consumption":1.01},{"sr":34,"group":"Thermal Ribbon Roll for Barcode","spec":"Thermal Ribbon 65X300 RIBBON","uom":"Roll","qty":9.6666667e-05,"wastage":1,"consumption":9.7633333e-05},{"sr":35,"group":"Thermal Ribbon Roll for back Label","spec":"Thermal Ribbon 104mm X 300 Mtr","uom":"Roll","qty":4e-05,"wastage":1,"consumption":4.04e-05}]},{"key":"g12r","name":"G12R Topcon","rows":[{"sr":1,"group":"Solar Cell","spec":"TopCon Crystalline 182.2 x 210 mm, G12R- 16 BB","uom":"Nos","qty":66,"wastage":1.5,"consumption":66.99},{"sr":2,"group":"Solar Glass","spec":"Low Iron Semi tempered ARC glass 2376x1128x2 mm","uom":"Nos","qty":1,"wastage":0.2,"consumption":1.002},{"sr":3,"group":"Solar Glass","spec":"Low Iron Semi tempered ARC glass 2376x1128x2 mm With 3 Hole (Dia 12 mm) & White Pattern","uom":"Nos","qty":1,"wastage":0.2,"consumption":1.002},{"sr":4,"group":"EPE Front side","spec":"Encapsulant 480 GSM 2381 1126","uom":"SQM","qty":2.681006,"wastage":0.5,"consumption":2.69441103},{"sr":5,"group":"EPE Back Side","spec":"Encapsulant 480 GSM 2381 1126","uom":"SQM","qty":2.681006,"wastage":0.5,"consumption":2.69441103},{"sr":6,"group":"Cell Connector- Ribbon","spec":"Sn/Pb- 60/40 Diameter (0.26mm)","uom":"Kg","qty":0.201,"wastage":1.5,"consumption":0.204015},{"sr":7,"group":"String Connector- Busbar","spec":"Sn/Pb- 60/40 6mm x 0.35mm","uom":"Kg","qty":0.0209,"wastage":0.5,"consumption":0.0210045},{"sr":8,"group":"String Connector- Busbar","spec":"Sn/Pb- 60/40 4mm x 0.35mm","uom":"Kg","qty":0.0245,"wastage":0.5,"consumption":0.0246225},{"sr":9,"group":"Junction box","spec":"3-Split JB, IP68, 1500V, 30A diode, Cable 1×4mm²_ 0.4Mtr","uom":"Set","qty":1,"wastage":0.2,"consumption":1.002},{"sr":10,"group":"RTV (Junction Box+Frame)","spec":"White RTV","uom":"Kg","qty":0.41,"wastage":1,"consumption":0.4141},{"sr":11,"group":"Potting Material","spec":"Part A","uom":"Kg","qty":0.021666666667,"wastage":2,"consumption":0.0221},{"sr":12,"group":"Potting Material","spec":"Part B","uom":"Kg","qty":0.004333333333,"wastage":2,"consumption":0.00442},{"sr":13,"group":"Aluminium Frame Long","spec":"2382 x 30 x 30mm-6005-T6, X Pitch - 1093mm","uom":"Pcs","qty":2,"wastage":0.5,"consumption":2.01},{"sr":14,"group":"Aluminium Frame Short","spec":"1134 x 30 x 15mm-6005-T6","uom":"Pcs","qty":2,"wastage":0.5,"consumption":2.01},{"sr":15,"group":"Fluxing agent","spec":"Low Solids, No clean Flux","uom":"Ltr","qty":0.024,"wastage":2,"consumption":0.02448},{"sr":16,"group":"Glass Edge sealing Tape","spec":"Edge Sealing Tape 30mm","uom":"Roll","qty":0.004712,"wastage":0.5,"consumption":0.00473556},{"sr":17,"group":"EVA Patch","spec":"Width: 30 mm, Thickness 0.4 mm 40 30","uom":"SQM","qty":0.0036,"wastage":0.5,"consumption":0.003618},{"sr":18,"group":"Cell fixing tape","spec":"Anti UV PET tape 10mm -4134","uom":"Roll","qty":0.005303030303,"wastage":1,"consumption":0.005356060606},{"sr":19,"group":"Back Label","spec":"Silver Printed 15 x 180 mm","uom":"Nos","qty":1,"wastage":1,"consumption":1.01},{"sr":20,"group":"Barcode sticker (Inside)","spec":"White 85X10mm UL Solex LOGO Printed","uom":"Nos","qty":1,"wastage":1,"consumption":1.01},{"sr":21,"group":"Barcode sticker (Back Side)","spec":"White 50X15mm UL","uom":"Nos","qty":1,"wastage":1,"consumption":1.01},{"sr":22,"group":"Barcode sticker (Frame)","spec":"White 50X10mm Chromo Non UL","uom":"Nos","qty":1,"wastage":1,"consumption":1.01},{"sr":23,"group":"RFID tag (if required)","spec":"RFID UID TAG UHF UL/UV HPC","uom":"Nos","qty":1,"wastage":1,"consumption":1.01},{"sr":24,"group":"Wooden Pallet","spec":"36 in 1 2398X1120X132mm (Pinewood)","uom":"Nos","qty":0.027777777778,"wastage":1,"consumption":0.028055555556},{"sr":25,"group":"Corrugated Box 5 PLY With Cover","spec":"5 Ply 36in1 2390X1110X1140mm Solex Printed","uom":"Nos","qty":0.027777777778,"wastage":1,"consumption":0.028055555556},{"sr":26,"group":"Retainer Strip","spec":"3Ply Retainer Strip 36in1 1264 x 31.5mm","uom":"Nos","qty":0.055555555556,"wastage":1,"consumption":0.056111111111},{"sr":27,"group":"Corrugated Corner","spec":"Corrugated Corner 30X15mm","uom":"Nos","qty":2.111111111111,"wastage":1,"consumption":2.132222222222},{"sr":28,"group":"Plastic Corner","spec":"Plastic (35mm x 35mm)","uom":"Nos","qty":0.555555555556,"wastage":1,"consumption":0.561111111111},{"sr":29,"group":"Edge Board","spec":"Corrugated Edge Board 45X45X3 1045mm","uom":"Nos","qty":0.111111111111,"wastage":1,"consumption":0.112222222222},{"sr":30,"group":"PET Strap","spec":"16 x 0.69 mm","uom":"Kg","qty":0.060138888889,"wastage":1,"consumption":0.060740277778},{"sr":31,"group":"Plastic Stretch film","spec":"23 micron (600mm width)","uom":"Kg","qty":0.010222222222,"wastage":1,"consumption":0.010324444444},{"sr":32,"group":"Packing List","spec":"A4 Sticker Paper","uom":"Nos","qty":0.055555555556,"wastage":1,"consumption":0.056111111111},{"sr":33,"group":"Current Grading Sticker","spec":"I1, I2, I3, I4, I5, I6","uom":"Nos","qty":1,"wastage":1,"consumption":1.01},{"sr":34,"group":"Thermal Ribbon Roll for Barcode","spec":"Thermal Ribbon 65X300 RIBBON","uom":"Roll","qty":9.6666667e-05,"wastage":1,"consumption":9.7633333e-05},{"sr":35,"group":"Thermal Ribbon Roll for back Label","spec":"Thermal Ribbon 104mm X 300 Mtr","uom":"Roll","qty":4e-05,"wastage":1,"consumption":4.04e-05}]},{"key":"m10","name":"M10 Mono PERC","rows":[{"sr":1,"group":"Solar Cell","spec":"Mono PERC Crystalline 182 x 182 mm","uom":"Nos","qty":72,"wastage":1.5,"consumption":73.08},{"sr":2,"group":"Solar Glass","spec":"Low Iron tempered ARC glass 2272x1128x3.2mm","uom":"Nos","qty":1,"wastage":0.2,"consumption":1.002},{"sr":3,"group":"EVA Front","spec":"Encapsulant 0.65mm thickness, mm 2277 1120","uom":"SQM","qty":2.55024,"wastage":0.5,"consumption":2.5629912},{"sr":4,"group":"EVA Back","spec":"Encapsulant 0.55mm thickness, mm 2277 1120","uom":"SQM","qty":2.55024,"wastage":0.5,"consumption":2.5629912},{"sr":5,"group":"Back sheet","spec":"0.365mm thickness,1500V, mm 2280 1133","uom":"SQM","qty":2.58324,"wastage":0.9,"consumption":2.60648916},{"sr":6,"group":"Cell Connector- Ribbon","spec":"Sn/Pb- 60/40 Diameter (0.32)","uom":"Kg","qty":0.18,"wastage":1.5,"consumption":0.1827},{"sr":7,"group":"String Connector- Busbar","spec":"Sn/Pb- 60/40 6mm x 0.35mm","uom":"Kg","qty":0.0205,"wastage":0.5,"consumption":0.0206025},{"sr":8,"group":"String Connector- Busbar","spec":"Sn/Pb- 60/40 4mm x 0.35mm","uom":"Kg","qty":0.0245,"wastage":0.5,"consumption":0.0246225},{"sr":9,"group":"Junction box","spec":"3-Split JB, IP68, 1500V, 25A diode, Cable 1×4mm²_ 0.4Mtr","uom":"Set","qty":1,"wastage":0.2,"consumption":1.002},{"sr":10,"group":"RTV (Junction Box+Frame)","spec":"White RTV","uom":"Kg","qty":0.337,"wastage":1,"consumption":0.34037},{"sr":11,"group":"Potting Material","spec":"Part A","uom":"Kg","qty":0.020416666667,"wastage":2,"consumption":0.020825},{"sr":12,"group":"Potting Material","spec":"Part B","uom":"Kg","qty":0.004083333333,"wastage":2,"consumption":0.004165},{"sr":13,"group":"Aluminium Frame Long","spec":"2278 x 35 x 33mm-6005 T6, X- 1086 mm","uom":"Pcs","qty":2,"wastage":0.5,"consumption":2.01},{"sr":14,"group":"Aluminium Frame Short","spec":"1134 x 35 x 18mm -6005 T6","uom":"Pcs","qty":2,"wastage":0.5,"consumption":2.01},{"sr":15,"group":"Fluxing agent","spec":"Low Solids, No clean Flux","uom":"Ltr","qty":0.025,"wastage":2,"consumption":0.0255},{"sr":16,"group":"Cell fixing tape","spec":"Anti UV PET tape 10mm -4134","uom":"Roll","qty":0.013636363636,"wastage":1,"consumption":0.013772727273},{"sr":17,"group":"Back Label","spec":"White Printed 100 x 100 mm, Silver Plain 150X20mm","uom":"Nos","qty":1,"wastage":1,"consumption":1.01},{"sr":18,"group":"Barcode sticker (Inside)","spec":"White 85X10mm UL Solex LOGO Printed","uom":"Nos","qty":1,"wastage":1,"consumption":1.01},{"sr":19,"group":"Barcode sticker (Back Side)","spec":"White 50X15mm UL","uom":"Nos","qty":1,"wastage":1,"consumption":1.01},{"sr":20,"group":"Barcode sticker (Frame)","spec":"White 50X10mm Chromo Non UL","uom":"Nos","qty":1,"wastage":1,"consumption":1.01},{"sr":21,"group":"RFID tag (if required)","spec":"RFID UID TAG UHF UL/UV HPC","uom":"Nos","qty":1,"wastage":1,"consumption":1.01},{"sr":22,"group":"Solex Brand Sticker","spec":"290 x 100 mm","uom":"Nos","qty":1,"wastage":1,"consumption":1.01},{"sr":23,"group":"Wooden Pallet","spec":"Jungle Wooden Pallet 31 in 1 2300X1125X132mm","uom":"Nos","qty":0.032258064516,"wastage":1,"consumption":0.032580645161},{"sr":24,"group":"Corrugated Box 5 PLY With Cover","spec":"5 Ply 31in1 2282X1115X1140mm","uom":"Nos","qty":0.032258064516,"wastage":1,"consumption":0.032580645161},{"sr":25,"group":"Retainer Strip","spec":"3Ply Retainer Strip  31in1 1261.5 x 36.5mm","uom":"Nos","qty":0.064516129032,"wastage":1,"consumption":0.065161290323},{"sr":26,"group":"Corrugated Corner","spec":"Corrugated Corner 35X18mm","uom":"Nos","qty":2.064516129032,"wastage":1,"consumption":2.085161290323},{"sr":27,"group":"Plastic Corner","spec":"Plastic (35mm x 35mm)","uom":"Nos","qty":0.645161290323,"wastage":1,"consumption":0.651612903226},{"sr":28,"group":"Edge Board","spec":"Corrugated Edge Board 45X45X3 1045mm","uom":"Nos","qty":0.129032258065,"wastage":1,"consumption":0.130322580645},{"sr":29,"group":"PET Strap","spec":"16 x 0.69 mm","uom":"Kg","qty":0.0561,"wastage":1,"consumption":0.056661},{"sr":30,"group":"Plastic Stretch film","spec":"23 micron (600mm width)","uom":"Kg","qty":0.011612903226,"wastage":1,"consumption":0.011729032258},{"sr":31,"group":"Packing List","spec":"A4 Sticker Paper","uom":"Nos","qty":0.064516129032,"wastage":1,"consumption":0.065161290323},{"sr":32,"group":"IPA","spec":"","uom":"Ltr","qty":0.004,"wastage":0.5,"consumption":0.00402},{"sr":33,"group":"Current Grading Sticker","spec":"I1, I2, I3, I4, I5, I6","uom":"Nos","qty":1,"wastage":1,"consumption":1.01},{"sr":34,"group":"Cotton Cloth","spec":"","uom":"Kg","qty":0.003,"wastage":1,"consumption":0.00303},{"sr":35,"group":"Thermal Ribbon Roll for Barcode","spec":"Thermal Ribbon 65X300 RIBBON","uom":"Roll","qty":8.3333333e-05,"wastage":1,"consumption":8.4166667e-05},{"sr":36,"group":"Thermal Ribbon Roll for back Label","spec":"Thermal Ribbon 104mm X 300 Mtr","uom":"Roll","qty":0.00038,"wastage":1,"consumption":0.0003838}]}];
+
+// ── STATE ─────────────────────────────────────────────────────────────────
+const saved = JSON.parse(localStorage.getItem("rmConsv2") || "{}");
+const modules = JSON.parse(JSON.stringify(saved.modules || baseModules));
+const moduleQty = saved.moduleQty || Object.fromEntries(baseModules.map(m => [m.key, 0]));
+const moduleWp  = saved.moduleWp  || Object.fromEntries(baseModules.map(m => [m.key, 0]));
+// rowOverrides: { "moduleKey:rowIndex": overrideRequiredQty }
+// When set, that row uses its own Required Qty independent of moduleQty
+const rowOverrides = saved.rowOverrides || {};
+// rowGeneration: { "moduleKey:rowIndex": { value: number, unit: "W"|"kW"|"MW"|"GW" } }
+// Per-row independent generation input — separate from module Wp
+const rowGeneration = saved.rowGeneration || {};
+const rowPricing = saved.rowPricing || {};
+const currencyRates = saved.currencyRates || { USD: 83.50, RMB: 11.50 };
+let activeModule = saved.activeModule || "all";
+
+// Unit multipliers for generation
+const GEN_UNITS = { W: 1, kW: 1e3, MW: 1e6, GW: 1e9 };
+
+// pending delete
+let pendingDelete = null;
+
+// ── FORMATTERS ────────────────────────────────────────────────────────────
+const fmt6 = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 6 });
+const fmt2 = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
+
+function n(v) { const p = Number(v); return isFinite(p) ? p : 0; }
+function fmt(v) {
+  if (!isFinite(v)) return "";
+  if (Math.abs(v) >= 1000) return fmt6.format(v);
+  return String(Math.round(v * 1000000) / 1000000);
+}
+// For input field values — NEVER use locale formatting (commas break Number() parsing)
+function fmtInput(v) {
+  if (!isFinite(v) || v === 0) return "";
+  // Up to 6 significant decimal places, no thousands separator
+  return parseFloat(v.toPrecision(10)).toString();
+}
+
+function consumption(row) {
+  return n(row.qty) * (1 + n(row.wastage) / 100);
+}
+
+// ── POWER FORMATTING ──────────────────────────────────────────────────────
+function fmtPower(watts) {
+  if (!isFinite(watts) || watts === 0) return { val: "—", unit: "", full: "" };
+  if (watts >= 1e9) return { val: (watts/1e9).toFixed(3), unit: "GW", full: fmt2.format(watts/1e9)+" GW" };
+  if (watts >= 1e6) return { val: (watts/1e6).toFixed(3), unit: "MW", full: fmt2.format(watts/1e6)+" MW" };
+  if (watts >= 1000) return { val: (watts/1000).toFixed(2), unit: "kW", full: fmt2.format(watts/1000)+" kW" };
+  return { val: Math.round(watts), unit: "W", full: fmt2.format(watts)+" W" };
+}
+
+// ── SAVE ──────────────────────────────────────────────────────────────────
+function saveState() {
+  localStorage.setItem("rmConsv2", JSON.stringify({ modules, moduleQty, moduleWp, activeModule, rowOverrides, rowGeneration, rowPricing, currencyRates }));
+}
+
+// ── PRICING UOM CONVERSION ────────────────────────────────────────────────
+function getPriceUomOptions(row) {
+  const uom = (row.uom || '').trim();
+  const group = (row.group || '').toLowerCase();
+  const opts = [uom];
+  if ((group.includes('solar cell') || group.includes('cell')) && uom.toUpperCase() === 'NOS') {
+    opts.push('Wp');
+  }
+  if (group.includes('glass') && uom.toUpperCase() === 'NOS') {
+    opts.push('SQM');
+  }
+  if ((group.includes('aluminium') || group.includes('aluminum') || group.includes('al ') || group.includes('al.')) && uom.toUpperCase() === 'PCS') {
+    opts.push('Mtr');
+  }
+  if (group.includes('frame') && uom.toUpperCase() === 'PCS' && !opts.includes('Mtr')) {
+    opts.push('Mtr');
+  }
+  return opts;
+}
+
+function convertConsumption(row, moduleKey, priceUom) {
+  const cons = consumption(row);
+  const itemUom = (row.uom || '').trim().toUpperCase();
+  const targetUom = (priceUom || '').trim().toUpperCase();
+  if (!targetUom || targetUom === itemUom) return cons;
+  const group = (row.group || '').toLowerCase();
+  // Solar Cell: Nos → Wp  (each cell = Module_Wp / cells_per_module Wp)
+  if (targetUom === 'WP' && itemUom === 'NOS' && (group.includes('solar cell') || group.includes('cell'))) {
+    const wp = n(moduleWp[moduleKey]);
+    const qtyPerMod = n(row.qty);
+    if (wp > 0 && qtyPerMod > 0) return cons * (wp / qtyPerMod);
+    return null;
+  }
+  // Nos → SQM  (parse dimensions from spec e.g. "2272x1128x2 mm")
+  if (targetUom === 'SQM' && itemUom === 'NOS') {
+    const dm = (row.spec || '').match(/(\d+(?:\.\d+)?)\s*[xX×]\s*(\d+(?:\.\d+)?)/);
+    if (dm) return cons * (parseFloat(dm[1]) * parseFloat(dm[2])) / 1e6;
+    return null;
+  }
+  // Pcs → Mtr  (parse first dimension as length e.g. "2278 x 35 x 33mm")
+  if (targetUom === 'MTR' && itemUom === 'PCS') {
+    const lm = (row.spec || '').match(/(\d+(?:\.\d+)?)\s*[xX×]/);
+    if (lm) return cons * parseFloat(lm[1]) / 1000;
+    return null;
+  }
+  return null; // unknown conversion
+}
+
+function calcCostPerModule(row, moduleKey, pd) {
+  const pq = n(pd.priceQty);
+  const up = n(pd.unitPrice);
+  const cur = pd.currency || 'INR';
+  if (pq <= 0 || up <= 0) return null;
+  const priceUom = (pd.priceUom || row.uom || '').trim();
+  const converted = convertConsumption(row, moduleKey, priceUom);
+  if (converted === null) return null;
+  let rate = 1;
+  if (cur === 'USD') rate = n(currencyRates.USD) || 1;
+  if (cur === 'RMB') rate = n(currencyRates.RMB) || 1;
+  return (converted / pq) * up * rate;
+}
+
+// ── ALL ROWS ──────────────────────────────────────────────────────────────
+function allRows() {
+  return modules.flatMap(m => m.rows.map((row, ri) => ({ module: m, row, rowIndex: ri })));
+}
+
+// ── CONTROLS ──────────────────────────────────────────────────────────────
+function renderControls() {
+  const box = document.getElementById("moduleControls");
+  box.innerHTML = modules.map(module => {
+    const qty = n(moduleQty[module.key]);
+    const wp  = n(moduleWp[module.key]);
+    const totalW = qty * wp;
+    const pwr = fmtPower(totalW);
+    return `
+    <div class="module-card">
+      <div class="module-card-header">
+        <div class="module-dot"></div>
+        <div class="module-card-label">${module.name}</div>
+        ${wp > 0 ? `<div class="module-wp-badge">${wp}Wp</div>` : ''}
+      </div>
+      <div class="module-inputs">
+        <div class="input-row">
+          <span class="input-label">Modules</span>
+          <div class="input-field-wrap">
+            <input type="number" min="0" step="1" value="${moduleQty[module.key] || ""}" data-module-qty="${module.key}" placeholder="Qty"/>
+          </div>
+          <span class="input-unit">nos</span>
+        </div>
+        <div class="input-row">
+          <span class="input-label">Module Wp</span>
+          <div class="input-field-wrap">
+            <input type="number" min="0" step="0.01" value="${moduleWp[module.key] || ""}" data-module-wp="${module.key}" placeholder="e.g. 580"/>
+          </div>
+          <span class="input-unit">Wp</span>
+        </div>
+      </div>
+      ${totalW > 0 ? `<div class="power-pill">
+        <span class="power-pill-icon">⚡</span>
+        <span class="power-pill-text">${module.name}</span>
+        <span class="power-pill-val">${pwr.full}</span>
+      </div>` : ''}
+    </div>`;
+  }).join("");
+
+  document.querySelectorAll("[data-module-qty]").forEach(inp => {
+    inp.addEventListener("input", () => {
+      moduleQty[inp.dataset.moduleQty] = n(inp.value);
+      saveState(); render();
+    });
+  });
+  document.querySelectorAll("[data-module-wp]").forEach(inp => {
+    inp.addEventListener("input", () => {
+      moduleWp[inp.dataset.moduleWp] = n(inp.value);
+      saveState(); render();
+    });
+  });
+}
+
+// ── WATT SUMMARY ─────────────────────────────────────────────────────────
+function renderWattSummary() {
+  const el = document.getElementById("wattSummary");
+  let totalW = 0;
+  const cards = modules.map(m => {
+    const qty = n(moduleQty[m.key]);
+    const wp  = n(moduleWp[m.key]);
+    const w   = qty * wp;
+    totalW += w;
+    const pwr = fmtPower(w);
+    return `<div class="watt-card">
+      <div class="watt-card-label">⚡ Generation</div>
+      <div class="watt-card-name">${m.name}</div>
+      <div><span class="watt-card-val">${pwr.val}</span><span class="watt-card-unit">${pwr.unit}</span></div>
+      <div class="watt-card-sub">${fmt2.format(qty)} modules × ${wp > 0 ? wp+'Wp' : '— Wp'}</div>
+    </div>`;
+  });
+  const tot = fmtPower(totalW);
+  cards.push(`<div class="watt-card" style="background:linear-gradient(135deg,#064430,#041f17)">
+    <div class="watt-card-label">TOTAL ALL MODULES</div>
+    <div class="watt-card-name" style="color:var(--solar-3)">Combined Power Output</div>
+    <div><span class="watt-card-val watt-card-full">${tot.val}</span><span class="watt-card-unit">${tot.unit}</span></div>
+    <div class="watt-card-sub">${fmt2.format(Object.values(moduleQty).reduce((s,v)=>s+n(v),0))} total modules</div>
+  </div>`);
+  el.innerHTML = cards.join("");
+}
+
+// ── PRICING SUMMARY ───────────────────────────────────────────────────────
+function renderPricingSummary() {
+  const el = document.getElementById("priceSummary");
+  const cards = modules.map(m => {
+    let modCost = 0;
+    m.rows.forEach((row, ri) => {
+      const pk = `${m.key}:${ri}`;
+      const pd = rowPricing[pk];
+      if (pd) {
+        const c = calcCostPerModule(row, m.key, pd);
+        if (c !== null) modCost += c;
+      }
+    });
+    
+    const wp = n(moduleWp[m.key]);
+    const costPerWp = wp > 0 && modCost > 0 ? modCost / wp : 0;
+    
+    return `<div class="price-card">
+      <div class="price-card-label">💰 Per Module Cost</div>
+      <div class="price-card-name">${m.name}</div>
+      <div><span class="price-card-val">${modCost > 0 ? '\u20b9 ' + fmt2.format(modCost) : '\u2014'}</span></div>
+      ${costPerWp > 0 ? `<div class="price-card-sub"><span class="price-card-sub-label">Price / Wp:</span> \u20b9${costPerWp.toFixed(3)}</div>` : '<div class="price-card-sub"><span class="price-card-sub-label">Price / Wp:</span> \u2014</div>'}
+    </div>`;
+  });
+  el.innerHTML = cards.join("");
+}
+
+// ── TABS ──────────────────────────────────────────────────────────────────
+function renderTabs() {
+  const tabs = document.getElementById("tabs");
+  const opts = [{ key: "all", name: "All Types" }, ...modules];
+  tabs.innerHTML = opts.map(item =>
+    `<button class="tab ${activeModule === item.key ? "active" : ""}" data-tab="${item.key}">${item.name}</button>`
+  ).join("");
+  document.querySelectorAll("[data-tab]").forEach(btn => {
+    btn.addEventListener("click", () => { activeModule = btn.dataset.tab; saveState(); render(); });
+  });
+}
+
+// ── SUMMARY KPIs ─────────────────────────────────────────────────────────
+function renderSummary(visibleRows) {
+  const totalModules = Object.values(moduleQty).reduce((s,v) => s+n(v), 0);
+  const reqTotal = visibleRows.reduce((s,i) => s + consumption(i.row) * n(moduleQty[i.module.key]), 0);
+  const totalWatts = modules.reduce((s,m) => s + n(moduleQty[m.key]) * n(moduleWp[m.key]), 0);
+  const pwr = fmtPower(totalWatts);
+
+  // Calculate material costs
+  let totalMaterialCost = 0;
+  const costByType = {};
+  modules.forEach(m => {
+    let modCost = 0;
+    m.rows.forEach((row, ri) => {
+      const pk = `${m.key}:${ri}`;
+      const pd = rowPricing[pk];
+      if (pd) {
+        const c = calcCostPerModule(row, m.key, pd);
+        if (c !== null) modCost += c;
+      }
+    });
+    costByType[m.key] = modCost;
+    totalMaterialCost += modCost * n(moduleQty[m.key]);
+  });
+  const fmtCurr = v => v > 0 ? '\u20b9 ' + fmt2.format(v) : '\u2014';
+  const perModSub = modules.map(m => costByType[m.key] > 0 ? m.name.split(' ')[0] + ': \u20b9' + fmt2.format(costByType[m.key]) + '/mod' : '').filter(Boolean).join(' | ') || 'enter prices';
+
+  document.getElementById("summary").innerHTML = `
+    <div class="kpi green"><div class="kpi-label">Total Modules</div><div class="kpi-val">${fmt2.format(totalModules)}</div><div class="kpi-sub">across all types</div></div>
+    <div class="kpi teal"><div class="kpi-label">Total Power</div><div class="kpi-val">${pwr.val}<span style="font-size:13px;font-weight:600;color:var(--solar-3)"> ${pwr.unit}</span></div><div class="kpi-sub">combined output</div></div>
+    <div class="kpi amber"><div class="kpi-label">Material Lines</div><div class="kpi-val">${visibleRows.length}</div><div class="kpi-sub">visible rows</div></div>
+    <div class="kpi blue"><div class="kpi-label">Req. Qty Total</div><div class="kpi-val" style="font-size:15px">${fmt2.format(reqTotal)}</div><div class="kpi-sub">all materials</div></div>
+    <div class="kpi purple"><div class="kpi-label">Module Types</div><div class="kpi-val">${modules.length}</div><div class="kpi-sub">in calculator</div></div>
+    <div class="kpi" style="border-left:3px solid #d97706"><div class="kpi-label">💰 Total Material Cost</div><div class="kpi-val" style="font-size:14px;color:#92400e">${fmtCurr(totalMaterialCost)}</div><div class="kpi-sub">${perModSub}</div></div>
+  `;
+}
+
+// ── TABLE ─────────────────────────────────────────────────────────────────
+function renderTable() {
+  const search = document.getElementById("searchBox").value.trim().toLowerCase();
+  const visibleRows = allRows().filter(item => {
+    const inTab = activeModule === "all" || item.module.key === activeModule;
+    const hay = `${item.module.name} ${item.row.group} ${item.row.spec} ${item.row.uom}`.toLowerCase();
+    return inTab && (!search || hay.includes(search));
+  });
+
+  if (!visibleRows.length) {
+    document.getElementById("resultBody").innerHTML = `<tr><td colspan="16">
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <p>No rows match your search</p>
+        <small>Try clearing the search or switching tabs</small>
+      </div>
+    </td></tr>`;
+    renderSummary([]);
+    return;
+  }
+
+  document.getElementById("resultBody").innerHTML = visibleRows.map(item => {
+    const mk       = item.module.key;
+    const ri       = item.rowIndex;
+    const overKey  = `${mk}:${ri}`;
+    const genKey   = overKey;
+    const globalQty = n(moduleQty[mk]);
+    const wp        = n(moduleWp[mk]);
+    const cons      = consumption(item.row);
+
+    // ── PRIORITY CHAIN ──
+    // 1. rowGeneration → derive module qty + req qty from generation watts
+    // 2. rowOverrides  → custom req qty, derive module qty
+    // 3. global        → use moduleQty from top cards
+    const hasGen      = genKey in rowGeneration;
+    const hasOverride = !hasGen && (overKey in rowOverrides);
+    const isCustom    = hasGen || hasOverride;  // row has any custom input
+
+    let reqQty, impliedMQ, totalPowerW;
+
+    if (hasGen) {
+      const gd = rowGeneration[genKey];
+      totalPowerW = gd.value * GEN_UNITS[gd.unit];
+      impliedMQ   = wp > 0 ? totalPowerW / wp : 0;
+      reqQty      = cons * impliedMQ;
+    } else if (hasOverride) {
+      reqQty      = rowOverrides[overKey];
+      impliedMQ   = cons > 0 ? reqQty / cons : globalQty;
+      totalPowerW = impliedMQ * wp;
+    } else {
+      impliedMQ   = globalQty;
+      reqQty      = cons * globalQty;
+      totalPowerW = impliedMQ * wp;
+    }
+
+    const totalPwr = fmtPower(totalPowerW);
+
+    // Auto-calculated power for placeholder (from global module qty × Wp)
+    const autoWatts = globalQty * wp;
+    const autoPwr   = fmtPower(autoWatts);
+    // Auto unit for dropdown default (match the magnitude)
+    const autoUnit  = autoPwr.unit || 'W';
+
+    // Generation column display
+    const genData = hasGen ? rowGeneration[genKey] : null;
+    const genUnit = genData ? genData.unit : autoUnit;
+    const genResetBtn = hasGen
+      ? `<button class="gen-reset" onclick="clearGeneration('${mk}',${ri})" title="Reset to auto (Module Wp)">↺</button>`
+      : '';
+    const genTag = hasGen ? `<span class="gen-tag">manual</span>` : '';
+
+    // ── PRICING CALCULATION ──
+    const priceKey = overKey;
+    const pd = rowPricing[priceKey] || {};
+    const pQty = pd.priceQty || '';
+    const pUom = pd.priceUom || item.row.uom || '';
+    const pPrice = pd.unitPrice || '';
+    const pUomOpts = getPriceUomOptions(item.row);
+    const pCur = pd.currency || 'INR';
+    const costPM = (n(pQty) > 0 && n(pPrice) > 0) ? calcCostPerModule(item.row, mk, pd) : null;
+    const pricingCells = `<td class="price-cell">
+        <div class="price-inline-wrap">
+          <input type="number" step="0.001" min="0" data-price-qty="${mk}:${ri}" value="${pQty}" placeholder="Qty"/>
+          <select data-price-uom="${mk}:${ri}">
+            ${pUomOpts.map(u => `<option value="${u}"${u === pUom ? ' selected' : ''}>${u}</option>`).join('')}
+          </select>
+        </div>
+      </td>
+      <td class="price-cell">
+        <div class="price-input-wrap">
+          <input type="number" step="0.001" min="0" data-unit-price="${mk}:${ri}" value="${pPrice}" placeholder="Price"/>
+          <select data-price-cur="${mk}:${ri}">
+            <option value="INR"${pCur==='INR'?' selected':''}>\u20b9 INR</option>
+            <option value="USD"${pCur==='USD'?' selected':''}>$ USD</option>
+            <option value="RMB"${pCur==='RMB'?' selected':''}>\u00a5 RMB</option>
+          </select>
+        </div>
+      </td>
+      <td class="cost-cell num${costPM !== null ? ' has-value' : ''}">${costPM !== null ? '\u20b9 ' + fmt2.format(costPM) : '\u2014'}</td>`;
+
+    const wattCell = `<td class="gen-edit-cell num">
+        <div class="gen-inline-wrap">
+          <input type="number" step="0.001" min="0" data-gen-val="${mk}:${ri}" value="${hasGen ? fmtInput(genData.value) : ''}" placeholder="${wp > 0 ? autoPwr.val : '—'}" title="✎ Enter generation for this row"/>
+          <select data-gen-unit="${mk}:${ri}">
+            <option value="W"${genUnit==='W'?' selected':''}>W</option>
+            <option value="kW"${genUnit==='kW'?' selected':''}>kW</option>
+            <option value="MW"${genUnit==='MW'?' selected':''}>MW</option>
+            <option value="GW"${genUnit==='GW'?' selected':''}>GW</option>
+          </select>
+          ${genResetBtn}
+        </div>
+        ${genTag}
+      </td>
+      <td class="watt-cell num" id="pwrcell-${mk}-${ri}">${totalPowerW > 0 ? `<span class="watt-val">${totalPwr.val}</span><span class="watt-unit">${totalPwr.unit}</span>` : '—'}</td>`;
+
+    // Module Qty cell
+    const mqClass  = isCustom ? "modqty-cell overridden-implied" : "modqty-cell normal";
+    const mqLabel  = isCustom ? fmt(impliedMQ) : fmt(globalQty);
+
+    // Reset button shown when any custom input
+    const resetBtn = hasOverride
+      ? `<button class="reset-btn" onclick="clearOverride('${mk}',${ri})" title="Reset to module qty calculation">↺</button>`
+      : "";
+
+    const overrideTag = hasOverride ? `<span class="override-tag">custom</span>` : "";
+    const genDrivenTag = hasGen ? `<span class="override-tag" style="background:#d1fae5;border-color:#6ee7b7;color:#065f46">⚡gen</span>` : "";
+
+    return `<tr class="${isCustom ? 'row-overridden' : ''}" style="${hasGen ? 'background-color:#f0fdf4 !important' : ''}">
+      <td><span class="mod-badge">${item.module.name}</span></td>
+      <td class="num" style="color:var(--muted);font-size:11px">${item.row.sr}</td>
+      <td class="group-cell">${item.row.group || ""}</td>
+      <td class="spec">${item.row.spec || ""}</td>
+      <td class="center" style="font-weight:600;color:var(--muted);font-size:11px">${item.row.uom || ""}</td>
+      <td class="edit-cell"><input type="number" step="0.000001" data-edit="${mk}:${ri}:qty" value="${fmtInput(item.row.qty)}"/></td>
+      <td class="edit-cell"><input type="number" step="0.0001" data-edit="${mk}:${ri}:wastage" value="${fmtInput(item.row.wastage)}"/></td>
+      <td class="edit-cell"><input type="number" step="0.000001" data-edit="${mk}:${ri}:consumption" value="${fmtInput(cons)}"/></td>
+      <td class="${mqClass}" id="mqcell-${mk}-${ri}" style="text-align:right">${mqLabel}</td>
+      <td class="total-cell num" style="white-space:nowrap">
+        <input type="number" step="0.000001" data-req="${mk}:${ri}" value="${fmtInput(reqQty)}" title="✎ Type to set this row's Required Qty independently"/>
+        ${overrideTag}${genDrivenTag}${resetBtn}
+      </td>
+      ${pricingCells}
+      ${wattCell}
+      <td class="action-cell">
+        <div class="row-actions">
+          <button class="row-btn edit-btn" onclick="openEditModal('${mk}',${ri})" title="Edit row">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="row-btn del-btn" onclick="openDeleteModal('${mk}',${ri},'${(item.row.group||"").replace(/'/g,"\\'")}','${(item.row.spec||"").substring(0,40).replace(/'/g,"\\'")}...')" title="Delete row">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19,6l-1,14a2,2,0,0,1-2,2H8a2,2,0,0,1-2-2L5,6"/><path d="M10,11v6"/><path d="M14,11v6"/><path d="M9,6V4a1,1,0,0,1,1-1h4a1,1,0,0,1,1,1v2"/></svg>
+          </button>
+        </div>
+      </td>
+    </tr>`;
+  }).join("");
+
+  // inline edit listeners
+  document.querySelectorAll("[data-edit]").forEach(inp => {
+    inp.addEventListener("change", () => {
+      const [mk, ri, field] = inp.dataset.edit.split(":");
+      const mod = modules.find(m => m.key === mk);
+      const row = mod.rows[Number(ri)];
+      const val = n(inp.value);
+      if (field === "consumption") {
+        row.consumption = val;
+        row.qty = val / (1 + n(row.wastage) / 100);
+      } else {
+        row[field] = val;
+        row.consumption = consumption(row);
+      }
+      saveState(); render();
+    });
+  });
+
+  // ── INLINE GENERATION listeners (back-calculates Module Qty + Req Qty) ──
+  document.querySelectorAll("[data-gen-val]").forEach(inp => {
+    const changeHandler = () => {
+      const key = inp.dataset.genVal;
+      const val = n(inp.value);
+      const unitSel = document.querySelector(`[data-gen-unit="${key}"]`);
+      const unit = unitSel ? unitSel.value : 'W';
+      if (val > 0) {
+        rowGeneration[key] = { value: val, unit: unit };
+        // Clear any req qty override since generation takes priority
+        delete rowOverrides[key];
+      } else {
+        delete rowGeneration[key];
+      }
+      saveState(); render();
+    };
+    inp.addEventListener("change", changeHandler);
+
+    // Live preview while typing
+    inp.addEventListener("input", () => {
+      const key = inp.dataset.genVal;
+      const [mk, ri] = key.split(":");
+      const val = n(inp.value);
+      const unitSel = document.querySelector(`[data-gen-unit="${key}"]`);
+      const unit = unitSel ? unitSel.value : 'W';
+      const watts = val * GEN_UNITS[unit];
+      const wp = n(moduleWp[mk]);
+      const mod = modules.find(m => m.key === mk);
+      const row = mod.rows[Number(ri)];
+      const cons = consumption(row);
+
+      if (val > 0) {
+        const impliedMQ = wp > 0 ? watts / wp : 0;
+        const reqQty = cons * impliedMQ;
+        // Update Module Qty cell
+        const mqCell = document.getElementById(`mqcell-${mk}-${ri}`);
+        if (mqCell) { mqCell.className = 'modqty-cell overridden-implied'; mqCell.textContent = fmt(impliedMQ); }
+        // Update Required Qty input
+        const reqInp = document.querySelector(`[data-req="${mk}:${ri}"]`);
+        if (reqInp) reqInp.value = fmtInput(reqQty);
+        // Update Total Power cell
+        const pwr = fmtPower(watts);
+        const pwrCell = document.getElementById(`pwrcell-${mk}-${ri}`);
+        if (pwrCell) pwrCell.innerHTML = `<span class="watt-val">${pwr.val}</span><span class="watt-unit">${pwr.unit}</span>`;
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-gen-unit]").forEach(sel => {
+    sel.addEventListener("change", () => {
+      const key = sel.dataset.genUnit;
+      const valInp = document.querySelector(`[data-gen-val="${key}"]`);
+      const val = valInp ? n(valInp.value) : 0;
+      if (val > 0) {
+        rowGeneration[key] = { value: val, unit: sel.value };
+        delete rowOverrides[key];
+        saveState(); render();
+      }
+    });
+  });
+
+  // ── PRICING LISTENERS ──────────────────────────────────────────────────
+  document.querySelectorAll('[data-price-qty]').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const key = inp.dataset.priceQty;
+      const uomSel = document.querySelector(`[data-price-uom="${key}"]`);
+      const priceInp = document.querySelector(`[data-unit-price="${key}"]`);
+      const curSel = document.querySelector(`[data-price-cur="${key}"]`);
+      if (!rowPricing[key]) rowPricing[key] = {};
+      rowPricing[key].priceQty = n(inp.value);
+      rowPricing[key].priceUom = uomSel ? uomSel.value : '';
+      if (priceInp) rowPricing[key].unitPrice = n(priceInp.value);
+      if (curSel) rowPricing[key].currency = curSel.value;
+      saveState(); render();
+    });
+  });
+  document.querySelectorAll('[data-price-uom]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const key = sel.dataset.priceUom;
+      if (!rowPricing[key]) rowPricing[key] = {};
+      rowPricing[key].priceUom = sel.value;
+      saveState(); render();
+    });
+  });
+  document.querySelectorAll('[data-unit-price]').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const key = inp.dataset.unitPrice;
+      const qtyInp = document.querySelector(`[data-price-qty="${key}"]`);
+      const uomSel = document.querySelector(`[data-price-uom="${key}"]`);
+      const curSel = document.querySelector(`[data-price-cur="${key}"]`);
+      if (!rowPricing[key]) rowPricing[key] = {};
+      rowPricing[key].unitPrice = n(inp.value);
+      if (qtyInp) rowPricing[key].priceQty = n(qtyInp.value);
+      if (uomSel) rowPricing[key].priceUom = uomSel.value;
+      if (curSel) rowPricing[key].currency = curSel.value;
+      saveState(); render();
+    });
+  });
+  document.querySelectorAll('[data-price-cur]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const key = sel.dataset.priceCur;
+      if (!rowPricing[key]) rowPricing[key] = {};
+      rowPricing[key].currency = sel.value;
+      saveState(); render();
+    });
+  });
+
+  // ── REQUIRED QTY → per-row override + live power update ──────────────
+  document.querySelectorAll("[data-req]").forEach(inp => {
+    inp.addEventListener("change", () => {
+      const [mk, ri] = inp.dataset.req.split(":");
+      const mod  = modules.find(m => m.key === mk);
+      const row  = mod.rows[Number(ri)];
+      const reqVal = n(inp.value);
+      const cons   = consumption(row);
+      if (reqVal > 0 && cons > 0) {
+        const overKey = `${mk}:${ri}`;
+        // Clear generation override — user is now driving from req qty
+        delete rowGeneration[overKey];
+        const calcVal = cons * n(moduleQty[mk]);
+        if (Math.abs(reqVal - calcVal) > 0.0000001) {
+          rowOverrides[overKey] = reqVal;
+        } else {
+          delete rowOverrides[overKey];
+        }
+        saveState(); render();
+      }
+    });
+
+    // Live preview: update Module Qty + Power columns while typing
+    inp.addEventListener("input", () => {
+      const [mk, ri] = inp.dataset.req.split(":");
+      const mod  = modules.find(m => m.key === mk);
+      const row  = mod.rows[Number(ri)];
+      const reqVal = n(inp.value);
+      const cons   = consumption(row);
+      const wp     = n(moduleWp[mk]);
+      if (cons > 0 && reqVal > 0) {
+        const impliedMQ = reqVal / cons;
+        // Update Module Qty cell
+        const mqCell = document.getElementById(`mqcell-${mk}-${ri}`);
+        if (mqCell) {
+          mqCell.className = "modqty-cell overridden-implied";
+          mqCell.textContent = fmt(impliedMQ);
+        }
+        // Update Total Power cell
+        const totalW = impliedMQ * wp;
+        const pwr = fmtPower(totalW);
+        const pwrCell = document.getElementById(`pwrcell-${mk}-${ri}`);
+        if (pwrCell) {
+          pwrCell.innerHTML = totalW > 0 ? `<span class="watt-val">${pwr.val}</span><span class="watt-unit">${pwr.unit}</span>` : '—';
+        }
+        // Update Generation placeholder (clear manual gen display)
+        const genInp = document.querySelector(`[data-gen-val="${mk}:${ri}"]`);
+        if (genInp && !genInp.value) {
+          const genPwr = fmtPower(totalW);
+          genInp.placeholder = genPwr.val !== '—' ? genPwr.val : '—';
+        }
+      }
+    });
+  });
+
+  renderSummary(visibleRows);
+}
+
+// ── CLEAR INDIVIDUAL ROW OVERRIDE ─────────────────────────────────────────
+function clearOverride(mk, ri) {
+  const key = `${mk}:${ri}`;
+  delete rowOverrides[key];
+  delete rowGeneration[key]; // also clear any generation
+  saveState(); render();
+}
+
+// ── CLEAR INDIVIDUAL ROW GENERATION ──────────────────────────────────────
+function clearGeneration(mk, ri) {
+  delete rowGeneration[`${mk}:${ri}`];
+  saveState(); render();
+}
+
+// ── ADD ROW ──────────────────────────────────────────────────────────
+function openAddRowModal() {
+  const sel = document.getElementById('addModuleKey');
+  sel.innerHTML = modules.map(m => `<option value="${m.key}">${m.name}</option>`).join('');
+  // Default to active module tab if one is selected
+  if (activeModule !== 'all') sel.value = activeModule;
+  document.getElementById('addGroup').value = '';
+  document.getElementById('addSpec').value = '';
+  document.getElementById('addUom').value = '';
+  document.getElementById('addWastage').value = '1';
+  document.getElementById('addQty').value = '';
+  document.getElementById('addRowModal').classList.add('open');
+}
+function saveAddRowModal() {
+  const mk = document.getElementById('addModuleKey').value;
+  const mod = modules.find(m => m.key === mk);
+  if (!mod) return;
+  const newRow = {
+    sr: mod.rows.length + 1,
+    group: document.getElementById('addGroup').value.trim(),
+    spec: document.getElementById('addSpec').value.trim(),
+    uom: document.getElementById('addUom').value.trim(),
+    qty: n(document.getElementById('addQty').value),
+    wastage: n(document.getElementById('addWastage').value),
+    consumption: 0
+  };
+  newRow.consumption = consumption(newRow);
+  mod.rows.push(newRow);
+  closeModal('addRowModal');
+  saveState(); render();
+}
+
+// ── EDIT MODAL ────────────────────────────────────────────────────────────
+function openEditModal(moduleKey, rowIndex) {
+  const mod = modules.find(m => m.key === moduleKey);
+  const row = mod.rows[rowIndex];
+  document.getElementById("editModuleKey").value = moduleKey;
+  document.getElementById("editRowIndex").value  = rowIndex;
+  document.getElementById("editGroup").value    = row.group || "";
+  document.getElementById("editSpec").value     = row.spec || "";
+  document.getElementById("editUom").value      = row.uom || "";
+  document.getElementById("editWastage").value  = row.wastage;
+  document.getElementById("editQty").value      = row.qty;
+  document.getElementById("editModal").classList.add("open");
+}
+function saveEditModal() {
+  const mk  = document.getElementById("editModuleKey").value;
+  const ri  = Number(document.getElementById("editRowIndex").value);
+  const mod = modules.find(m => m.key === mk);
+  const row = mod.rows[ri];
+  row.group   = document.getElementById("editGroup").value.trim();
+  row.spec    = document.getElementById("editSpec").value.trim();
+  row.uom     = document.getElementById("editUom").value.trim();
+  row.wastage = n(document.getElementById("editWastage").value);
+  row.qty     = n(document.getElementById("editQty").value);
+  row.consumption = consumption(row);
+  closeModal("editModal");
+  saveState(); render();
+}
+
+// ── DELETE MODAL ──────────────────────────────────────────────────────────
+function openDeleteModal(moduleKey, rowIndex, group, spec) {
+  pendingDelete = { moduleKey, rowIndex };
+  document.getElementById("deleteRowDesc").textContent = `"${group} — ${spec}"`;
+  document.getElementById("deleteModal").classList.add("open");
+}
+function confirmDelete() {
+  if (!pendingDelete) return;
+  const mod = modules.find(m => m.key === pendingDelete.moduleKey);
+  mod.rows.splice(pendingDelete.rowIndex, 1);
+  // re-number sr
+  mod.rows.forEach((r, i) => r.sr = i + 1);
+  pendingDelete = null;
+  closeModal("deleteModal");
+  saveState(); render();
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove("open");
+}
+// close on overlay click
+document.querySelectorAll(".modal-overlay").forEach(overlay => {
+  overlay.addEventListener("click", e => { if (e.target === overlay) overlay.classList.remove("open"); });
+});
+
+// ── MAIN RENDER ───────────────────────────────────────────────────────────
+function render() {
+  renderTabs();
+  renderWattSummary();
+  renderPricingSummary();
+  renderTable();
+}
+
+// ── PLANNING & STOCK MODE LOGIC ───────────────────────────────────────────
+let planRaw = [];
+let planFmt = [];
+let planSheetName = '';
+let stockRaw = [];
+let activeLabels = new Set();
+let activePlanView = 'customers';
+let allSheetDates = []; // All dates found in planning sheet headers
+let userDateFrom = null; // User-selected start date (null = use all)
+let userDateTo = null;   // User-selected end date (null = use all)
+
+// Persisted planning overrides
+const savedPlan = JSON.parse(localStorage.getItem("rmPlanOverrides") || "{}");
+const stockMappingOverrides = savedPlan.stockMappingOverrides || {}; // { materialKey: [stockItemDesc1, ...] }
+const discardedMaterials = new Set(savedPlan.discardedMaterials || []); // Set of materialKey
+
+// Aggregated analysis results (shared between renders)
+let lastAnalysis = null;
+let aggregatedStock = {}; // { itemDesc: { qty, uom, cat, subcat } }
+
+function savePlanOverrides() {
+  localStorage.setItem("rmPlanOverrides", JSON.stringify({
+    stockMappingOverrides,
+    discardedMaterials: Array.from(discardedMaterials)
+  }));
+}
+
+const planFileInput = document.getElementById('planFileInput');
+const stockFileInput = document.getElementById('stockFileInput');
+
+document.getElementById('modeCalc').addEventListener('click', (e) => {
+  cellShowView('calc', e.target);
+});
+
+document.getElementById('modePlan').addEventListener('click', (e) => {
+  cellShowView('plan', e.target);
+});
+
+document.getElementById('modeCell').addEventListener('click', (e) => {
+  cellShowView('cell', e.target);
+});
+
+function cellShowView(which, btn) {
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  document.getElementById('calcMain').style.display = which === 'calc' ? 'block' : 'none';
+  document.getElementById('planningMain').style.display = which === 'plan' ? 'block' : 'none';
+  document.getElementById('cellInvMain').style.display = which === 'cell' ? 'block' : 'none';
+}
+
+function setupDropZone(zoneId, inputId, onFile) {
+  const zone = document.getElementById(zoneId);
+  const input = document.getElementById(inputId);
+  zone.addEventListener('click', () => input.click());
+  zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault(); zone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+      input.files = e.dataTransfer.files;
+      onFile(e.dataTransfer.files[0]);
+    }
+  });
+  input.addEventListener('change', (e) => {
+    if (e.target.files.length) onFile(e.target.files[0]);
+  });
+}
+
+function processExcelPlan(file, callback) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, {type: 'array', cellDates: false});
+    const lastSheetName = workbook.SheetNames[workbook.SheetNames.length - 1];
+    const ws = workbook.Sheets[lastSheetName];
+    const raw2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: true, defval: ''});
+    const fmt2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: false, defval: ''});
+    callback(raw2d, fmt2d, lastSheetName);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function processExcelStock(file, callback) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, {type: 'array'});
+    const ws = workbook.Sheets[workbook.SheetNames[0]];
+    const json2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: true, defval: ''});
+    callback(json2d);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function checkAndRunAnalysis() {
+  if (planRaw.length > 0 && stockRaw.length > 0) {
+    document.getElementById('loadingIndicator').style.display = 'block';
+    document.getElementById('analysisResults').style.display = 'none';
+    setTimeout(() => {
+      runAnalysisAuto();
+      document.getElementById('loadingIndicator').style.display = 'none';
+    }, 100);
+  }
+}
+
+setupDropZone('planUpload', 'planFileInput', (file) => {
+  document.getElementById('planUploadName').textContent = '✓ ' + file.name;
+  document.getElementById('planUpload').style.borderColor = 'var(--solar-2)';
+  document.getElementById('planUpload').style.background = 'var(--solar-bg)';
+  // Clear saved state when new file is uploaded
+  localStorage.removeItem('rmAnalysisState');
+  document.getElementById('savedDataBanner').style.display = 'none';
+  processExcelPlan(file, (raw2d, fmt2d, sheetName) => {
+    planRaw = raw2d;
+    planFmt = fmt2d;
+    planSheetName = sheetName;
+    checkAndRunAnalysis();
+  });
+});
+
+setupDropZone('stockUpload', 'stockFileInput', (file) => {
+  document.getElementById('stockUploadName').textContent = '✓ ' + file.name;
+  document.getElementById('stockUpload').style.borderColor = 'var(--solar-2)';
+  document.getElementById('stockUpload').style.background = 'var(--solar-bg)';
+  // Clear saved state when new file is uploaded
+  localStorage.removeItem('rmAnalysisState');
+  document.getElementById('savedDataBanner').style.display = 'none';
+  processExcelStock(file, (data2d) => {
+    stockRaw = data2d;
+    checkAndRunAnalysis();
+  });
+});
+
+// ── VIEW SWITCHING ─────────────────────────────────────────────────
+window.switchPlanView = function(view) {
+  activePlanView = view;
+  ['customers','modules','consolidated','detailed'].forEach(v => {
+    const el = document.getElementById('planView' + v.charAt(0).toUpperCase() + v.slice(1));
+    if (el) el.style.display = v === view ? 'block' : 'none';
+  });
+  document.querySelectorAll('.plan-view-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.planview === view);
+  });
+};
+
+// ── SMART STOCK MAPPING ENGINE ──────────────────────────────────────
+function buildAutoStockMapping(materialGroup, materialSpec, materialUom) {
+  const g = (materialGroup || '').toLowerCase();
+  const s = (materialSpec || '').toLowerCase();
+  const matchedKeys = [];
+
+  const stockKeys = Object.keys(aggregatedStock);
+
+  // Helper: find stock items matching ALL keywords
+  function findByKeywords(...keywords) {
+    return stockKeys.filter(sk => {
+      const skl = sk.toLowerCase();
+      return keywords.every(kw => skl.includes(kw.toLowerCase()));
+    });
+  }
+
+  // Helper: extract dimension from spec like "2272x1128x2"
+  function extractDims(str) {
+    const m = str.match(/(\d+)\s*[xX×]\s*(\d+)/);
+    return m ? [m[1], m[2]] : null;
+  }
+
+  // Solar Cell — match by cell dimensions
+  if (g.includes('solar cell')) {
+    if (s.includes('182.2') && (s.includes('183.75') || s.includes('183'))) {
+      // M10R cells: 182.2 x 183.75mm
+      matchedKeys.push(...findByKeywords('solar cell', '182.2', '183.75'));
+      if (!matchedKeys.length) matchedKeys.push(...findByKeywords('solar cell', '182.2x183'));
+    } else if (s.includes('182.2') && s.includes('210')) {
+      // G12R cells: 182.2 x 210mm (stock shows 182.3x210)
+      matchedKeys.push(...findByKeywords('solar cell', '210mm'));
+      // filter to only topcon if possible
+      const topconOnly = matchedKeys.filter(k => k.toLowerCase().includes('topcon'));
+      if (topconOnly.length) { matchedKeys.length = 0; matchedKeys.push(...topconOnly); }
+    } else if (s.includes('182') && !s.includes('210') && !s.includes('183.75')) {
+      // M10 Mono PERC: 182x182mm (stock shows "182mm")
+      matchedKeys.push(...findByKeywords('solar cell', 'mp', '182mm'));
+      if (!matchedKeys.length) matchedKeys.push(...findByKeywords('solar cell', 'mono', '182'));
+    }
+  }
+  // Solar Glass — match by exact dimensions
+  else if (g.includes('solar glass')) {
+    const dims = extractDims(s);
+    if (dims) {
+      matchedKeys.push(...findByKeywords('solar glass', dims[0], dims[1]));
+      // Distinguish with/without hole
+      if (s.includes('hole') || s.includes('pattern')) {
+        const filtered = matchedKeys.filter(k => k.toLowerCase().includes('hole') || k.toLowerCase().includes('pattern'));
+        if (filtered.length) { matchedKeys.length = 0; matchedKeys.push(...filtered); }
+      } else {
+        const filtered = matchedKeys.filter(k => !k.toLowerCase().includes('hole') && !k.toLowerCase().includes('pattern'));
+        if (filtered.length) { matchedKeys.length = 0; matchedKeys.push(...filtered); }
+      }
+    }
+  }
+  // EPE (Encapsulant used in Topcon)
+  else if (g.includes('epe')) {
+    const widthMatch = s.match(/(\d{3,4})\s*$/i) || s.match(/(\d{3,4})\s*mm/i);
+    if (widthMatch) {
+      matchedKeys.push(...findByKeywords('solar epe', widthMatch[1]));
+    }
+    if (!matchedKeys.length) matchedKeys.push(...findByKeywords('solar epe'));
+  }
+  // EVA (used in Mono PERC)
+  else if (g.includes('eva') && !g.includes('patch')) {
+    const widthMatch = s.match(/(\d{3,4})\s*$/i) || s.match(/(\d{3,4})\s*mm/i);
+    if (widthMatch) {
+      matchedKeys.push(...findByKeywords('solar eva', widthMatch[1]));
+    }
+    if (!matchedKeys.length) matchedKeys.push(...findByKeywords('solar eva'));
+    // Remove patch from EVA matches
+    const noPatch = matchedKeys.filter(k => !k.toLowerCase().includes('patch'));
+    if (noPatch.length) { matchedKeys.length = 0; matchedKeys.push(...noPatch); }
+  }
+  // EVA Patch
+  else if (g.includes('eva patch') || (g.includes('eva') && g.includes('patch'))) {
+    matchedKeys.push(...findByKeywords('solar eva', 'patch'));
+  }
+  // Cell Connector / Ribbon
+  else if (g.includes('cell connector') || g.includes('ribbon')) {
+    const diaMatch = s.match(/(\d+\.?\d*)\s*mm/);
+    if (diaMatch) {
+      matchedKeys.push(...findByKeywords('ribbon interconnect', diaMatch[1]));
+    }
+    if (!matchedKeys.length) matchedKeys.push(...findByKeywords('ribbon interconnect'));
+  }
+  // String Connector / Busbar
+  else if (g.includes('string connector') || g.includes('busbar')) {
+    const sizeMatch = s.match(/(\d+)mm\s*x\s*(\d+\.?\d*)mm/i);
+    if (sizeMatch) {
+      matchedKeys.push(...findByKeywords('ribbon busbar', sizeMatch[1] + '.0', sizeMatch[2]));
+      if (!matchedKeys.length) matchedKeys.push(...findByKeywords('busbar', sizeMatch[1]));
+    }
+    if (!matchedKeys.length) matchedKeys.push(...findByKeywords('ribbon busbar'));
+  }
+  // Junction box
+  else if (g.includes('junction box')) {
+    // Try to match cable length
+    const cableMatch = s.match(/(\d+\.?\d*)\s*mtr/i);
+    if (cableMatch) {
+      matchedKeys.push(...findByKeywords('junction box', cableMatch[1]));
+    }
+    if (!matchedKeys.length) matchedKeys.push(...findByKeywords('junction box'));
+  }
+  // RTV / Silicon Sealant
+  else if (g.includes('rtv')) {
+    matchedKeys.push(...findByKeywords('silicon sealant'));
+    if (!matchedKeys.length) matchedKeys.push(...findByKeywords('sealant'));
+  }
+  // Potting Material
+  else if (g.includes('potting')) {
+    if (s.includes('part a') || s.includes('a')) {
+      matchedKeys.push(...findByKeywords('potting', 'part', 'a'));
+    } else if (s.includes('part b') || s.includes('b')) {
+      matchedKeys.push(...findByKeywords('potting', 'part', 'b'));
+    }
+    if (!matchedKeys.length) matchedKeys.push(...findByKeywords('potting'));
+  }
+  // Aluminium Frame
+  else if (g.includes('aluminium frame') || g.includes('aluminum frame') || g.includes('al') && g.includes('frame')) {
+    const dims = extractDims(s);
+    if (dims) {
+      matchedKeys.push(...findByKeywords('frame profile', dims[0]));
+      if (!matchedKeys.length) matchedKeys.push(...findByKeywords('alu', 'frame', dims[0]));
+      if (!matchedKeys.length) matchedKeys.push(...findByKeywords('frame profile'));
+    }
+  }
+  // Fluxing agent
+  else if (g.includes('flux')) {
+    matchedKeys.push(...findByKeywords('soldering flux'));
+    if (!matchedKeys.length) matchedKeys.push(...findByKeywords('flux'));
+  }
+  // Edge sealing tape
+  else if (g.includes('edge') && g.includes('tape')) {
+    const widthMatch = s.match(/(\d+)\s*mm/);
+    if (widthMatch) {
+      matchedKeys.push(...findByKeywords('edge sealing tape', widthMatch[1]));
+    }
+    if (!matchedKeys.length) matchedKeys.push(...findByKeywords('edge sealing tape'));
+  }
+  // Back Label
+  else if (g.includes('back label') || g.includes('label')) {
+    matchedKeys.push(...findByKeywords('backlabel'));
+    if (!matchedKeys.length) matchedKeys.push(...findByKeywords('back label'));
+  }
+  // Barcode sticker
+  else if (g.includes('barcode')) {
+    const sizeMatch = s.match(/(\d+)\s*[xX×]\s*(\d+)\s*mm/);
+    if (sizeMatch) {
+      matchedKeys.push(...findByKeywords('barcode', sizeMatch[1]));
+    }
+    if (!matchedKeys.length) matchedKeys.push(...findByKeywords('barcode'));
+  }
+  // RFID
+  else if (g.includes('rfid')) {
+    matchedKeys.push(...findByKeywords('rfid'));
+  }
+  // Wooden Pallet
+  else if (g.includes('wooden pallet') || g.includes('pallet')) {
+    const dimMatch = s.match(/(\d{3,4})\s*[xX×]\s*(\d{3,4})/);
+    if (dimMatch) {
+      matchedKeys.push(...findByKeywords('wooden pallet', dimMatch[1]));
+      if (!matchedKeys.length) matchedKeys.push(...findByKeywords('pallet', dimMatch[1]));
+    }
+    if (!matchedKeys.length) matchedKeys.push(...findByKeywords('wooden pallet'));
+  }
+  // Corrugated Box
+  else if (g.includes('corrugated box')) {
+    const dimMatch = s.match(/(\d{3,4})\s*[xX×]\s*(\d{3,4})/);
+    if (dimMatch) {
+      matchedKeys.push(...findByKeywords('corrugated box', dimMatch[1]));
+    }
+    if (!matchedKeys.length) matchedKeys.push(...findByKeywords('corrugated box'));
+  }
+  // Retainer Strip
+  else if (g.includes('retainer')) {
+    matchedKeys.push(...findByKeywords('retainer strip'));
+  }
+  // Corrugated Corner
+  else if (g.includes('corrugated corner')) {
+    const dimMatch = s.match(/(\d+)\s*[xX×]\s*(\d+)/);
+    if (dimMatch) {
+      matchedKeys.push(...findByKeywords('corrugated corner', dimMatch[1]));
+    }
+    if (!matchedKeys.length) matchedKeys.push(...findByKeywords('corrugated corner'));
+  }
+  // Plastic Corner
+  else if (g.includes('plastic corner')) {
+    matchedKeys.push(...findByKeywords('plastic corner'));
+  }
+  // Edge Board
+  else if (g.includes('edge board')) {
+    matchedKeys.push(...findByKeywords('edge board'));
+  }
+  // PET Strap
+  else if (g.includes('pet strap')) {
+    matchedKeys.push(...findByKeywords('pet strap'));
+  }
+  // Stretch film
+  else if (g.includes('stretch') || g.includes('plastic stretch')) {
+    matchedKeys.push(...findByKeywords('stretch wrapping'));
+    if (!matchedKeys.length) matchedKeys.push(...findByKeywords('stretch'));
+  }
+  // Packing List / A4 Sticker
+  else if (g.includes('packing list')) {
+    matchedKeys.push(...findByKeywords('a4 sticker'));
+  }
+  // Current Grading Sticker
+  else if (g.includes('grading sticker') || g.includes('current grading')) {
+    matchedKeys.push(...findByKeywords('grading sticker'));
+  }
+  // Thermal Ribbon
+  else if (g.includes('thermal ribbon')) {
+    const sizeMatch = s.match(/(\d+)\s*mm/i) || s.match(/(\d+)x/i);
+    if (sizeMatch) {
+      matchedKeys.push(...findByKeywords('thermal ribbon', sizeMatch[1]));
+    }
+    if (!matchedKeys.length) matchedKeys.push(...findByKeywords('thermal ribbon'));
+  }
+  // Back sheet (M10 Mono PERC only)
+  else if (g.includes('back sheet') || g.includes('backsheet')) {
+    matchedKeys.push(...findByKeywords('back sheet'));
+    if (!matchedKeys.length) matchedKeys.push(...findByKeywords('poe'));
+  }
+  // IPA
+  else if (g.includes('ipa')) {
+    matchedKeys.push(...findByKeywords('ipa'));
+  }
+  // Cotton Cloth
+  else if (g.includes('cotton')) {
+    matchedKeys.push(...findByKeywords('cotton'));
+  }
+  // Cell fixing tape
+  else if (g.includes('cell fixing') || (g.includes('tape') && s.includes('pet'))) {
+    matchedKeys.push(...findByKeywords('pet tape'));
+    if (!matchedKeys.length) matchedKeys.push(...findByKeywords('anti uv'));
+  }
+  // Solex Brand Sticker
+  else if (g.includes('solex') || g.includes('brand sticker')) {
+    matchedKeys.push(...findByKeywords('solex logo'));
+  }
+
+  // Deduplicate
+  return [...new Set(matchedKeys)];
+}
+
+function getStockForMaterial(materialKey, materialGroup, materialSpec, materialUom) {
+  // Check manual override first
+  if (stockMappingOverrides[materialKey] && stockMappingOverrides[materialKey].length > 0) {
+    let total = 0;
+    const items = [];
+    stockMappingOverrides[materialKey].forEach(desc => {
+      if (aggregatedStock[desc]) {
+        total += aggregatedStock[desc].qty;
+        items.push({ desc, qty: aggregatedStock[desc].qty, uom: aggregatedStock[desc].uom, manual: true });
+      }
+    });
+    return { total, items, isManual: true };
+  }
+
+  // Auto mapping
+  const autoMapped = buildAutoStockMapping(materialGroup, materialSpec, materialUom);
+  let total = 0;
+  const items = [];
+  autoMapped.forEach(desc => {
+    if (aggregatedStock[desc]) {
+      total += aggregatedStock[desc].qty;
+      items.push({ desc, qty: aggregatedStock[desc].qty, uom: aggregatedStock[desc].uom, manual: false });
+    }
+  });
+  return { total, items, isManual: false };
+}
+
+// ── MODULE TYPE DETECTION ─────────────────────────────────────────────────
+function detectModuleType(oaDesc, wp) {
+  const desc = oaDesc.toLowerCase();
+  // M10 Mono PERC / Mono Bifacial
+  if (desc.includes('mono bifacial') || desc.includes('mono perc') || desc.includes('mono-perc')) {
+    return 'm10';
+  }
+  // Topcon G-to-G modules
+  if (desc.includes('topcon') && (desc.includes('g to g') || desc.includes('g-to-g') || desc.includes('gtg'))) {
+    // M10R for lower Wp (typically <600), G12R for higher
+    return Number(wp) >= 600 ? 'g12r' : 'm10r';
+  }
+  // Try matching by module key names
+  for (const mod of baseModules) {
+    if (desc.includes(mod.key.toLowerCase())) return mod.key;
+    if (desc.includes(mod.name.toLowerCase().split(' ')[0].toLowerCase())) return mod.key;
+  }
+  // Fallback: if it has "topcon", guess based on Wp
+  if (desc.includes('topcon')) {
+    return Number(wp) >= 600 ? 'g12r' : 'm10r';
+  }
+  return null;
+}
+
+// ── MAIN ANALYSIS ────────────────────────────────────────────────────────
+function runAnalysisAuto() {
+  // Helper: parse a raw Excel date value to a JS Date
+  function parseRawDate(rawVal) {
+    if (!rawVal && rawVal !== 0) return null;
+    let num = Number(rawVal);
+    if (!isNaN(num) && num > 40000 && num < 60000) {
+      return new Date(Math.round((num - 25569) * 86400 * 1000));
+    }
+    let dateStr = String(rawVal).trim();
+    if (!dateStr) return null;
+    let parts = dateStr.split(/[\/-]/);
+    if (parts.length >= 2) {
+      let d = parseInt(parts[0]);
+      let m = parts[1];
+      let y = parts[2] ? parseInt(parts[2]) : new Date().getFullYear();
+      if (y < 100) y += 2000;
+      let parsed = isNaN(Number(m)) ? new Date(d + ' ' + m + ' ' + y) : new Date(y, parseInt(m)-1, d);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+    return null;
+  }
+
+  // Step 0: Scan ALL date columns across all header rows to build allSheetDates
+  allSheetDates = [];
+  let headerRows = [];
+  planRaw.forEach((row) => {
+    if (String(row[0] || '').trim() === 'Customer Name') headerRows.push(row);
+  });
+  headerRows.forEach(headerRow => {
+    for (let i = 5; i < headerRow.length; i++) {
+      const d = parseRawDate(headerRow[i]);
+      if (d) {
+        d.setHours(0,0,0,0);
+        allSheetDates.push(d);
+      }
+    }
+  });
+  // Unique and sort
+  allSheetDates = [...new Set(allSheetDates.map(d => d.getTime()))].map(t => new Date(t)).sort((a,b) => a-b);
+
+  // Auto-populate date pickers on first run (only if user hasn't manually selected)
+  if (allSheetDates.length > 0) {
+    const minDate = allSheetDates[0];
+    const maxDate = allSheetDates[allSheetDates.length - 1];
+    const fromInput = document.getElementById('planDateFrom');
+    const toInput = document.getElementById('planDateTo');
+    
+    // Set min/max constraints
+    const fmtISO = d => d.toISOString().split('T')[0];
+    fromInput.min = fmtISO(minDate);
+    fromInput.max = fmtISO(maxDate);
+    toInput.min = fmtISO(minDate);
+    toInput.max = fmtISO(maxDate);
+    
+    if (!fromInput.value) fromInput.value = fmtISO(minDate);
+    if (!toInput.value) toInput.value = fmtISO(maxDate);
+    
+    // Read user selection
+    userDateFrom = new Date(fromInput.value + 'T00:00:00');
+    userDateTo = new Date(toInput.value + 'T00:00:00');
+  }
+
+  // Date range check function
+  function isDateInRange(rawVal) {
+    const d = parseRawDate(rawVal);
+    if (!d) return false;
+    d.setHours(0,0,0,0);
+    if (userDateFrom && d < userDateFrom) return false;
+    if (userDateTo && d > userDateTo) return false;
+    return true;
+  }
+
+  // 1. Extract all orders from ALL header sections in the planning sheet
+  let customerOrders = [];
+  let currentLine = '';
+  let currentDateHeadersRaw = [];
+  let planStartDate = null;
+  let planEndDate = null;
+
+  planRaw.forEach((row, ri) => {
+    const col0 = String(row[0] || '').trim();
+    const col1 = String(row[1] || '').trim();
+
+    // Detect header rows — "Customer Name" in col0
+    if (col0 === 'Customer Name') {
+      currentDateHeadersRaw = row;
+      // Detect production line from col1 (e.g., "OA No, Line-A", "OA No, Line-B")
+      const lineMatch = col1.match(/Line[\s-]*([A-Z])/i);
+      const oemMatch = col1.toLowerCase().includes('oem');
+      if (lineMatch) currentLine = lineMatch[1].toUpperCase();
+      else if (oemMatch) currentLine = 'OEM';
+      else currentLine = '';
+    }
+    // Data rows: col0 has customer name, col2 has Wp > 0
+    else if (col0 && col0 !== '' && !col0.startsWith('Pending') && Number(row[2]) > 0 && currentDateHeadersRaw.length > 0) {
+      const oaDesc = col1;
+      const wp = Number(row[2]) || 0;
+
+      // Sum quantities within user-selected date range
+      let futureQty = 0;
+      for (let i = 5; i < row.length; i++) {
+        if (currentDateHeadersRaw[i] && isDateInRange(currentDateHeadersRaw[i])) {
+          futureQty += Number(row[i]) || 0;
+          const dObj = parseRawDate(currentDateHeadersRaw[i]);
+          if (dObj) {
+            dObj.setHours(0,0,0,0);
+            if (!planStartDate || dObj < planStartDate) planStartDate = dObj;
+            if (!planEndDate || dObj > planEndDate) planEndDate = dObj;
+          }
+        }
+      }
+
+      if (futureQty > 0) {
+        const matchedKey = detectModuleType(oaDesc, wp);
+        if (matchedKey) {
+          customerOrders.push({
+            customer: col0,
+            oa: oaDesc,
+            line: currentLine,
+            modKey: matchedKey,
+            qty: futureQty,
+            wp: wp
+          });
+        }
+      }
+    }
+  });
+
+  // 2. Aggregate stock data
+  aggregatedStock = {};
+  let stockDescCol = 3, stockQtyCol = 8, stockUomCol = 9;
+
+  stockRaw.forEach((row, ri) => {
+    if (ri === 0) {
+      const c1 = row.findIndex(c => String(c).toLowerCase().includes('description'));
+      const c2 = row.findIndex(c => String(c).toLowerCase() === 'quantity' || String(c).toLowerCase().includes('qty'));
+      const c3 = row.findIndex(c => String(c).toLowerCase().includes('unit') || String(c).toLowerCase().includes('uom'));
+      if (c1 !== -1) stockDescCol = c1;
+      if (c2 !== -1) stockQtyCol = c2;
+      if (c3 !== -1) stockUomCol = c3;
+    } else {
+      const desc = String(row[stockDescCol] || '').trim();
+      const qty = Number(row[stockQtyCol]) || 0;
+      const uom = String(row[stockUomCol] || '');
+      const cat = String(row[0] || '');
+      const subcat = String(row[1] || '');
+      if (desc && qty > 0) {
+        if (!aggregatedStock[desc]) aggregatedStock[desc] = { qty: 0, uom, cat, subcat };
+        aggregatedStock[desc].qty += qty;
+      }
+    }
+  });
+
+  // 3. Aggregate planned modules by type
+  let plannedModules = {};
+  customerOrders.forEach(ord => {
+    if (!plannedModules[ord.modKey]) plannedModules[ord.modKey] = { qty: 0, wpValues: [] };
+    plannedModules[ord.modKey].qty += ord.qty;
+    if (!plannedModules[ord.modKey].wpValues.includes(ord.wp)) {
+      plannedModules[ord.modKey].wpValues.push(ord.wp);
+    }
+  });
+
+  // 4. Include all label/barcode materials by default (user can discard individually)
+  const labelGroups = ['label', 'barcode', 'sticker', 'tag', 'ribbon'];
+  baseModules.forEach(m => m.rows.forEach(r => {
+    const g = (r.group || '').toLowerCase();
+    if (labelGroups.some(lg => g.includes(lg))) activeLabels.add(r.spec);
+  }));
+
+  // 5. Build CONSOLIDATED material requirements (merge same materials across module types)
+  let consolidated = {}; // { materialKey: { group, spec, uom, perModule, totalModules, requiredQty, usedBy: [modName], items: [{modKey, qty, consumption}] } }
+
+  Object.keys(plannedModules).forEach(mk => {
+    const mq = plannedModules[mk].qty;
+    const mod = baseModules.find(m => m.key === mk);
+    if (!mod) return;
+
+    mod.rows.forEach(row => {
+      const isLabel = labelGroups.some(lg => (row.group || '').toLowerCase().includes(lg));
+      if (isLabel && !activeLabels.has(row.spec)) return;
+
+      // Material key: group + spec (unique identifier)
+      const materialKey = `${row.group}|||${row.spec}`;
+      const cons = row.qty * (1 + row.wastage / 100);
+
+      if (!consolidated[materialKey]) {
+        consolidated[materialKey] = {
+          group: row.group,
+          spec: row.spec,
+          uom: row.uom,
+          perModule: cons,
+          totalModules: 0,
+          requiredQty: 0,
+          usedBy: [],
+          items: [],
+          isLabel
+        };
+      }
+
+      consolidated[materialKey].totalModules += mq;
+      consolidated[materialKey].requiredQty += cons * mq;
+      if (!consolidated[materialKey].usedBy.includes(mod.name)) {
+        consolidated[materialKey].usedBy.push(mod.name);
+      }
+      consolidated[materialKey].items.push({ modKey: mk, modName: mod.name, qty: mq, consumption: cons, row });
+    });
+  });
+
+  // 6. Map stock to consolidated materials
+  let itemsShort = 0, itemsOk = 0, itemsLow = 0;
+
+  Object.keys(consolidated).forEach(mk => {
+    const mat = consolidated[mk];
+    if (discardedMaterials.has(mk)) {
+      mat.stockResult = { total: 0, items: [], isManual: false };
+      mat.diff = 0;
+      mat.status = 'discarded';
+      return;
+    }
+    const stockResult = getStockForMaterial(mk, mat.group, mat.spec, mat.uom);
+    mat.stockResult = stockResult;
+    mat.diff = stockResult.total - mat.requiredQty;
+
+    if (stockResult.total >= mat.requiredQty * 1.0) {
+      mat.status = 'ok';
+      itemsOk++;
+    } else if (stockResult.total >= mat.requiredQty * 0.5) {
+      mat.status = 'low';
+      itemsLow++;
+    } else {
+      mat.status = 'short';
+      itemsShort++;
+    }
+  });
+
+  // Save analysis for re-renders
+  lastAnalysis = { customerOrders, plannedModules, consolidated };
+
+  // ── RENDER ALL VIEWS ──
+
+  // A) Customer-wise summary
+  renderCustomerSummary(customerOrders);
+
+  // B) Orders detail table
+  renderOrdersTable(customerOrders);
+
+  // C) Module summary
+  renderModuleSummary(plannedModules);
+
+  // D) Consolidated material table
+  renderConsolidatedTable(consolidated);
+
+  // E) Detailed breakdown
+  renderDetailedTable(plannedModules, consolidated);
+
+  // F) KPIs
+  const totMods = Object.values(plannedModules).reduce((s, v) => s + v.qty, 0);
+  const totalMW = customerOrders.reduce((s, o) => s + (o.qty * o.wp / 1e6), 0);
+  const numCustomers = new Set(customerOrders.map(o => o.customer)).size;
+
+  document.getElementById('planKpi').innerHTML = `
+    <div class="kpi teal"><div class="kpi-label">Total Planned</div><div class="kpi-val">${fmt2.format(totMods)}</div><div class="kpi-sub">modules to build</div></div>
+    <div class="kpi green"><div class="kpi-label">Total Power</div><div class="kpi-val">${totalMW.toFixed(2)}<span style="font-size:12px;color:var(--muted)"> MW</span></div><div class="kpi-sub">combined output</div></div>
+    <div class="kpi blue"><div class="kpi-label">Customers</div><div class="kpi-val">${numCustomers}</div><div class="kpi-sub">with active orders</div></div>
+    <div class="kpi purple"><div class="kpi-label">Unique Materials</div><div class="kpi-val">${Object.keys(consolidated).length}</div><div class="kpi-sub">required for plan</div></div>
+    <div class="kpi amber"><div class="kpi-label">⚠ Low Stock</div><div class="kpi-val">${itemsLow}</div><div class="kpi-sub">need attention</div></div>
+    <div class="kpi" style="border-left:3px solid var(--danger)"><div class="kpi-label">❌ Short</div><div class="kpi-val" style="color:var(--danger)">${itemsShort}</div><div class="kpi-sub">need procurement</div></div>
+  `;
+
+  // G) Shortage bar
+  const allOk = itemsShort === 0 && itemsLow === 0;
+  document.getElementById('shortageBar').innerHTML = `
+    <div class="shortage-bar ${allOk ? 'all-ok' : ''}">
+      <span class="shortage-bar-icon">${allOk ? '✅' : '⚠️'}</span>
+      <span class="shortage-bar-text">${allOk ? 'All materials are sufficiently stocked for the current plan!' : `${itemsShort} material(s) in SHORTAGE, ${itemsLow} material(s) LOW — procurement action needed`}</span>
+      <span class="shortage-bar-count">${allOk ? itemsOk + ' OK' : itemsShort + ' Short'}</span>
+    </div>
+  `;
+
+  document.getElementById('analysisResults').style.display = 'block';
+  document.getElementById('planningTitle').textContent = `Planned Module Details & Power Output (Sheet: ${planSheetName})`;
+  if (planStartDate && planEndDate) {
+    const days = Math.round((planEndDate - planStartDate) / 86400000) + 1;
+    document.getElementById('planDateRange').textContent = `${planStartDate.toLocaleDateString()} → ${planEndDate.toLocaleDateString()} (${days} days)`;
+  }
+
+  // Save state
+  localStorage.setItem('rmAnalysisState', JSON.stringify({
+    lastAnalysis,
+    aggregatedStock,
+    planStartDate: planStartDate ? planStartDate.toISOString() : null,
+    planEndDate: planEndDate ? planEndDate.toISOString() : null,
+    planSheetName
+  }));
+}
+
+// ── RENDER: Customer Summary ──────────────────────────────────────────
+function renderCustomerSummary(orders) {
+  const custMap = {};
+  orders.forEach(ord => {
+    if (!custMap[ord.customer]) custMap[ord.customer] = { totalQty: 0, totalMW: 0, orders: [] };
+    custMap[ord.customer].totalQty += ord.qty;
+    custMap[ord.customer].totalMW += ord.qty * ord.wp / 1e6;
+    custMap[ord.customer].orders.push(ord);
+  });
+
+  const sorted = Object.entries(custMap).sort((a, b) => b[1].totalMW - a[1].totalMW);
+  let html = '';
+  sorted.forEach(([name, data]) => {
+    const modChips = data.orders.map(o => {
+      const mod = baseModules.find(m => m.key === o.modKey);
+      return `<span class="cust-order-chip">${mod ? mod.name.split(' ')[0] : o.modKey} ${o.wp}Wp × ${fmt2.format(o.qty)}</span>`;
+    }).join('');
+
+    html += `<div class="cust-card">
+      <div class="cust-card-name" title="${escHtml(name)}">${escHtml(name)}</div>
+      <div class="cust-card-detail">
+        <strong>${fmt2.format(data.totalQty)}</strong> modules total<br>
+        ${modChips}
+      </div>
+      <div class="cust-card-mw">${data.totalMW.toFixed(3)} <span>MW</span></div>
+    </div>`;
+  });
+  document.getElementById('custSummaryGrid').innerHTML = html;
+}
+
+// ── RENDER: Orders Table ──────────────────────────────────────────────
+function renderOrdersTable(orders) {
+  let html = '';
+  orders.forEach(ord => {
+    const mod = baseModules.find(m => m.key === ord.modKey);
+    const tpwr = fmtPower(ord.qty * ord.wp);
+    const lineClass = ord.line ? 'line-' + ord.line.toLowerCase() : '';
+    html += `<tr>
+      <td><strong>${escHtml(ord.customer)}</strong></td>
+      <td>${escHtml(ord.oa)}</td>
+      <td><span class="line-badge ${lineClass}">Line ${ord.line || '?'}</span></td>
+      <td><span class="mod-badge">${mod ? escHtml(mod.name) : ord.modKey}</span></td>
+      <td class="num">${ord.wp} Wp</td>
+      <td class="num"><strong>${fmt2.format(ord.qty)}</strong></td>
+      <td class="num" style="color:var(--solar-2)">${tpwr.val} ${tpwr.unit}</td>
+    </tr>`;
+  });
+  document.getElementById('planOrderBody').innerHTML = html;
+}
+
+// ── RENDER: Module Summary ────────────────────────────────────────────
+function renderModuleSummary(plannedModules) {
+  let html = '';
+  let grandTotalWp = 0, totMods = 0;
+
+  Object.keys(plannedModules).forEach(mk => {
+    const mod = baseModules.find(m => m.key === mk);
+    const qty = plannedModules[mk].qty;
+    const wpValues = plannedModules[mk].wpValues;
+    const avgWp = wpValues.length ? wpValues.reduce((s,v) => s+v, 0) / wpValues.length : 0;
+    // Use max Wp for power calc
+    const maxWp = Math.max(...wpValues, 0);
+    const totalWp = qty * maxWp;
+    grandTotalWp += totalWp;
+    totMods += qty;
+
+    const pwr = fmtPower(totalWp);
+    html += `<div class="watt-card" style="background: linear-gradient(135deg, #1d6fbf, #15589e);">
+      <div class="watt-card-label">Planned Module</div>
+      <div class="watt-card-name">${mod ? escHtml(mod.name) : mk}</div>
+      <div><span class="watt-card-val">${pwr.val}</span><span class="watt-card-unit">${pwr.unit}</span></div>
+      <div class="watt-card-sub">${fmt2.format(qty)} modules × ${wpValues.join('/')}Wp</div>
+    </div>`;
+  });
+
+  if (grandTotalWp > 0) {
+    const totPwr = fmtPower(grandTotalWp);
+    html += `<div class="watt-card" style="background: linear-gradient(135deg, #0b6e4f, #0d4f38);">
+      <div class="watt-card-label">TOTAL PLANNED POWER</div>
+      <div class="watt-card-name" style="color:var(--solar-3)">All Modules</div>
+      <div><span class="watt-card-val watt-card-full">${totPwr.val}</span><span class="watt-card-unit">${totPwr.unit}</span></div>
+      <div class="watt-card-sub">${fmt2.format(totMods)} total modules</div>
+    </div>`;
+  }
+
+  document.getElementById('planModuleSummary').innerHTML = html || '<div style="color:var(--danger);font-weight:600;padding:12px;">No future production modules detected in the planning sheet.</div>';
+}
+
+// ── RENDER: Consolidated Material Table ──────────────────────────────
+function renderConsolidatedTable(consolidated) {
+  let html = '';
+  // Sort: short first, then low, then ok
+  const statusOrder = { short: 0, low: 1, ok: 2, discarded: 3 };
+  const sortedKeys = Object.keys(consolidated).sort((a, b) => {
+    const sa = statusOrder[consolidated[a].status] ?? 9;
+    const sb = statusOrder[consolidated[b].status] ?? 9;
+    if (sa !== sb) return sa - sb;
+    return consolidated[b].requiredQty - consolidated[a].requiredQty;
+  });
+
+  sortedKeys.forEach(mk => {
+    const mat = consolidated[mk];
+    const isDiscarded = discardedMaterials.has(mk);
+
+    // Status badge
+    let statusBadge = '';
+    if (isDiscarded) {
+      statusBadge = '<span class="status-badge na">🚫 Discarded</span>';
+    } else if (mat.status === 'ok') {
+      statusBadge = '<span class="status-badge ok">✅ OK</span>';
+    } else if (mat.status === 'low') {
+      statusBadge = '<span class="status-badge low">⚠️ Low</span>';
+    } else {
+      statusBadge = '<span class="status-badge short">❌ Short</span>';
+    }
+
+    // Stock pills
+    let stockPillsHtml = '<div class="stock-pills">';
+    if (mat.stockResult && mat.stockResult.items.length > 0) {
+      mat.stockResult.items.forEach(item => {
+        const cls = item.manual ? 'manual' : 'matched';
+        stockPillsHtml += `<span class="stock-pill ${cls}" title="${escHtml(item.desc)}: ${fmt2.format(item.qty)} ${item.uom}">${escHtml(item.desc.substring(0,40))}${item.desc.length > 40 ? '…' : ''}</span>`;
+      });
+    } else if (!isDiscarded) {
+      stockPillsHtml += '<span style="color:var(--muted);font-size:10px;font-style:italic;">No match found</span>';
+    }
+    stockPillsHtml += '</div>';
+
+    // Used by
+    const usedByHtml = mat.usedBy.map(name => `<span class="mod-badge" style="font-size:9px;padding:1px 5px;">${escHtml(name.split(' ')[0])}</span>`).join(' ');
+
+    // Diff display
+    const diff = mat.diff;
+    const diffStr = isDiscarded ? '—' : (diff >= 0 ? `<span style="color:#059669">+${fmt2.format(diff)}</span>` : `<span style="color:#dc2626;font-weight:800">${fmt2.format(diff)}</span>`);
+
+    // Escape materialKey for HTML attributes
+    const mkEsc = mk.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+    html += `<tr class="${isDiscarded ? 'discarded' : ''}">
+      <td class="group-cell">${escHtml(mat.group)}</td>
+      <td class="spec">${escHtml(mat.spec)}</td>
+      <td class="center" style="font-weight:600;color:var(--muted);font-size:11px">${escHtml(mat.uom)}</td>
+      <td class="num" style="font-family:'JetBrains Mono',monospace;font-size:11px">${fmt(mat.perModule)}</td>
+      <td>${usedByHtml}</td>
+      <td class="num" style="font-weight:700">${fmt2.format(mat.totalModules)}</td>
+      <td class="total-cell num" style="font-size:12px">${isDiscarded ? '—' : fmt2.format(mat.requiredQty)}</td>
+      <td style="padding:4px 6px">${stockPillsHtml}</td>
+      <td class="num" style="font-weight:700;color:var(--solar-1)">${isDiscarded ? '—' : fmt2.format(mat.stockResult.total)}</td>
+      <td class="num" style="font-weight:800">${diffStr} ${!isDiscarded ? statusBadge : ''}</td>
+      <td class="center" style="padding:4px">
+        <div style="display:flex;gap:4px;justify-content:center;align-items:center">
+          <button class="btn btn-sm" style="background-color: var(--danger); color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px;" onclick="toggleDiscard('${mkEsc}')" title="${isDiscarded ? 'Restore this material' : 'Discard this material'}">${isDiscarded ? '↺ Restore' : '❌ Discard'}</button>
+          <button class="map-btn" onclick="openStockMapModal('${mkEsc}')" title="Map stock items">🔗</button>
+        </div>
+      </td>
+    </tr>`;
+  });
+
+  document.getElementById('consolidatedBody').innerHTML = html;
+}
+
+// ── RENDER: Detailed Table ──────────────────────────────────────────
+function renderDetailedTable(plannedModules, consolidated) {
+  let html = '';
+
+  Object.keys(plannedModules).forEach(mk => {
+    const mod = baseModules.find(m => m.key === mk);
+    if (!mod) return;
+    const mQty = plannedModules[mk].qty;
+
+    mod.rows.forEach((row, ri) => {
+      const cons = row.qty * (1 + row.wastage / 100);
+      const reqQty = cons * mQty;
+      const materialKey = `${row.group}|||${row.spec}`;
+      const isDiscarded = discardedMaterials.has(materialKey);
+      const cData = consolidated[materialKey];
+      const stockTotal = cData ? cData.stockResult.total : 0;
+      const shortage = reqQty - stockTotal;
+
+      let statusBadge;
+      if (isDiscarded) statusBadge = '<span class="status-badge na">🚫</span>';
+      else if (stockTotal >= reqQty) statusBadge = '<span class="status-badge ok">✅</span>';
+      else if (stockTotal >= reqQty * 0.5) statusBadge = '<span class="status-badge low">⚠️</span>';
+      else statusBadge = '<span class="status-badge short">❌</span>';
+
+      html += `<tr class="${isDiscarded ? 'discarded' : ''}">
+        <td><span class="mod-badge">${escHtml(mod.name)}</span><br><span style="font-size:10px;color:#666;">×${fmt2.format(mQty)} modules</span></td>
+        <td class="group-cell">${escHtml(row.group)}</td>
+        <td class="spec">${escHtml(row.spec)}</td>
+        <td class="center" style="font-weight:600;color:var(--muted);font-size:11px">${escHtml(row.uom)}</td>
+        <td class="num">${row.qty}</td>
+        <td class="num">${row.wastage}%</td>
+        <td class="num">${cons.toFixed(6)}</td>
+        <td class="num">${fmt2.format(mQty)}</td>
+        <td class="num" style="background:#e6f7f1;color:var(--solar-1);font-weight:bold;">${fmt2.format(reqQty)}</td>
+        <td class="num" style="color:${stockTotal < reqQty ? 'var(--danger)' : 'var(--solar-1)'};font-weight:bold;">
+          ${fmt2.format(stockTotal)}<br>
+          <span style="font-size:9px;color:var(--muted);font-weight:normal;">${cData && cData.stockResult.isManual ? '🔗 Manual' : 'Auto'}</span>
+        </td>
+        <td class="num" style="color:${shortage > 0 ? 'var(--danger)' : '#333'};font-weight:bold;">${shortage > 0 ? fmt2.format(shortage) : '—'}</td>
+        <td class="center">${statusBadge}</td>
+      </tr>`;
+    });
+  });
+
+  document.getElementById('resultBodyPlan').innerHTML = html;
+}
+
+// ── DISCARD / SUBSTITUTE ──────────────────────────────────────────────
+window.toggleDiscard = function(materialKey) {
+  const isDiscarded = discardedMaterials.has(materialKey);
+  const action = isDiscarded ? "restore" : "discard";
+  if (!confirm(`Are you sure you want to ${action} this material?`)) {
+    return;
+  }
+  
+  if (isDiscarded) {
+    discardedMaterials.delete(materialKey);
+  } else {
+    discardedMaterials.add(materialKey);
+  }
+  savePlanOverrides();
+  if (lastAnalysis) runAnalysisAuto();
+};
+
+// ── STOCK MAPPING MODAL ──────────────────────────────────────────────
+let currentMappingKey = null;
+
+window.openStockMapModal = function(materialKey) {
+  currentMappingKey = materialKey;
+  const [group, spec] = materialKey.split('|||');
+  document.getElementById('mapModalMaterial').textContent = group;
+  document.getElementById('mapModalSpec').textContent = spec;
+  document.getElementById('mapModalSearch').value = '';
+
+  // Get currently mapped items
+  const currentlyMapped = stockMappingOverrides[materialKey] || [];
+  const autoMapped = buildAutoStockMapping(group, spec, '');
+
+  // Build item list — currently mapped + auto mapped first, then all
+  renderMappingItems(currentlyMapped, autoMapped, '');
+  document.getElementById('stockMapModal').classList.add('open');
+};
+
+function renderMappingItems(currentlyMapped, autoMapped, searchTerm) {
+  const container = document.getElementById('mapModalItems');
+  const allItems = Object.entries(aggregatedStock);
+  const filter = searchTerm.toLowerCase();
+
+  // Sort: currently mapped first, then auto-mapped, then rest
+  const scored = allItems.map(([desc, info]) => {
+    let score = 0;
+    if (currentlyMapped.includes(desc)) score = 3;
+    else if (autoMapped.includes(desc)) score = 2;
+    if (info.cat === 'Raw' || info.cat === 'Packing') score += 0.5;
+    return { desc, info, score };
+  })
+  .filter(item => !filter || item.desc.toLowerCase().includes(filter) || item.info.cat.toLowerCase().includes(filter) || item.info.subcat.toLowerCase().includes(filter))
+  .sort((a, b) => b.score - a.score);
+
+  container.innerHTML = scored.slice(0, 100).map(item => {
+    const isSelected = currentlyMapped.includes(item.desc) || (!stockMappingOverrides[currentMappingKey] && autoMapped.includes(item.desc));
+    return `<div class="mapping-item ${isSelected ? 'selected' : ''}" onclick="toggleMappingItem(this)">
+      <input type="checkbox" ${isSelected ? 'checked' : ''} value="${escHtml(item.desc)}">
+      <div style="flex:1">
+        <div class="mapping-item-desc">${escHtml(item.desc)}</div>
+        <div class="mapping-item-uom">${item.info.cat} → ${item.info.subcat}</div>
+      </div>
+      <div class="mapping-item-qty">${fmt2.format(item.info.qty)} ${item.info.uom}</div>
+    </div>`;
+  }).join('');
+
+  if (scored.length > 100) {
+    container.innerHTML += `<div style="padding:8px;text-align:center;color:var(--muted);font-size:11px;">Showing 100 of ${scored.length} items. Use search to filter.</div>`;
+  }
+}
+
+window.toggleMappingItem = function(div) {
+  const cb = div.querySelector('input[type="checkbox"]');
+  cb.checked = !cb.checked;
+  div.classList.toggle('selected', cb.checked);
+};
+
+window.filterMappingItems = function() {
+  const search = document.getElementById('mapModalSearch').value;
+  const [group, spec] = (currentMappingKey || '').split('|||');
+  const currentlyMapped = stockMappingOverrides[currentMappingKey] || [];
+  const autoMapped = buildAutoStockMapping(group || '', spec || '', '');
+  renderMappingItems(currentlyMapped, autoMapped, search);
+};
+
+window.saveStockMapping = function() {
+  if (!currentMappingKey) return;
+  const container = document.getElementById('mapModalItems');
+  const checked = Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+  if (checked.length > 0) {
+    stockMappingOverrides[currentMappingKey] = checked;
+  } else {
+    delete stockMappingOverrides[currentMappingKey];
+  }
+  savePlanOverrides();
+  closeModal('stockMapModal');
+  if (lastAnalysis) runAnalysisAuto();
+};
+
+// ── EXPORT PLANNING REPORT ──────────────────────────────────────────
+window.exportPlanningReport = function() {
+  if (!lastAnalysis) return;
+  const { customerOrders, plannedModules, consolidated } = lastAnalysis;
+
+  let html = `<html><head><meta charset="utf-8"><style>
+    body{font-family:Arial}h1{color:#0b6e4f}h2{color:#1d6fbf;margin-top:20px}
+    table{border-collapse:collapse;width:100%;margin-bottom:20px}
+    th{background:#0b6e4f;color:#fff;padding:7px;font-size:11px}
+    td{border:1px solid #cde8d8;padding:6px;font-size:11px}
+    .num{text-align:right}.short{background:#fee2e2;color:#991b1b;font-weight:bold}
+    .ok{background:#d1fae5;color:#065f46}.low{background:#fef3c7;color:#92400e}
+  </style></head><body>
+  <h1>Production Planning vs Stock Analysis Report</h1>
+  <p>Generated: ${new Date().toLocaleString()} | Planning Sheet: ${planSheetName}</p>
+
+  <h2>Customer Orders Summary</h2>
+  <table><thead><tr><th>Customer</th><th>OA No</th><th>Line</th><th>Module</th><th>Wp</th><th class="num">Planned Qty</th><th class="num">Total MW</th></tr></thead><tbody>
+  ${customerOrders.map(o => {
+    const mod = baseModules.find(m => m.key === o.modKey);
+    return `<tr><td><b>${escHtml(o.customer)}</b></td><td>${escHtml(o.oa)}</td><td>Line ${o.line||'?'}</td><td>${mod ? escHtml(mod.name) : o.modKey}</td><td>${o.wp}</td><td class="num">${o.qty}</td><td class="num">${(o.qty*o.wp/1e6).toFixed(3)}</td></tr>`;
+  }).join('')}
+  </tbody></table>
+
+  <h2>Consolidated Material Requirements vs Stock</h2>
+  <table><thead><tr><th>Material Group</th><th>Specification</th><th>UOM</th><th>Used By</th><th class="num">Required Qty</th><th class="num">Available Stock</th><th class="num">Shortage/Surplus</th><th>Status</th></tr></thead><tbody>
+  ${Object.keys(consolidated).map(mk => {
+    const m = consolidated[mk];
+    if (discardedMaterials.has(mk)) return '';
+    const diff = m.diff;
+    const cls = m.status === 'short' ? 'short' : (m.status === 'low' ? 'low' : 'ok');
+    return `<tr><td>${escHtml(m.group)}</td><td>${escHtml(m.spec)}</td><td>${escHtml(m.uom)}</td><td>${m.usedBy.join(', ')}</td><td class="num">${m.requiredQty.toFixed(2)}</td><td class="num">${m.stockResult.total.toFixed(2)}</td><td class="num ${cls}">${diff >= 0 ? '+'+diff.toFixed(2) : diff.toFixed(2)}</td><td class="${cls}">${m.status === 'short' ? '❌ SHORT' : (m.status === 'low' ? '⚠ LOW' : '✅ OK')}</td></tr>`;
+  }).join('')}
+  </tbody></table>
+  </body></html>`;
+
+  const blob = new Blob(["\ufeff", html], {type: "application/vnd.ms-excel;charset=utf-8;"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "planning_vs_stock_report.xls";
+  a.click();
+};
+
+
+
+// ── EXPORT ────────────────────────────────────────────────────────────────
+function escHtml(v) {
+  return String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+document.getElementById("exportExcel").addEventListener("click", () => {
+  const rows = allRows().map(item => {
+    const mk    = item.module.key;
+    const ri    = item.rowIndex;
+    const cons  = consumption(item.row);
+    const modQty = n(moduleQty[mk]);
+    const wp    = n(moduleWp[mk]);
+    const overKey = `${mk}:${ri}`;
+    const required = (overKey in rowOverrides) ? rowOverrides[overKey] : cons * modQty;
+    const impliedMQ = cons > 0 ? required / cons : modQty;
+    const totalW = impliedMQ * wp;
+    const pwr = fmtPower(totalW);
+    const isOverride = overKey in rowOverrides;
+    const pd = rowPricing[overKey] || {};
+    const costPM = (n(pd.priceQty) > 0 && n(pd.unitPrice) > 0) ? calcCostPerModule(item.row, mk, pd) : null;
+    return { ...item, cons, modQty: impliedMQ, required, totalW, pwrFull: pwr.full, isOverride, priceQty: pd.priceQty||'', priceUom: pd.priceUom||item.row.uom||'', unitPrice: pd.unitPrice||'', costPM };
+  });
+  const html = `<html><head><meta charset="utf-8"><style>
+    body{font-family:Arial}h1{color:#0b6e4f}
+    table{border-collapse:collapse;width:100%}
+    th{background:#0b6e4f;color:#fff;padding:7px}
+    td{border:1px solid #cde8d8;padding:6px}
+    .num{text-align:right}.tot{background:#f2fbf6;font-weight:bold;color:#0b6e4f}
+    .pwr{background:#e6f7f1;font-weight:bold}
+  </style></head><body>
+  <h1>RM Consumption Requirement</h1>
+  <p>Generated: ${new Date().toLocaleString()}</p>
+  <table><thead><tr>
+    <th>Module</th><th>Sr</th><th>Group</th><th>Spec</th><th>UOM</th>
+    <th>Qty/Module</th><th>Wastage%</th><th>Consumption/Module</th>
+    <th>Module Qty</th><th>Required Qty</th><th>Price Qty</th><th>Price UOM</th><th>Unit Price</th><th>Currency</th><th>Cost/Mod (INR)</th><th>Module Wp</th><th>Total Power</th>
+  </tr></thead><tbody>
+  ${rows.map(r => `<tr>
+    <td><b>${escHtml(r.module.name)}</b></td>
+    <td>${r.row.sr}</td><td>${escHtml(r.row.group)}</td>
+    <td>${escHtml(r.row.spec)}</td><td>${r.row.uom}</td>
+    <td class="num">${r.row.qty}</td><td class="num">${r.row.wastage}</td>
+    <td class="num">${r.cons}</td><td class="num">${r.modQty}</td>
+    <td class="num tot">${r.required}</td>
+    <td class="num">${r.priceQty||"\u2014"}</td>
+    <td>${r.priceUom||"\u2014"}</td>
+    <td class="num">${r.unitPrice||"\u2014"}</td>
+    <td>${(r.unitPrice && r.priceQty) ? (rowPricing[`${r.module.key}:${r.row.rowIndex}`]?.currency || 'INR') : "\u2014"}</td>
+    <td class="num" style="font-weight:bold;color:#92400e">${r.costPM!==null ? '\u20b9'+r.costPM.toFixed(2) : "\u2014"}</td>
+    <td class="num">${n(moduleWp[r.module.key])||"\u2014"}</td>
+    <td class="pwr">${r.totalW > 0 ? r.pwrFull : "\u2014"}</td>
+  </tr>`).join("")}
+  </tbody></table></body></html>`;
+  const blob = new Blob(["\ufeff", html], {type:"application/vnd.ms-excel;charset=utf-8;"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = "rm_consumption.xls"; a.click();
+});
+
+document.getElementById("exportCsv").addEventListener("click", () => {
+  const hdr = ["Module","Sr","Group","Spec","UOM","Qty/Module","Wastage%","Consumption/Module","Implied ModuleQty","Required Qty","Custom?","PriceQty","PriceUOM","UnitPrice","Currency","Cost/Module (INR)","ModuleWp","TotalPower"];
+  const rows = allRows().map(item => {
+    const mk   = item.module.key;
+    const ri   = item.rowIndex;
+    const cons = consumption(item.row);
+    const modQty = n(moduleQty[mk]);
+    const wp   = n(moduleWp[mk]);
+    const overKey = `${mk}:${ri}`;
+    const required = (overKey in rowOverrides) ? rowOverrides[overKey] : cons * modQty;
+    const impliedMQ = cons > 0 ? required / cons : modQty;
+    const pwr = fmtPower(impliedMQ * wp);
+    return [item.module.name,item.row.sr,item.row.group,item.row.spec,item.row.uom,
+      item.row.qty,item.row.wastage,cons,impliedMQ,required,(overKey in rowOverrides)?"Yes":"No",wp||"",pwr.full||"—"];
+  });
+  const csv = [hdr,...rows].map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(",")).join("\n");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+  a.download = "rm_consumption.csv"; a.click();
+});
+
+document.getElementById("printPage").addEventListener("click", () => window.print());
+document.getElementById("resetConsumption").addEventListener("click", () => {
+  if (confirm("Reset all data to defaults? This cannot be undone.")) {
+    localStorage.removeItem("rmConsv2"); location.reload();
+  }
+});
+document.getElementById("clearQty").addEventListener("click", () => {
+  Object.keys(moduleQty).forEach(k => moduleQty[k] = 0);
+  Object.keys(rowOverrides).forEach(k => delete rowOverrides[k]);
+  Object.keys(rowGeneration).forEach(k => delete rowGeneration[k]);
+  Object.keys(rowPricing).forEach(k => delete rowPricing[k]);
+  saveState(); renderControls(); render();
+});
+document.getElementById("searchBox").addEventListener("input", renderTable);
+document.getElementById("addRowBtn").addEventListener("click", openAddRowModal);
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+document.getElementById('rateUSD').value = currencyRates.USD;
+document.getElementById('rateRMB').value = currencyRates.RMB;
+
+document.getElementById('rateUSD').addEventListener('change', (e) => {
+  currencyRates.USD = n(e.target.value) || 83.50;
+  saveState(); render();
+});
+document.getElementById('rateRMB').addEventListener('change', (e) => {
+  currencyRates.RMB = n(e.target.value) || 11.50;
+  saveState(); render();
+});
+
+window.filterPlanViews = function() {
+  const term = document.getElementById('planSearchBox').value.toLowerCase();
+  // Filter customer order rows
+  document.querySelectorAll('#planOrderBody tr').forEach(tr => {
+    tr.style.display = tr.textContent.toLowerCase().includes(term) ? '' : 'none';
+  });
+  // Filter customer summary cards
+  document.querySelectorAll('#custSummaryGrid .cust-card').forEach(card => {
+    card.style.display = card.textContent.toLowerCase().includes(term) ? '' : 'none';
+  });
+  // Filter module summary cards
+  document.querySelectorAll('#planModuleSummary .watt-card').forEach(card => {
+    card.style.display = card.textContent.toLowerCase().includes(term) ? '' : 'none';
+  });
+  // Filter consolidated rows
+  document.querySelectorAll('#consolidatedBody tr:not(.group-row)').forEach(tr => {
+    tr.style.display = tr.textContent.toLowerCase().includes(term) ? '' : 'none';
+  });
+  // Filter detailed rows
+  document.querySelectorAll('#resultBodyPlan tr').forEach(tr => {
+    tr.style.display = tr.textContent.toLowerCase().includes(term) ? '' : 'none';
+  });
+};
+
+window.onDateRangeChange = function() {
+  const fromInput = document.getElementById('planDateFrom');
+  const toInput = document.getElementById('planDateTo');
+  if (fromInput.value) userDateFrom = new Date(fromInput.value + 'T00:00:00');
+  if (toInput.value) userDateTo = new Date(toInput.value + 'T00:00:00');
+  
+  // Update the display text
+  const rangeSpan = document.getElementById('planDateRange');
+  if (userDateFrom && userDateTo) {
+    const days = Math.round((userDateTo - userDateFrom) / 86400000) + 1;
+    rangeSpan.textContent = `${days} day${days !== 1 ? 's' : ''} selected`;
+  }
+  
+  // Re-run analysis with planRaw data if available
+  if (planRaw.length > 0 && stockRaw.length > 0) {
+    runAnalysisAuto();
+  } else if (lastAnalysis) {
+    // If loaded from cache, we need planRaw — show message
+    alert('Please re-upload the Planning Sheet to recalculate with new date range.');
+  }
+};
+
+window.resetDateRange = function() {
+  const fromInput = document.getElementById('planDateFrom');
+  const toInput = document.getElementById('planDateTo');
+  // Reset to full sheet range
+  if (allSheetDates.length > 0) {
+    const fmtISO = d => d.toISOString().split('T')[0];
+    fromInput.value = fmtISO(allSheetDates[0]);
+    toInput.value = fmtISO(allSheetDates[allSheetDates.length - 1]);
+  } else {
+    fromInput.value = '';
+    toInput.value = '';
+  }
+  userDateFrom = null;
+  userDateTo = null;
+  onDateRangeChange();
+};
+
+window.clearSavedAnalysis = function() {
+  if (!confirm('Clear saved analysis data? You will need to re-upload your files.')) return;
+  localStorage.removeItem('rmAnalysisState');
+  lastAnalysis = null;
+  aggregatedStock = {};
+  planRaw = [];
+  stockRaw = [];
+  document.getElementById('analysisResults').style.display = 'none';
+  document.getElementById('savedDataBanner').style.display = 'none';
+  document.getElementById('uploadContainer').style.display = 'flex';
+  document.getElementById('planUploadName').textContent = 'Drop Planning Sheet Here';
+  document.getElementById('planUpload').style.borderColor = '';
+  document.getElementById('planUpload').style.background = '';
+  document.getElementById('stockUploadName').textContent = 'Drop Store Stock Report Here';
+  document.getElementById('stockUpload').style.borderColor = '';
+  document.getElementById('stockUpload').style.background = '';
+  // Reset date pickers
+  document.getElementById('planDateFrom').value = '';
+  document.getElementById('planDateTo').value = '';
+  userDateFrom = null;
+  userDateTo = null;
+};
+
+function loadAnalysisState() {
+  const saved = localStorage.getItem('rmAnalysisState');
+  if (saved) {
+    try {
+      const data = JSON.parse(saved);
+      if (data.lastAnalysis && data.aggregatedStock) {
+        lastAnalysis = data.lastAnalysis;
+        aggregatedStock = data.aggregatedStock;
+        planSheetName = data.planSheetName || 'Saved Plan';
+        
+        let planStartDate = data.planStartDate ? new Date(data.planStartDate) : null;
+        let planEndDate = data.planEndDate ? new Date(data.planEndDate) : null;
+
+        // Show saved data banner, keep upload zones visible for re-upload
+        document.getElementById('savedDataBanner').style.display = 'flex';
+        document.getElementById('planUploadName').textContent = '💾 Saved Plan Data (upload new to replace)';
+        document.getElementById('stockUploadName').textContent = '💾 Saved Stock Data (upload new to replace)';
+        
+        // Re-render
+        renderCustomerSummary(lastAnalysis.customerOrders);
+        renderOrdersTable(lastAnalysis.customerOrders);
+        renderModuleSummary(lastAnalysis.plannedModules);
+        
+        // Re-run mapping on consolidated object
+        let itemsShort = 0, itemsOk = 0, itemsLow = 0;
+        Object.keys(lastAnalysis.consolidated).forEach(mk => {
+          const mat = lastAnalysis.consolidated[mk];
+          if (discardedMaterials.has(mk)) {
+            mat.stockResult = { total: 0, items: [], isManual: false };
+            mat.diff = 0;
+            mat.status = 'discarded';
+            return;
+          }
+          const stockResult = getStockForMaterial(mk, mat.group, mat.spec, mat.uom);
+          mat.stockResult = stockResult;
+          mat.diff = stockResult.total - mat.requiredQty;
+          if (stockResult.total >= mat.requiredQty * 1.0) { mat.status = 'ok'; itemsOk++; }
+          else if (stockResult.total >= mat.requiredQty * 0.5) { mat.status = 'low'; itemsLow++; }
+          else { mat.status = 'short'; itemsShort++; }
+        });
+        
+        renderConsolidatedTable(lastAnalysis.consolidated);
+        renderDetailedTable(lastAnalysis.plannedModules, lastAnalysis.consolidated);
+        
+        // Re-render KPIs
+        const totMods = Object.values(lastAnalysis.plannedModules).reduce((s, v) => s + v.qty, 0);
+        const totalMW = lastAnalysis.customerOrders.reduce((s, o) => s + (o.qty * o.wp / 1e6), 0);
+        const numCustomers = new Set(lastAnalysis.customerOrders.map(o => o.customer)).size;
+        
+        document.getElementById('planKpi').innerHTML = `
+          <div class="kpi teal"><div class="kpi-label">Total Planned</div><div class="kpi-val">${fmt2.format(totMods)}</div><div class="kpi-sub">modules to build</div></div>
+          <div class="kpi green"><div class="kpi-label">Total Power</div><div class="kpi-val">${totalMW.toFixed(2)}<span style="font-size:12px;color:var(--muted)"> MW</span></div><div class="kpi-sub">combined output</div></div>
+          <div class="kpi blue"><div class="kpi-label">Customers</div><div class="kpi-val">${numCustomers}</div><div class="kpi-sub">with active orders</div></div>
+          <div class="kpi purple"><div class="kpi-label">Unique Materials</div><div class="kpi-val">${Object.keys(lastAnalysis.consolidated).length}</div><div class="kpi-sub">required for plan</div></div>
+          <div class="kpi amber"><div class="kpi-label">⚠ Low Stock</div><div class="kpi-val">${itemsLow}</div><div class="kpi-sub">need attention</div></div>
+          <div class="kpi" style="border-left:3px solid var(--danger)"><div class="kpi-label">❌ Short</div><div class="kpi-val" style="color:var(--danger)">${itemsShort}</div><div class="kpi-sub">need procurement</div></div>
+        `;
+        
+        const allOk = itemsShort === 0 && itemsLow === 0;
+        document.getElementById('shortageBar').innerHTML = `
+          <div class="shortage-bar ${allOk ? 'all-ok' : ''}">
+            <span class="shortage-bar-icon">${allOk ? '✅' : '⚠️'}</span>
+            <span class="shortage-bar-text">${allOk ? 'All materials are sufficiently stocked!' : `${itemsShort} material(s) in SHORTAGE, ${itemsLow} material(s) LOW`}</span>
+            <span class="shortage-bar-count">${allOk ? itemsOk + ' OK' : itemsShort + ' Short'}</span>
+          </div>
+        `;
+
+        document.getElementById('analysisResults').style.display = 'block';
+        document.getElementById('planningTitle').textContent = `Planned Module Details & Power Output (Sheet: ${planSheetName})`;
+        if (planStartDate && planEndDate) {
+          const days = Math.round((planEndDate - planStartDate) / 86400000) + 1;
+          document.getElementById('planDateRange').textContent = `${planStartDate.toLocaleDateString()} \u2192 ${planEndDate.toLocaleDateString()} (${days} days)`;
+        }
+      }
+    } catch(e) { console.error("Error loading saved analysis", e); }
+  }
+}
+
+renderControls();
+render();
+loadAnalysisState();
+
+/* ───────────────────────────────────────────────────────────────────────────
+   CELL INV — AMOUNT-WISE PRICING  (every value editable & back-calculatable)
+   Namespaced (cell*) to avoid clashing with the consumption calculator.
+─────────────────────────────────────────────────────────────────────────── */
+(function () {
+  let cellRows = [];
+  let cellNextId = 1;
+
+  const cUSD = v => v ? '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+  const cWp  = v => v ? Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+  const cNum = v => v ? Number(v).toLocaleString('en-US') : '—';
+  const cParse = s => {
+    if (!s) return null;
+    const p = String(s).toLowerCase().split(/x|\*/);
+    return (p.length === 2 && !isNaN(p[0]) && !isNaN(p[1])) ? { l: +p[0], b: +p[1] } : null;
+  };
+  const num = v => parseFloat(v) || 0;
+
+  window.cellSetGlobalActive = function (type) {
+    ['amount', 'pwp', 'pcp'].forEach(t => {
+      const el = document.getElementById('cellMc-' + t);
+      if (el) el.classList.toggle('active', t === type);
+    });
+  };
+
+  window.cellOnGlobalInput = function (type) {
+    cellSetGlobalActive(type);
+    const v = num(document.getElementById(
+      type === 'amount' ? 'cellInAmount' : type === 'pwp' ? 'cellInPwp' : 'cellInPcp'
+    ).value);
+
+    let grandWp = 0, grandQty = 0;
+    cellRows.forEach(r => {
+      r.wp = num(r.wp); r.qty = num(r.qty);
+      grandWp += r.wp * r.qty;
+      grandQty += r.qty;
+    });
+
+    let pwp = 0;
+    if (type === 'amount' && grandWp > 0) pwp = v / grandWp;
+    else if (type === 'pwp') pwp = v;
+    else if (type === 'pcp' && grandWp > 0 && grandQty > 0) pwp = (v * grandQty) / grandWp;
+
+    cellRows.forEach(r => {
+      r.pwp = pwp;
+      r.pcp = pwp * num(r.wp);
+      r.amt = num(r.pcp) * num(r.qty);
+    });
+
+    cellRenderTable();
+    cellUpdateTotals();
+  };
+
+  window.cellOnRowInput = function (id, field) {
+    const r = cellRows.find(x => x.id === id);
+    if (!r) return;
+    const g = sfx => document.getElementById(sfx + '-' + id);
+
+    if (field === 'size' || field === 'eff') {
+      r.size = g('size').value;
+      r.eff = g('eff').value;
+      const s = cParse(r.size), e = parseFloat(r.eff);
+      if (s && !isNaN(e) && e > 0) {
+        r.wp = parseFloat(((s.l * s.b * e) / 100000).toFixed(3));
+        g('wp').value = r.wp;
+        if (r.qty) g('twp').value = (r.wp * r.qty).toFixed(2);
+      }
+    } else if (field === 'wp') {
+      r.wp = num(g('wp').value);
+      if (r.qty) g('twp').value = (r.wp * r.qty).toFixed(2);
+    } else if (field === 'qty') {
+      r.qty = num(g('qty').value);
+      if (r.wp) g('twp').value = (r.wp * r.qty).toFixed(2);
+    } else if (field === 'twp') {
+      const twp = num(g('twp').value);
+      if (r.wp > 0) { r.qty = Math.round(twp / r.wp); g('qty').value = r.qty; }
+      else if (r.qty > 0) { r.wp = parseFloat((twp / r.qty).toFixed(3)); g('wp').value = r.wp; }
+    }
+
+    // ── Pricing edits (any of $/Wp, $/Cell, Amount back-calculates the rest) ──
+    if (field === 'pwp') {
+      r.pwp = num(g('pwp').value);
+      r.pcp = r.pwp * num(r.wp);
+      g('pcp').value = r.pcp ? r.pcp.toFixed(4) : '';
+    } else if (field === 'pcp') {
+      r.pcp = num(g('pcp').value);
+      r.pwp = r.wp > 0 ? r.pcp / r.wp : 0;
+      g('pwp').value = r.pwp ? r.pwp.toFixed(6) : '';
+    } else if (field === 'amt') {
+      r.amt = num(g('amt').value);
+      if (r.qty > 0) {
+        r.pcp = r.amt / r.qty;
+        r.pwp = r.wp > 0 ? r.pcp / r.wp : 0;
+      } else if (r.pcp > 0) {
+        r.qty = Math.round(r.amt / r.pcp);
+        g('qty').value = r.qty;
+        if (r.wp) g('twp').value = (r.wp * r.qty).toFixed(2);
+      }
+      g('pcp').value = r.pcp ? r.pcp.toFixed(4) : '';
+      g('pwp').value = r.pwp ? r.pwp.toFixed(6) : '';
+    } else if (['wp', 'qty', 'twp', 'size', 'eff'].includes(field)) {
+      // physical metric changed → recompute $/Cell from $/Wp
+      r.pcp = num(r.pwp) * num(r.wp);
+      g('pcp').value = r.pcp ? r.pcp.toFixed(4) : '';
+    }
+
+    // keep Amount in sync (unless the user just typed in it)
+    r.amt = num(r.pcp) * num(r.qty);
+    if (field !== 'amt') {
+      const amtEl = g('amt');
+      if (amtEl) amtEl.value = r.amt ? r.amt.toFixed(2) : '';
+    }
+
+    cellSetGlobalActive(null);
+    cellUpdateTotals();
+  };
+
+  window.cellUpdateTotals = function () {
+    let gWp = 0, gQty = 0, gAmt = 0;
+    cellRows.forEach(r => {
+      const wp = num(r.wp), qty = num(r.qty), pcp = num(r.pcp);
+      gWp += wp * qty;
+      gQty += qty;
+      gAmt += pcp * qty;
+    });
+
+    const act = document.querySelector('.cell-mc-item.active');
+    const inA = document.getElementById('cellInAmount');
+    const inP = document.getElementById('cellInPwp');
+    const inC = document.getElementById('cellInPcp');
+
+    if (!act || act.id !== 'cellMc-amount') inA.value = gAmt > 0 ? gAmt.toFixed(2) : '';
+    if (!act || act.id !== 'cellMc-pwp') inP.value = (gWp > 0 ? gAmt / gWp : 0).toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+    if (!act || act.id !== 'cellMc-pcp') inC.value = (gQty > 0 ? gAmt / gQty : 0).toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+
+    const tf = document.getElementById('cellFoot');
+    if (cellRows.length === 0) { tf.innerHTML = ''; return; }
+    tf.innerHTML = `<tr>
+      <td colspan="4" style="text-align:right">TOTAL</td>
+      <td class="num">${cNum(gQty)}</td>
+      <td class="num">${cWp(gWp)}</td>
+      <td colspan="2" class="num"></td>
+      <td class="num">${cUSD(gAmt)}</td>
+      <td></td>
+    </tr>`;
+  };
+
+  window.cellRenderTable = function () {
+    const tb = document.getElementById('cellBody');
+    if (!tb) return;
+    if (cellRows.length === 0) {
+      tb.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--muted);">No rows. Click "Add Row" to begin.</td></tr>';
+      cellUpdateTotals();
+      return;
+    }
+    tb.innerHTML = cellRows.map((r, i) => `
+      <tr>
+        <td class="cell-num">${i + 1}</td>
+        <td><input class="txt" id="size-${r.id}" value="${r.size || ''}" placeholder="182.3x210" oninput="cellOnRowInput(${r.id},'size')" /></td>
+        <td><input type="number" class="ctr" id="eff-${r.id}" value="${r.eff || ''}" placeholder="25.3" oninput="cellOnRowInput(${r.id},'eff')" /></td>
+        <td><input type="number" class="ctr" id="wp-${r.id}" value="${r.wp || ''}" placeholder="9.68" oninput="cellOnRowInput(${r.id},'wp')" /></td>
+        <td><input type="number" id="qty-${r.id}" value="${r.qty || ''}" placeholder="10000" oninput="cellOnRowInput(${r.id},'qty')" /></td>
+        <td><input type="number" id="twp-${r.id}" value="${(num(r.wp) * num(r.qty)) > 0 ? (num(r.wp) * num(r.qty)).toFixed(2) : ''}" placeholder="96800.00" oninput="cellOnRowInput(${r.id},'twp')" /></td>
+        <td><input type="number" id="pwp-${r.id}" value="${r.pwp ? Number(r.pwp).toFixed(4) : ''}" placeholder="0.1000" oninput="cellOnRowInput(${r.id},'pwp')" /></td>
+        <td><input type="number" id="pcp-${r.id}" value="${r.pcp ? Number(r.pcp).toFixed(4) : ''}" placeholder="0.9680" oninput="cellOnRowInput(${r.id},'pcp')" /></td>
+        <td class="amt-col"><input type="number" id="amt-${r.id}" value="${(num(r.pcp) * num(r.qty)) > 0 ? (num(r.pcp) * num(r.qty)).toFixed(2) : ''}" placeholder="9680.00" oninput="cellOnRowInput(${r.id},'amt')" /></td>
+        <td style="text-align:center"><button class="cell-del" onclick="cellRemoveRow(${r.id})" title="Delete row">×</button></td>
+      </tr>
+    `).join('');
+    cellUpdateTotals();
+  };
+
+  window.cellAddRow = function (d) {
+    d = d || {};
+    cellRows.push({ id: cellNextId++, size: d.size || '', eff: d.eff || '', wp: d.wp || '', qty: d.qty || '', pwp: d.pwp || 0, pcp: d.pcp || 0, amt: 0 });
+    cellRenderTable();
+  };
+
+  window.cellRemoveRow = function (id) {
+    cellRows = cellRows.filter(x => x.id !== id);
+    cellRenderTable();
+  };
+
+  window.cellClearAll = function () {
+    cellRows = [];
+    cellRenderTable();
+    document.getElementById('cellInAmount').value = '';
+    document.getElementById('cellInPwp').value = '';
+    document.getElementById('cellInPcp').value = '';
+  };
+
+  window.cellLoadSample = function () {
+    cellRows = []; cellNextId = 1;
+    cellAddRow({ size: '182.3x210', eff: '25.3', wp: '9.66', qty: '376320', pwp: 0.10, pcp: 0.9660 });
+    cellAddRow({ size: '182.3x210', eff: '25.4', wp: '9.70', qty: '806400', pwp: 0.10, pcp: 0.9700 });
+    cellAddRow({ size: '182.3x210', eff: '25.5', wp: '9.74', qty: '2657280', pwp: 0.105, pcp: 1.0227 });
+    cellSetGlobalActive(null);
+    cellRenderTable();
+  };
+
+  cellLoadSample();
+})();
+</script>
+</body>
+</html>
+
