@@ -768,10 +768,29 @@
   }
 
   @media print {
-    header { position: static; background: #0b6e4f; -webkit-print-color-adjust: exact; }
-    .header-actions, .toolbar .btn, .row-btn, .modal-overlay { display: none !important; }
-    .table-wrap { overflow: visible; box-shadow: none; max-height: none; }
-    table { min-width: 0; }
+    @page { size: A3 landscape; margin: 8mm; }
+    html, body { background: #fff !important; }
+    header { position: static; background: #0b6e4f !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    /* Hide all interactive chrome so the printout / PDF is clean */
+    .header-actions, .mode-switch, .toolbar, .plan-toolbar, .plan-view-tabs,
+    .filter-row, .cf-wrap, .cf-panel, .row-btn, .row-actions, .cell-del,
+    .modal-overlay, .dropzone, .upload-zone, #planSearchBox, .mapping-search,
+    .info-banner, .gen-reset, .reset-btn { display: none !important; }
+    /* Let every table expand fully and show ALL columns on the page */
+    .table-wrap { overflow: visible !important; max-height: none !important; box-shadow: none !important; border: none !important; }
+    table { min-width: 0 !important; width: 100% !important; table-layout: auto !important; font-size: 8px !important; border-collapse: collapse !important; }
+    thead th { position: static !important; font-size: 8px !important; padding: 3px 4px !important; white-space: normal !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    thead tr.group-row th { font-size: 8px !important; }
+    tbody td, tfoot td { padding: 2px 4px !important; font-size: 8px !important; white-space: normal !important; }
+    /* Render editable inputs/selects as plain text so values are visible and never clipped */
+    tbody td input, tbody td select, tfoot td input {
+      border: none !important; background: transparent !important; width: auto !important;
+      min-width: 0 !important; max-width: none !important; font-size: 8px !important;
+      padding: 0 !important; -webkit-appearance: none; appearance: none; color: inherit !important;
+    }
+    .cust-grid, .watt-summary { page-break-inside: avoid; }
+    tr { page-break-inside: avoid; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
   }
 
   /* ── INDIVIDUAL ROW OVERRIDE ── */
@@ -1043,6 +1062,9 @@
   .line-badge.line-oem { background: #f1f5f9; color: #475569; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script>window.XLSX_READ = window.XLSX;</script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script>window.XLSX_STYLE = window.XLSX; window.XLSX = window.XLSX_READ || window.XLSX;</script>
 </head>
 <body>
 
@@ -3621,47 +3643,228 @@ window.saveStockMapping = function() {
   if (lastAnalysis) runAnalysisAuto();
 };
 
-// ── EXPORT PLANNING REPORT ──────────────────────────────────────────
+// ── STYLED EXCEL EXPORT ENGINE (colorful, with AutoFilter, visible/filtered rows only) ──
+function _XS() { return window.XLSX_STYLE || window.XLSX; }
+
+function _exCleanText(cell) {
+  const inp = cell.querySelector('input');
+  if (inp) return (inp.value || inp.placeholder || '').trim();
+  const sel = cell.querySelector('select');
+  if (sel) return (sel.options[sel.selectedIndex]?.text || '').trim();
+  const clone = cell.cloneNode(true);
+  clone.querySelectorAll('button,.row-actions,.row-btn,.cell-del,.gen-reset,.reset-btn,svg').forEach(b => b.remove());
+  return (clone.textContent || '').trim().replace(/\s+/g, ' ');
+}
+
+function _exIsActionHeader(txt) { return /✗|🔗|discard \/ map/i.test(txt); }
+
+function _exNumberize(txt, isNum) {
+  if (!isNum) return null;
+  const cleaned = String(txt).replace(/[,₹$€£\s]/g, '').replace(/%$/, '').replace(/^\+/, '');
+  if (cleaned === '' || cleaned === '—' || cleaned === '-') return null;
+  if (/^-?\d*\.?\d+$/.test(cleaned)) {
+    const v = Number(cleaned);
+    if (Number.isFinite(v)) return v;
+  }
+  return null;
+}
+
+function _collectTableExport(tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return null;
+  const table = tbody.closest('table');
+  if (!table) return null;
+  const headRow = table.querySelector('thead tr:not(.group-row):not(.filter-row)');
+  if (!headRow) return null;
+  const headCells = Array.from(headRow.children);
+  const includeCols = [], headers = [], meta = [];
+  headCells.forEach((th, i) => {
+    const t = _exCleanText(th);
+    if (_exIsActionHeader(t)) return;
+    includeCols.push(i);
+    headers.push(t || ('Col ' + (i + 1)));
+    meta.push({
+      isNum: th.classList.contains('num') || /qty|price|cost|power|amount|\bwp\b|available|required|shortage|surplus|modules|eff|wastage|consumption|total|per module/i.test(t),
+      isStatus: /^status$/i.test(t),
+      isShortage: /shortage|surplus/i.test(t)
+    });
+  });
+
+  const rows = [];
+  Array.from(tbody.querySelectorAll('tr')).forEach(tr => {
+    if (tr.style.display === 'none') return;
+    const colspanCell = tr.querySelector('td[colspan]');
+    if (colspanCell) {
+      const label = _exCleanText(colspanCell);
+      if (!label || /no data|no match|nothing|empty|upload|please|no results/i.test(label)) return;
+      rows.push({ type: 'group', label });
+      return;
+    }
+    const tds = Array.from(tr.children);
+    if (!tds.length) return;
+    rows.push({ type: 'data', cells: includeCols.map(ci => tds[ci] ? _exCleanText(tds[ci]) : '') });
+  });
+
+  const tfoot = table.querySelector('tfoot');
+  if (tfoot) {
+    Array.from(tfoot.querySelectorAll('tr')).forEach(tr => {
+      if (tr.style.display === 'none') return;
+      const tds = Array.from(tr.children);
+      if (!tds.length) return;
+      let cells;
+      if (tds.length === headCells.length) cells = includeCols.map(ci => tds[ci] ? _exCleanText(tds[ci]) : '');
+      else cells = headers.map((_, i) => tds[i] ? _exCleanText(tds[i]) : '');
+      if (cells.some(c => c)) rows.push({ type: 'total', cells });
+    });
+  }
+
+  return { headers, meta, rows };
+}
+
+const _EX_BORDER = { style: 'thin', color: { rgb: 'D5E5DC' } };
+const _EX_BORDERS = { top: _EX_BORDER, bottom: _EX_BORDER, left: _EX_BORDER, right: _EX_BORDER };
+
+function _sheetFromExport(data, title) {
+  const XS = _XS();
+  const ncol = data.headers.length;
+  const lastC = ncol - 1;
+  const aoa = [];
+  const merges = [];
+  const styleRows = [];
+
+  aoa.push([title + '   •   ' + new Date().toLocaleString() + '   •   Filtered / on-screen view'].concat(Array(ncol - 1).fill('')));
+  merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: lastC } });
+
+  aoa.push(data.headers.slice());
+  const headerR = 1;
+
+  let r = 2;
+  data.rows.forEach(row => {
+    if (row.type === 'group') {
+      aoa.push([row.label].concat(Array(ncol - 1).fill('')));
+      merges.push({ s: { r, c: 0 }, e: { r, c: lastC } });
+      styleRows.push({ r, kind: 'group' });
+    } else {
+      const out = row.cells.map((txt, c) => {
+        const num = _exNumberize(txt, data.meta[c] && data.meta[c].isNum);
+        return num !== null ? num : txt;
+      });
+      aoa.push(out);
+      styleRows.push({ r, kind: row.type, cells: row.cells });
+    }
+    r++;
+  });
+
+  const ws = XS.utils.aoa_to_sheet(aoa);
+
+  const tc = ws[XS.utils.encode_cell({ r: 0, c: 0 })];
+  if (tc) tc.s = { font: { name: 'Calibri', sz: 14, bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '0B6E4F' } }, alignment: { horizontal: 'left', vertical: 'center' } };
+
+  for (let c = 0; c < ncol; c++) {
+    const ref = XS.utils.encode_cell({ r: headerR, c });
+    if (!ws[ref]) ws[ref] = { t: 's', v: '' };
+    ws[ref].s = { font: { name: 'Calibri', sz: 11, bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '13855C' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: _EX_BORDERS };
+  }
+
+  styleRows.forEach(info => {
+    if (info.kind === 'group') {
+      const ref = XS.utils.encode_cell({ r: info.r, c: 0 });
+      if (ws[ref]) ws[ref].s = { font: { name: 'Calibri', sz: 11, bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '334155' } }, alignment: { horizontal: 'left', vertical: 'center' } };
+      return;
+    }
+    const stripe = info.kind === 'total' ? 'E6F7F1' : ((info.r % 2 === 0) ? 'F4FAF7' : 'FFFFFF');
+    for (let c = 0; c < ncol; c++) {
+      const ref = XS.utils.encode_cell({ r: info.r, c });
+      if (!ws[ref]) ws[ref] = { t: 's', v: '' };
+      const m = data.meta[c] || {};
+      const txt = info.cells ? (info.cells[c] || '') : '';
+      const font = { name: 'Calibri', sz: 10.5, color: { rgb: '1F2A33' } };
+      let fill = { fgColor: { rgb: stripe } };
+      const align = { horizontal: m.isNum ? 'right' : 'left', vertical: 'center', wrapText: false };
+      if (info.kind === 'total') font.bold = true;
+      if (/❌|short/i.test(txt)) { fill = { fgColor: { rgb: 'FEE2E2' } }; font.color = { rgb: '991B1B' }; font.bold = true; }
+      else if (/⚠|low/i.test(txt)) { fill = { fgColor: { rgb: 'FEF3C7' } }; font.color = { rgb: '92400E' }; font.bold = true; }
+      else if (/✅|(^|\s)ok(\s|$)/i.test(txt)) { fill = { fgColor: { rgb: 'D1FAE5' } }; font.color = { rgb: '065F46' }; font.bold = true; }
+      else if (m.isShortage && typeof ws[ref].v === 'number') {
+        if (ws[ref].v < 0) { font.color = { rgb: '991B1B' }; font.bold = true; }
+        else if (ws[ref].v > 0) { font.color = { rgb: '047857' }; font.bold = true; }
+      }
+      ws[ref].s = { font, fill, alignment: align, border: _EX_BORDERS };
+      if (typeof ws[ref].v === 'number') ws[ref].z = '#,##0.##';
+    }
+  });
+
+  ws['!merges'] = merges;
+  const lastRow = aoa.length - 1;
+  ws['!autofilter'] = { ref: XS.utils.encode_range({ s: { r: headerR, c: 0 }, e: { r: lastRow, c: lastC } }) };
+  ws['!cols'] = data.headers.map((h, i) => {
+    let w = String(h).length + 2;
+    data.rows.forEach(row => {
+      if (row.cells) { const t = row.cells[i] != null ? String(row.cells[i]) : ''; if (t.length + 2 > w) w = t.length + 2; }
+    });
+    return { wch: Math.min(Math.max(w, 9), 42) };
+  });
+  ws['!rows'] = aoa.map((_, i) => i === 0 ? { hpt: 24 } : (i === headerR ? { hpt: 22 } : { hpt: 15 }));
+  return ws;
+}
+
+function _exportWorkbook(specs, filename) {
+  const XS = _XS();
+  if (!XS || !XS.utils || !XS.writeFile) { alert('Excel library is still loading — please try again in a moment.'); return; }
+  const wb = XS.utils.book_new();
+  let added = 0;
+  specs.forEach(sp => {
+    const data = _collectTableExport(sp.tbodyId);
+    if (!data || !data.rows.some(r => r.type === 'data')) return;
+    XS.utils.book_append_sheet(wb, _sheetFromExport(data, sp.title), sp.sheetName.substring(0, 31));
+    added++;
+  });
+  if (!added) { alert('Nothing to export — no visible rows (check your filters).'); return; }
+  XS.writeFile(wb, filename, { bookType: 'xlsx' });
+}
+
+function _activeView() {
+  const plan = document.getElementById('planningMain');
+  const cell = document.getElementById('cellInvMain');
+  if (plan && getComputedStyle(plan).display !== 'none') return 'plan';
+  if (cell && getComputedStyle(cell).display !== 'none') return 'cell';
+  return 'calc';
+}
+
+const _PLAN_SPECS = [
+  { tbodyId: 'planOrderBody', sheetName: 'Customer Orders', title: 'Customer Orders' },
+  { tbodyId: 'consolidatedBody', sheetName: 'Consolidated Materials', title: 'Consolidated Material Requirements vs Stock' },
+  { tbodyId: 'resultBodyPlan', sheetName: 'Detailed Breakdown', title: 'Detailed Material Breakdown per Module' }
+];
+
+window.exportActiveExcel = function() {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const view = _activeView();
+  if (view === 'plan') _exportWorkbook(_PLAN_SPECS, `SCM-Ease_Planning_${stamp}.xlsx`);
+  else if (view === 'cell') _exportWorkbook([{ tbodyId: 'cellBody', sheetName: 'Cell Pricing', title: 'Cell INV — Amount-wise Pricing' }], `SCM-Ease_CellINV_${stamp}.xlsx`);
+  else _exportWorkbook([{ tbodyId: 'resultBody', sheetName: 'RM Consumption', title: 'RM Consumption Requirement' }], `SCM-Ease_RM-Consumption_${stamp}.xlsx`);
+};
+
 window.exportPlanningReport = function() {
-  if (!lastAnalysis) return;
-  const { customerOrders, plannedModules, consolidated } = lastAnalysis;
+  const stamp = new Date().toISOString().slice(0, 10);
+  _exportWorkbook(_PLAN_SPECS, `SCM-Ease_Planning_${stamp}.xlsx`);
+};
 
-  let html = `<html><head><meta charset="utf-8"><style>
-    body{font-family:Arial}h1{color:#0b6e4f}h2{color:#1d6fbf;margin-top:20px}
-    table{border-collapse:collapse;width:100%;margin-bottom:20px}
-    th{background:#0b6e4f;color:#fff;padding:7px;font-size:11px}
-    td{border:1px solid #cde8d8;padding:6px;font-size:11px}
-    .num{text-align:right}.short{background:#fee2e2;color:#991b1b;font-weight:bold}
-    .ok{background:#d1fae5;color:#065f46}.low{background:#fef3c7;color:#92400e}
-  </style></head><body>
-  <h1>Production Planning vs Stock Analysis Report</h1>
-  <p>Generated: ${new Date().toLocaleString()} | Planning Sheet: ${planSheetName}</p>
-
-  <h2>Customer Orders Summary</h2>
-  <table><thead><tr><th>Customer</th><th>OA No</th><th>Line</th><th>Module</th><th>Wp</th><th class="num">Planned Qty</th><th class="num">Total MW</th></tr></thead><tbody>
-  ${customerOrders.map(o => {
-    const mod = baseModules.find(m => m.key === o.modKey);
-    return `<tr><td><b>${escHtml(o.customer)}</b></td><td>${escHtml(o.oa)}</td><td>Line ${o.line||'?'}</td><td>${mod ? escHtml(mod.name) : o.modKey}</td><td>${o.wp}</td><td class="num">${o.qty}</td><td class="num">${(o.qty*o.wp/1e6).toFixed(3)}</td></tr>`;
-  }).join('')}
-  </tbody></table>
-
-  <h2>Consolidated Material Requirements vs Stock</h2>
-  <table><thead><tr><th>Material Group</th><th>Specification</th><th>UOM</th><th>Used By</th><th class="num">Required Qty</th><th class="num">Available Stock</th><th class="num">Shortage/Surplus</th><th>Status</th></tr></thead><tbody>
-  ${Object.keys(consolidated).map(mk => {
-    const m = consolidated[mk];
-    if (discardedMaterials.has(mk)) return '';
-    const diff = m.diff;
-    const cls = m.status === 'short' ? 'short' : (m.status === 'low' ? 'low' : 'ok');
-    return `<tr><td>${escHtml(m.group)}</td><td>${escHtml(m.spec)}</td><td>${escHtml(m.uom)}</td><td>${m.usedBy.join(', ')}</td><td class="num">${m.requiredQty.toFixed(2)}</td><td class="num">${m.stockResult.total.toFixed(2)}</td><td class="num ${cls}">${diff >= 0 ? '+'+diff.toFixed(2) : diff.toFixed(2)}</td><td class="${cls}">${m.status === 'short' ? '❌ SHORT' : (m.status === 'low' ? '⚠ LOW' : '✅ OK')}</td></tr>`;
-  }).join('')}
-  </tbody></table>
-  </body></html>`;
-
-  const blob = new Blob(["\ufeff", html], {type: "application/vnd.ms-excel;charset=utf-8;"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "planning_vs_stock_report.xls";
-  a.click();
+function _csvCell(v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }
+window.exportActiveCsv = function() {
+  const view = _activeView();
+  const primary = view === 'plan' ? 'consolidatedBody' : (view === 'cell' ? 'cellBody' : 'resultBody');
+  const data = _collectTableExport(primary);
+  if (!data || !data.rows.some(r => r.type === 'data')) { alert('Nothing to export — no visible rows (check your filters).'); return; }
+  const lines = [data.headers.map(_csvCell).join(',')];
+  data.rows.forEach(row => {
+    if (row.type === 'group') lines.push(_csvCell(row.label));
+    else lines.push(row.cells.map(_csvCell).join(','));
+  });
+  const stamp = new Date().toISOString().slice(0, 10);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' }));
+  a.download = `SCM-Ease_${primary}_${stamp}.csv`; a.click();
 };
 
 
@@ -3671,78 +3874,9 @@ function escHtml(v) {
   return String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
-document.getElementById("exportExcel").addEventListener("click", () => {
-  const rows = allRows().map(item => {
-    const mk    = item.module.key;
-    const ri    = item.rowIndex;
-    const cons  = consumption(item.row);
-    const modQty = n(moduleQty[mk]);
-    const wp    = n(moduleWp[mk]);
-    const overKey = `${mk}:${ri}`;
-    const required = (overKey in rowOverrides) ? rowOverrides[overKey] : cons * modQty;
-    const impliedMQ = cons > 0 ? required / cons : modQty;
-    const totalW = impliedMQ * wp;
-    const pwr = fmtPower(totalW);
-    const isOverride = overKey in rowOverrides;
-    const pd = rowPricing[overKey] || {};
-    const costPM = (n(pd.priceQty) > 0 && n(pd.unitPrice) > 0) ? calcCostPerModule(item.row, mk, pd) : null;
-    return { ...item, cons, modQty: impliedMQ, required, totalW, pwrFull: pwr.full, isOverride, priceQty: pd.priceQty||'', priceUom: pd.priceUom||item.row.uom||'', unitPrice: pd.unitPrice||'', costPM };
-  });
-  const html = `<html><head><meta charset="utf-8"><style>
-    body{font-family:Arial}h1{color:#0b6e4f}
-    table{border-collapse:collapse;width:100%}
-    th{background:#0b6e4f;color:#fff;padding:7px}
-    td{border:1px solid #cde8d8;padding:6px}
-    .num{text-align:right}.tot{background:#f2fbf6;font-weight:bold;color:#0b6e4f}
-    .pwr{background:#e6f7f1;font-weight:bold}
-  </style></head><body>
-  <h1>RM Consumption Requirement</h1>
-  <p>Generated: ${new Date().toLocaleString()}</p>
-  <table><thead><tr>
-    <th>Module</th><th>Sr</th><th>Group</th><th>Spec</th><th>UOM</th>
-    <th>Qty/Module</th><th>Wastage%</th><th>Consumption/Module</th>
-    <th>Module Qty</th><th>Required Qty</th><th>Price Qty</th><th>Price UOM</th><th>Unit Price</th><th>Currency</th><th>Cost/Mod (INR)</th><th>Module Wp</th><th>Total Power</th>
-  </tr></thead><tbody>
-  ${rows.map(r => `<tr>
-    <td><b>${escHtml(r.module.name)}</b></td>
-    <td>${r.row.sr}</td><td>${escHtml(r.row.group)}</td>
-    <td>${escHtml(r.row.spec)}</td><td>${r.row.uom}</td>
-    <td class="num">${r.row.qty}</td><td class="num">${r.row.wastage}</td>
-    <td class="num">${r.cons}</td><td class="num">${r.modQty}</td>
-    <td class="num tot">${r.required}</td>
-    <td class="num">${r.priceQty||"\u2014"}</td>
-    <td>${r.priceUom||"\u2014"}</td>
-    <td class="num">${r.unitPrice||"\u2014"}</td>
-    <td>${(r.unitPrice && r.priceQty) ? (rowPricing[`${r.module.key}:${r.row.rowIndex}`]?.currency || 'INR') : "\u2014"}</td>
-    <td class="num" style="font-weight:bold;color:#92400e">${r.costPM!==null ? '\u20b9'+r.costPM.toFixed(2) : "\u2014"}</td>
-    <td class="num">${n(moduleWp[r.module.key])||"\u2014"}</td>
-    <td class="pwr">${r.totalW > 0 ? r.pwrFull : "\u2014"}</td>
-  </tr>`).join("")}
-  </tbody></table></body></html>`;
-  const blob = new Blob(["\ufeff", html], {type:"application/vnd.ms-excel;charset=utf-8;"});
-  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-  a.download = "rm_consumption.xls"; a.click();
-});
+document.getElementById("exportExcel").addEventListener("click", () => window.exportActiveExcel());
 
-document.getElementById("exportCsv").addEventListener("click", () => {
-  const hdr = ["Module","Sr","Group","Spec","UOM","Qty/Module","Wastage%","Consumption/Module","Implied ModuleQty","Required Qty","Custom?","PriceQty","PriceUOM","UnitPrice","Currency","Cost/Module (INR)","ModuleWp","TotalPower"];
-  const rows = allRows().map(item => {
-    const mk   = item.module.key;
-    const ri   = item.rowIndex;
-    const cons = consumption(item.row);
-    const modQty = n(moduleQty[mk]);
-    const wp   = n(moduleWp[mk]);
-    const overKey = `${mk}:${ri}`;
-    const required = (overKey in rowOverrides) ? rowOverrides[overKey] : cons * modQty;
-    const impliedMQ = cons > 0 ? required / cons : modQty;
-    const pwr = fmtPower(impliedMQ * wp);
-    return [item.module.name,item.row.sr,item.row.group,item.row.spec,item.row.uom,
-      item.row.qty,item.row.wastage,cons,impliedMQ,required,(overKey in rowOverrides)?"Yes":"No",wp||"",pwr.full||"—"];
-  });
-  const csv = [hdr,...rows].map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(",")).join("\n");
-  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
-  a.download = "rm_consumption.csv"; a.click();
-});
+document.getElementById("exportCsv").addEventListener("click", () => window.exportActiveCsv());
 
 document.getElementById("printPage").addEventListener("click", () => window.print());
 document.getElementById("resetConsumption").addEventListener("click", () => {
