@@ -317,11 +317,14 @@
     padding: 4px 3px;
     border-bottom: 2px solid #b8dfc8;
     border-right: 1px solid #cde8d8;
-    position: static;
-    z-index: auto;
+    position: sticky;
+    top: 36px;            /* freeze just below a single column-header row */
+    z-index: auto;        /* keep auto so the filter dropdown panel can escape on top */
     white-space: nowrap;
     overflow: visible;
   }
+  /* On tables with a group row, the filter row freezes below group (26px) + header (36px) */
+  thead tr.group-row ~ tr.filter-row th { top: 62px; }
   thead tr.filter-row th:last-child { border-right: 0; }
   .cf-wrap { position: relative; display: inline-block; width: 100%; }
   .cf-btn {
