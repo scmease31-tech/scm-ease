@@ -1414,6 +1414,32 @@
       <span id="planDateRange" style="font-size:11px; color:#64748b; margin-left:auto;"></span>
     </div>
 
+    <!-- Filter Bar: Customer / Module / Line -->
+    <div id="planFilterBar" style="background:linear-gradient(90deg,#faf5ff,#f3e8ff); border:1px solid #c4b5fd; border-radius:8px; padding:10px 16px; margin-bottom:10px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+      <span style="font-size:16px">🔍</span>
+      <span style="font-size:12px; font-weight:600; color:#5b21b6;">Filter By:</span>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <label style="font-size:11px; color:#64748b; font-weight:600;">Customer</label>
+        <select id="planFilterCustomer" onchange="applyPlanFilters()" style="padding:4px 8px; border:1px solid #a78bfa; border-radius:5px; font-size:12px; font-family:inherit; min-width:140px;">
+          <option value="">All Customers</option>
+        </select>
+      </div>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <label style="font-size:11px; color:#64748b; font-weight:600;">Module</label>
+        <select id="planFilterModule" onchange="applyPlanFilters()" style="padding:4px 8px; border:1px solid #a78bfa; border-radius:5px; font-size:12px; font-family:inherit; min-width:140px;">
+          <option value="">All Modules</option>
+        </select>
+      </div>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <label style="font-size:11px; color:#64748b; font-weight:600;">Line</label>
+        <select id="planFilterLine" onchange="applyPlanFilters()" style="padding:4px 8px; border:1px solid #a78bfa; border-radius:5px; font-size:12px; font-family:inherit; min-width:100px;">
+          <option value="">All Lines</option>
+        </select>
+      </div>
+      <button class="btn btn-outline" style="font-size:11px; padding:4px 10px;" onclick="resetPlanFilters()">↺ Clear Filters</button>
+      <span id="planFilterInfo" style="font-size:11px; color:#64748b; margin-left:auto;"></span>
+    </div>
+
     <!-- View Tabs + Global Search -->
     <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom: 10px;">
       <div class="plan-view-tabs" style="margin-bottom:0;">
@@ -3501,6 +3527,13 @@ function runAnalysisAuto() {
   // Save analysis for re-renders
   lastAnalysis = { customerOrders, plannedModules, consolidated };
 
+  // Populate filter dropdowns
+  populatePlanFilterDropdowns(customerOrders);
+
+  // If filters are active, apply them instead of rendering all
+  const hasFilter = document.getElementById('planFilterCustomer').value || document.getElementById('planFilterModule').value || document.getElementById('planFilterLine').value;
+  if (hasFilter) { applyPlanFilters(); } else {
+
   // ── RENDER ALL VIEWS ──
 
   // A) Customer-wise summary
@@ -3541,6 +3574,8 @@ function runAnalysisAuto() {
       <span class="shortage-bar-count">${allOk ? itemsOk + ' OK' : itemsShort + ' Short'}</span>
     </div>
   `;
+
+  } // end else (no active filter)
 
   document.getElementById('analysisResults').style.display = 'block';
   document.getElementById('planningTitle').textContent = `Planned Module Details & Power Output (Sheet: ${planSheetName})`;
@@ -4303,6 +4338,135 @@ window.filterPlanViews = function() {
   applyColumnFilters('resultBodyPlan');
 };
 
+// ── PLAN FILTER: Customer / Module / Line dropdowns ──────────────────
+window.populatePlanFilterDropdowns = function(orders) {
+  const customers = [...new Set(orders.map(o => o.customer))].sort();
+  const modKeys = [...new Set(orders.map(o => o.modKey))];
+  const lines = [...new Set(orders.map(o => o.line).filter(Boolean))].sort();
+
+  const cSel = document.getElementById('planFilterCustomer');
+  const mSel = document.getElementById('planFilterModule');
+  const lSel = document.getElementById('planFilterLine');
+  const prevC = cSel.value, prevM = mSel.value, prevL = lSel.value;
+
+  cSel.innerHTML = '<option value="">All Customers</option>' + customers.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+  mSel.innerHTML = '<option value="">All Modules</option>' + modKeys.map(k => {
+    const mod = modules.find(m => m.key === k);
+    return `<option value="${k}">${mod ? escHtml(mod.name) : k}</option>`;
+  }).join('');
+  lSel.innerHTML = '<option value="">All Lines</option>' + lines.map(l => `<option value="${escHtml(l)}">Line ${escHtml(l)}</option>`).join('');
+
+  // Restore previous selection if still valid
+  if (customers.includes(prevC)) cSel.value = prevC;
+  if (modKeys.includes(prevM)) mSel.value = prevM;
+  if (lines.includes(prevL)) lSel.value = prevL;
+};
+
+window.applyPlanFilters = function() {
+  if (!lastAnalysis) return;
+  const cust = document.getElementById('planFilterCustomer').value;
+  const modK = document.getElementById('planFilterModule').value;
+  const line = document.getElementById('planFilterLine').value;
+
+  // Filter orders
+  let filtered = lastAnalysis.customerOrders;
+  if (cust) filtered = filtered.filter(o => o.customer === cust);
+  if (modK) filtered = filtered.filter(o => o.modKey === modK);
+  if (line) filtered = filtered.filter(o => o.line === line);
+
+  // Show info
+  const info = document.getElementById('planFilterInfo');
+  const active = [cust, modK, line].filter(Boolean).length;
+  if (active) {
+    info.textContent = `Showing ${filtered.length} of ${lastAnalysis.customerOrders.length} orders (${active} filter${active > 1 ? 's' : ''})`;
+    info.style.color = '#7c3aed';
+  } else {
+    info.textContent = '';
+  }
+
+  // Rebuild plannedModules from filtered orders
+  const plannedModules = {};
+  filtered.forEach(ord => {
+    if (!plannedModules[ord.modKey]) plannedModules[ord.modKey] = { qty: 0, wpValues: [] };
+    plannedModules[ord.modKey].qty += ord.qty;
+    if (!plannedModules[ord.modKey].wpValues.includes(ord.wp))
+      plannedModules[ord.modKey].wpValues.push(ord.wp);
+  });
+
+  // Rebuild consolidated from filtered modules
+  const labelGroups = ['label', 'barcode', 'sticker', 'tag', 'ribbon'];
+  const consolidated = {};
+  Object.keys(plannedModules).forEach(mk => {
+    const mq = plannedModules[mk].qty;
+    const mod = modules.find(m => m.key === mk);
+    if (!mod) return;
+    mod.rows.forEach(row => {
+      const isLabel = labelGroups.some(lg => (row.group || '').toLowerCase().includes(lg));
+      const materialKey = `${row.group}|||${row.spec}`;
+      const cons = row.qty * (1 + row.wastage / 100);
+      if (!consolidated[materialKey]) {
+        consolidated[materialKey] = { group: row.group, spec: row.spec, uom: row.uom, perModule: cons, totalModules: 0, requiredQty: 0, usedBy: [], items: [], isLabel };
+      }
+      consolidated[materialKey].totalModules += mq;
+      consolidated[materialKey].requiredQty += cons * mq;
+      if (!consolidated[materialKey].usedBy.includes(mod.name)) consolidated[materialKey].usedBy.push(mod.name);
+      consolidated[materialKey].items.push({ modKey: mk, modName: mod.name, qty: mq, consumption: cons, row });
+    });
+  });
+
+  // Map stock
+  Object.keys(consolidated).forEach(mk => {
+    const mat = consolidated[mk];
+    if (discardedMaterials.has(mk)) {
+      mat.stockResult = { total: 0, items: [], isManual: false }; mat.diff = 0; mat.status = 'discarded'; return;
+    }
+    const stockResult = getStockForMaterial(mk, mat.group, mat.spec, mat.uom);
+    mat.stockResult = stockResult;
+    mat.diff = stockResult.total - mat.requiredQty;
+    mat.status = stockResult.total >= mat.requiredQty ? 'ok' : stockResult.total >= mat.requiredQty * 0.5 ? 'low' : 'short';
+  });
+
+  // Re-render all views with filtered data
+  renderCustomerSummary(filtered);
+  renderOrdersTable(filtered);
+  renderModuleSummary(plannedModules);
+  renderConsolidatedTable(consolidated);
+  renderDetailedTable(plannedModules, consolidated);
+
+  // Update KPIs
+  const totMods = Object.values(plannedModules).reduce((s, v) => s + v.qty, 0);
+  const totalMW = filtered.reduce((s, o) => s + (o.qty * o.wp / 1e6), 0);
+  const numCustomers = new Set(filtered.map(o => o.customer)).size;
+  const itemsShort = Object.values(consolidated).filter(m => m.status === 'short').length;
+  const itemsLow = Object.values(consolidated).filter(m => m.status === 'low').length;
+  const itemsOk = Object.values(consolidated).filter(m => m.status === 'ok').length;
+
+  document.getElementById('planKpi').innerHTML = `
+    <div class="kpi teal"><div class="kpi-label">Total Planned</div><div class="kpi-val">${fmt2.format(totMods)}</div><div class="kpi-sub">modules to build</div></div>
+    <div class="kpi green"><div class="kpi-label">Total Power</div><div class="kpi-val">${totalMW.toFixed(2)}<span style="font-size:12px;color:var(--muted)"> MW</span></div><div class="kpi-sub">combined output</div></div>
+    <div class="kpi blue"><div class="kpi-label">Customers</div><div class="kpi-val">${numCustomers}</div><div class="kpi-sub">with active orders</div></div>
+    <div class="kpi purple"><div class="kpi-label">Unique Materials</div><div class="kpi-val">${Object.keys(consolidated).length}</div><div class="kpi-sub">required for plan</div></div>
+    <div class="kpi amber"><div class="kpi-label">⚠ Low Stock</div><div class="kpi-val">${itemsLow}</div><div class="kpi-sub">need attention</div></div>
+    <div class="kpi" style="border-left:3px solid var(--danger)"><div class="kpi-label">❌ Short</div><div class="kpi-val" style="color:var(--danger)">${itemsShort}</div><div class="kpi-sub">need procurement</div></div>
+  `;
+
+  const allOk = itemsShort === 0 && itemsLow === 0;
+  document.getElementById('shortageBar').innerHTML = `
+    <div class="shortage-bar ${allOk ? 'all-ok' : ''}">
+      <span class="shortage-bar-icon">${allOk ? '✅' : '⚠️'}</span>
+      <span class="shortage-bar-text">${allOk ? 'All materials sufficiently stocked!' : `${itemsShort} material(s) SHORT, ${itemsLow} LOW`}</span>
+      <span class="shortage-bar-count">${allOk ? itemsOk + ' OK' : itemsShort + ' Short'}</span>
+    </div>
+  `;
+};
+
+window.resetPlanFilters = function() {
+  document.getElementById('planFilterCustomer').value = '';
+  document.getElementById('planFilterModule').value = '';
+  document.getElementById('planFilterLine').value = '';
+  applyPlanFilters();
+};
+
 window.onDateRangeChange = function() {
   const fromInput = document.getElementById('planDateFrom');
   const toInput = document.getElementById('planDateTo');
@@ -4384,6 +4548,7 @@ function loadAnalysisState() {
         document.getElementById('stockUploadName').textContent = '💾 Saved Stock Data (upload new to replace)';
         
         // Re-render
+        populatePlanFilterDropdowns(lastAnalysis.customerOrders);
         renderCustomerSummary(lastAnalysis.customerOrders);
         renderOrdersTable(lastAnalysis.customerOrders);
         renderModuleSummary(lastAnalysis.plannedModules);
