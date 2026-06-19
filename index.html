@@ -1558,6 +1558,85 @@
   }
   .v-col-del:hover { color: #dc2626; }
   body.vendor-edit-active .v-col-del { display: inline; }
+
+  /* Deletion confirm dialog */
+  .vd-overlay {
+    display:none; position:fixed; inset:0; z-index:10002;
+    background:rgba(15,25,35,0.45); backdrop-filter:blur(3px);
+    align-items:center; justify-content:center;
+  }
+  .vd-overlay.open { display:flex; }
+  .vd-dialog {
+    background:#fff; border-radius:14px; padding:26px 30px; width:360px; max-width:90vw;
+    box-shadow:0 16px 48px rgba(0,0,0,0.25); text-align:center; animation:vlIn 0.15s ease;
+  }
+  .vd-dialog .vd-icon { font-size:36px; margin-bottom:8px; }
+  .vd-dialog h4 { font-size:15px; font-weight:700; color:var(--ink); margin:0 0 6px; }
+  .vd-dialog p { font-size:12px; color:var(--muted); margin:0 0 18px; line-height:1.5; }
+  .vd-dialog .vd-preview { background:#fef2f2; border:1px solid #fecaca; border-radius:6px; padding:8px 10px; font-size:10px; color:#991b1b; margin-bottom:14px; max-height:80px; overflow:auto; text-align:left; word-break:break-all; }
+  .vd-btns { display:flex; gap:8px; justify-content:center; }
+  .vd-btns button { padding:8px 20px; border-radius:var(--radius); font:600 12px 'Inter',sans-serif; cursor:pointer; transition:all 0.1s; }
+  .vd-btn-cancel { background:#f3f4f6; border:1px solid var(--line2); color:var(--ink2); }
+  .vd-btn-cancel:hover { background:#e5e7eb; }
+  .vd-btn-delete { background:#ef4444; border:1px solid #dc2626; color:#fff; }
+  .vd-btn-delete:hover { background:#dc2626; }
+
+  /* Undo toast */
+  .v-undo-toast {
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:10003;
+    background:#1f2937; color:#fff; padding:10px 18px; border-radius:10px;
+    font:600 12px 'Inter',sans-serif; display:flex; align-items:center; gap:12px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.3); animation:vToastIn 0.25s ease;
+  }
+  @keyframes vToastIn { from { opacity:0; transform:translateX(-50%) translateY(20px); } }
+  .v-undo-toast .v-undo-btn {
+    background:rgba(255,255,255,0.2); border:1px solid rgba(255,255,255,0.3); color:#fff;
+    padding:4px 12px; border-radius:5px; font:700 11px 'Inter',sans-serif; cursor:pointer;
+  }
+  .v-undo-toast .v-undo-btn:hover { background:rgba(255,255,255,0.35); }
+  .v-undo-toast .v-toast-close { background:none; border:none; color:rgba(255,255,255,0.5); cursor:pointer; font-size:14px; padding:0 2px; }
+
+  /* Deletion log panel */
+  .vlog-btn {
+    background:none; border:none; color:var(--muted); font-size:11px; cursor:pointer;
+    padding:2px 6px; opacity:0.7; transition:all 0.1s; position:relative;
+  }
+  .vlog-btn:hover { opacity:1; color:var(--ink); }
+  .vlog-btn .vlog-badge {
+    position:absolute; top:-4px; right:-2px; background:#ef4444; color:#fff;
+    font-size:8px; font-weight:800; min-width:14px; height:14px; border-radius:7px;
+    display:flex; align-items:center; justify-content:center; padding:0 3px;
+  }
+  .vlog-panel {
+    display:none; position:fixed; bottom:40px; right:24px; z-index:10001;
+    background:#fff; border-radius:12px; width:380px; max-width:90vw;
+    max-height:400px; box-shadow:0 12px 40px rgba(0,0,0,0.2); border:1px solid var(--line2);
+    overflow:hidden; animation:vlIn 0.15s ease;
+  }
+  .vlog-panel.open { display:block; }
+  .vlog-panel .vlog-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 16px; border-bottom:1px solid var(--line);
+    font:700 12px 'Inter',sans-serif; color:var(--ink);
+  }
+  .vlog-panel .vlog-header button { background:none; border:none; font-size:16px; cursor:pointer; color:var(--muted); }
+  .vlog-panel .vlog-body { max-height:330px; overflow-y:auto; padding:6px 0; }
+  .vlog-panel .vlog-empty { padding:30px 16px; text-align:center; color:var(--muted); font-size:12px; }
+  .vlog-entry {
+    display:flex; align-items:flex-start; gap:10px; padding:8px 16px;
+    border-bottom:1px solid #f3f4f6; font-size:11px; transition:background 0.1s;
+  }
+  .vlog-entry:hover { background:#f9fafb; }
+  .vlog-entry .vlog-info { flex:1; min-width:0; }
+  .vlog-entry .vlog-type { font-weight:700; color:#991b1b; }
+  .vlog-entry .vlog-detail { color:var(--muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .vlog-entry .vlog-meta { color:#9ca3af; font-size:9px; margin-top:2px; }
+  .vlog-entry .vlog-restore {
+    background:#ecfdf5; border:1px solid #a7f3d0; color:#059669; padding:3px 10px;
+    border-radius:4px; font:600 10px 'Inter',sans-serif; cursor:pointer; white-space:nowrap;
+    flex-shrink:0; align-self:center;
+  }
+  .vlog-entry .vlog-restore:hover { background:#d1fae5; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script>window.XLSX_READ = window.XLSX;</script>
@@ -2176,9 +2255,30 @@ const VENDOR_SHEETS = {
   <div class="vendor-status-bar">
     <span id="vendorStatusText">Ready</span>
     <span id="vendorStatusRight"></span>
+    <button class="vlog-btn v-edit-only" id="vendorLogBtn" onclick="vendorToggleLog()" title="Deletion log">🗑️ Log <span class="vlog-badge" id="vendorLogBadge" style="display:none">0</span></button>
   </div>
 
 </main>
+
+<!-- VENDOR DELETE CONFIRM DIALOG -->
+<div class="vd-overlay" id="vendorDelOverlay">
+  <div class="vd-dialog">
+    <div class="vd-icon" id="vdIcon">⚠️</div>
+    <h4 id="vdTitle">Confirm Deletion</h4>
+    <p id="vdMsg">Are you sure?</p>
+    <div class="vd-preview" id="vdPreview" style="display:none"></div>
+    <div class="vd-btns">
+      <button class="vd-btn-cancel" onclick="vendorDelCancel()">Cancel</button>
+      <button class="vd-btn-delete" id="vdConfirmBtn" onclick="vendorDelConfirm()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- VENDOR DELETION LOG PANEL -->
+<div class="vlog-panel" id="vendorLogPanel">
+  <div class="vlog-header"><span>🗑️ Deletion Log</span><button onclick="vendorToggleLog()">&times;</button></div>
+  <div class="vlog-body" id="vendorLogBody"></div>
+</div>
 
 <!-- VENDOR LOGIN MODAL -->
 <div class="vl-overlay" id="vendorLoginOverlay">
@@ -2186,7 +2286,7 @@ const VENDOR_SHEETS = {
     <button class="vl-close" onclick="vendorCloseLogin()">&times;</button>
     <h3>🔐 Vendor Sheet Login</h3>
     <div class="vl-sub">Vendor data is restricted. Login to view and edit.</div>
-    <input type="text" id="vlIdInput" placeholder="Your ID (e.g. Nikita)" autocomplete="off">
+    <input type="text" id="vlIdInput" placeholder="Your ID" autocomplete="off">
     <input type="password" id="vlPwInput" placeholder="Password">
     <button class="vl-btn" id="vlLoginBtn" onclick="vendorDoLogin()">Login</button>
     <div class="vl-error" id="vlError"></div>
@@ -5566,6 +5666,9 @@ loadAnalysisState();
   let lastEditTime = null;
   let dragRowIdx = -1;
   let dragColIdx = -1;
+  let deleteLog = []; // { type:'row'|'col', sheet, data, header?, colIdx?, user, time }
+  let pendingDelete = null; // pending confirm callback
+  let undoTimer = null;
 
   // ── Auth ──
   function getVU() { return sessionStorage.getItem('vendorUser'); }
@@ -6019,13 +6122,67 @@ loadAnalysisState();
     setTimeout(() => document.getElementById('vendorTableWrap').scrollTop = 999999, 100);
   };
 
-  // ── Delete Row (auth-gated) ──
+  // ── Styled confirm dialog ──
+  function showDeleteConfirm(icon, title, msg, preview, onConfirm) {
+    document.getElementById('vdIcon').textContent = icon;
+    document.getElementById('vdTitle').textContent = title;
+    document.getElementById('vdMsg').textContent = msg;
+    const prev = document.getElementById('vdPreview');
+    if (preview) { prev.textContent = preview; prev.style.display = 'block'; }
+    else { prev.style.display = 'none'; }
+    pendingDelete = onConfirm;
+    document.getElementById('vendorDelOverlay').classList.add('open');
+  }
+
+  window.vendorDelCancel = function() {
+    document.getElementById('vendorDelOverlay').classList.remove('open');
+    pendingDelete = null;
+  };
+
+  window.vendorDelConfirm = function() {
+    document.getElementById('vendorDelOverlay').classList.remove('open');
+    if (pendingDelete) { pendingDelete(); pendingDelete = null; }
+  };
+
+  // Close confirm on overlay click
+  document.getElementById('vendorDelOverlay').addEventListener('click', e => {
+    if (e.target === e.currentTarget) vendorDelCancel();
+  });
+
+  // ── Undo toast ──
+  function showUndoToast(msg, onUndo) {
+    // Remove any existing toast
+    document.querySelectorAll('.v-undo-toast').forEach(t => t.remove());
+    if (undoTimer) clearTimeout(undoTimer);
+    const toast = document.createElement('div');
+    toast.className = 'v-undo-toast';
+    toast.innerHTML = '<span>'+escH(msg)+'</span><button class="v-undo-btn">Undo</button><button class="v-toast-close">&times;</button>';
+    document.body.appendChild(toast);
+    const remove = () => { toast.remove(); if (undoTimer) { clearTimeout(undoTimer); undoTimer = null; } };
+    toast.querySelector('.v-undo-btn').addEventListener('click', () => { remove(); onUndo(); });
+    toast.querySelector('.v-toast-close').addEventListener('click', remove);
+    undoTimer = setTimeout(remove, 8000);
+  }
+
+  // ── Delete Row (auth-gated, with confirm + log + undo) ──
   window.vendorDeleteRow = function(idx) {
     if (!isLoggedIn()) return;
-    if (!confirm('Delete this row?')) return;
-    vendorData[activeSheet].splice(idx, 1);
-    lastEditUser = getVU(); lastEditTime = Date.now();
-    renderVendorTable(); renderVendorKpis(); updateCounts(); updateLastEditInfo();
+    const data = vendorData[activeSheet];
+    if (!data || !data[idx]) return;
+    const rowData = data[idx];
+    const preview = rowData.filter(Boolean).slice(0, 5).join(' | ');
+    showDeleteConfirm('🗑️', 'Delete Row #' + (idx + 1) + '?',
+      'This row will be removed. You can restore it from the deletion log.',
+      preview,
+      function() {
+        const removed = data.splice(idx, 1)[0];
+        const entry = { type: 'row', sheet: activeSheet, data: [...removed], user: getVU(), time: Date.now(), idx: idx };
+        deleteLog.unshift(entry);
+        lastEditUser = getVU(); lastEditTime = Date.now();
+        renderVendorTable(); renderVendorKpis(); updateCounts(); updateLastEditInfo(); updateLogBadge();
+        showUndoToast('Row deleted', function() { restoreEntry(0); });
+      }
+    );
   };
 
   // ── Add Column (auth-gated) ──
@@ -6039,27 +6196,88 @@ loadAnalysisState();
     renderVendorTable(); updateLastEditInfo();
   };
 
-  // ── Delete Column (auth-gated) ──
+  // ── Delete Column (auth-gated, with confirm + log + undo) ──
   window.vendorDeleteCol = function(ci) {
     if (!isLoggedIn()) return;
     const hdr = vendorHeaders[activeSheet][ci];
-    if (!confirm('Delete column "'+hdr+'"? This removes all data in this column.')) return;
-    vendorHeaders[activeSheet].splice(ci, 1);
-    vendorData[activeSheet].forEach(row => row.splice(ci, 1));
-    // Reset sort/filters if affected
-    if (sortCol === ci) { sortCol = -1; }
-    else if (sortCol > ci) { sortCol--; }
-    delete colFilters[ci];
-    const newFilters = {};
-    Object.keys(colFilters).forEach(k => {
-      const ki = parseInt(k);
-      if (ki > ci) newFilters[ki-1] = colFilters[k];
-      else if (ki < ci) newFilters[ki] = colFilters[k];
-    });
-    colFilters = newFilters;
-    lastEditUser = getVU(); lastEditTime = Date.now();
-    renderVendorTable(); updateLastEditInfo();
+    const colData = vendorData[activeSheet].map(row => row[ci]);
+    const nonEmpty = colData.filter(Boolean).length;
+    showDeleteConfirm('📊', 'Delete Column "' + escH(hdr) + '"?',
+      'This removes the entire column and all ' + nonEmpty + ' non-empty values. Restorable from deletion log.',
+      hdr + ': ' + nonEmpty + ' values (e.g. ' + colData.filter(Boolean).slice(0, 3).join(', ') + ')',
+      function() {
+        const removedHeader = vendorHeaders[activeSheet].splice(ci, 1)[0];
+        const removedData = vendorData[activeSheet].map(row => row.splice(ci, 1)[0]);
+        const entry = { type: 'col', sheet: activeSheet, header: removedHeader, data: removedData, colIdx: ci, user: getVU(), time: Date.now() };
+        deleteLog.unshift(entry);
+        if (sortCol === ci) { sortCol = -1; }
+        else if (sortCol > ci) { sortCol--; }
+        delete colFilters[ci];
+        const newFilters = {};
+        Object.keys(colFilters).forEach(k => {
+          const ki = parseInt(k);
+          if (ki > ci) newFilters[ki-1] = colFilters[k];
+          else if (ki < ci) newFilters[ki] = colFilters[k];
+        });
+        colFilters = newFilters;
+        lastEditUser = getVU(); lastEditTime = Date.now();
+        renderVendorTable(); updateLastEditInfo(); updateLogBadge();
+        showUndoToast('Column "' + removedHeader + '" deleted', function() { restoreEntry(0); });
+      }
+    );
   };
+
+  // ── Deletion Log ──
+  function updateLogBadge() {
+    const badge = document.getElementById('vendorLogBadge');
+    if (deleteLog.length > 0) { badge.style.display = 'flex'; badge.textContent = deleteLog.length; }
+    else { badge.style.display = 'none'; }
+  }
+
+  window.vendorToggleLog = function() {
+    const panel = document.getElementById('vendorLogPanel');
+    const isOpen = panel.classList.contains('open');
+    if (isOpen) { panel.classList.remove('open'); return; }
+    renderLogPanel();
+    panel.classList.add('open');
+  };
+
+  function renderLogPanel() {
+    const body = document.getElementById('vendorLogBody');
+    if (!deleteLog.length) {
+      body.innerHTML = '<div class="vlog-empty">No deletions yet. Deleted rows and columns will appear here for recovery.</div>';
+      return;
+    }
+    body.innerHTML = deleteLog.map((e, i) => {
+      const time = getTimeAgo(e.time);
+      const sheetLabel = e.sheet === 'vendors' ? 'Vendors' : e.sheet === 'approved' ? 'Approved' : 'All Codes';
+      if (e.type === 'row') {
+        const detail = e.data.filter(Boolean).slice(0, 4).join(' | ');
+        return '<div class="vlog-entry"><div class="vlog-info"><div><span class="vlog-type">Row deleted</span> from ' + escH(sheetLabel) + '</div><div class="vlog-detail" title="' + escH(e.data.join(' | ')) + '">' + escH(detail) + '</div><div class="vlog-meta">by ' + escH(e.user) + ' · ' + time + '</div></div><button class="vlog-restore" onclick="vendorRestore(' + i + ')">Restore</button></div>';
+      } else {
+        const nonEmpty = e.data.filter(Boolean).length;
+        return '<div class="vlog-entry"><div class="vlog-info"><div><span class="vlog-type">Column deleted</span>: "' + escH(e.header) + '" from ' + escH(sheetLabel) + '</div><div class="vlog-detail">' + nonEmpty + ' values</div><div class="vlog-meta">by ' + escH(e.user) + ' · ' + time + '</div></div><button class="vlog-restore" onclick="vendorRestore(' + i + ')">Restore</button></div>';
+      }
+    }).join('');
+  }
+
+  function restoreEntry(idx) {
+    const entry = deleteLog[idx];
+    if (!entry) return;
+    if (entry.type === 'row') {
+      const insertAt = Math.min(entry.idx, vendorData[entry.sheet].length);
+      vendorData[entry.sheet].splice(insertAt, 0, [...entry.data]);
+    } else {
+      const ci = Math.min(entry.colIdx, vendorHeaders[entry.sheet].length);
+      vendorHeaders[entry.sheet].splice(ci, 0, entry.header);
+      vendorData[entry.sheet].forEach((row, ri) => row.splice(ci, 0, entry.data[ri] || ''));
+    }
+    deleteLog.splice(idx, 1);
+    lastEditUser = getVU(); lastEditTime = Date.now();
+    renderVendorTable(); renderVendorKpis(); updateCounts(); updateLastEditInfo(); updateLogBadge(); renderLogPanel();
+  }
+
+  window.vendorRestore = function(idx) { restoreEntry(idx); };
 
   // ── Drag & Drop: Rows ──
   function setupDragDrop() {
