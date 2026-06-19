@@ -6396,39 +6396,268 @@ loadAnalysisState();
     document.getElementById('vcAllcodes').textContent = vendorData.allcodes.length;
   }
 
-  // ── Export Excel ──
+  // ── Helper: sheet label ──
+  function getSheetLabel() { return activeSheet==='vendors'?'Vendors':activeSheet==='approved'?'Approved Vendors':'All Vendor Codes'; }
+
+  // ── Export Excel (creative, colorful, frozen headers, auto-filter, summary) ──
   window.vendorExportExcel = function() {
     const headers = vendorHeaders[activeSheet];
     const data = getFilteredData();
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+    const label = getSheetLabel();
+    const allData = vendorData[activeSheet]||[];
+    const isFiltered = data.length !== allData.length;
+    const now = new Date();
+
+    // ── Title row ──
+    const titleRow = [label + (isFiltered ? ' (Filtered: '+data.length+' of '+allData.length+')' : ' — '+data.length+' records')];
+    for (let i=1;i<headers.length;i++) titleRow.push('');
+    const subRow = ['Exported: '+now.toLocaleDateString()+' '+now.toLocaleTimeString()+' · SCM Ease'];
+    for (let i=1;i<headers.length;i++) subRow.push('');
+
+    const aoa = [titleRow, subRow, headers, ...data];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
     const range = XLSX.utils.decode_range(ws['!ref']);
+
+    // Merge title row
+    ws['!merges'] = [
+      {s:{r:0,c:0},e:{r:0,c:headers.length-1}},
+      {s:{r:1,c:0},e:{r:1,c:headers.length-1}}
+    ];
+
+    // Title style
+    const titleAddr = XLSX.utils.encode_cell({r:0,c:0});
+    if(ws[titleAddr]) ws[titleAddr].s = {
+      font:{bold:true,sz:16,color:{rgb:'0B6E4F'},name:'Calibri'},
+      alignment:{horizontal:'left',vertical:'center'},
+      fill:{fgColor:{rgb:'ECFDF5'}},
+      border:{bottom:{style:'thin',color:{rgb:'A7F3D0'}}}
+    };
+    const subAddr = XLSX.utils.encode_cell({r:1,c:0});
+    if(ws[subAddr]) ws[subAddr].s = {
+      font:{sz:9,color:{rgb:'6B7280'},italic:true,name:'Calibri'},
+      alignment:{horizontal:'left',vertical:'center'},
+      fill:{fgColor:{rgb:'F9FAFB'}},
+      border:{bottom:{style:'medium',color:{rgb:'0B6E4F'}}}
+    };
+
+    // Header row (row index 2) styling
     for (let c=range.s.c;c<=range.e.c;c++) {
-      const addr=XLSX.utils.encode_cell({r:0,c});
-      if (ws[addr]) ws[addr].s = {font:{bold:true,color:{rgb:'FFFFFF'},sz:11},fill:{fgColor:{rgb:'0B6E4F'}},alignment:{horizontal:'center',vertical:'center'}};
+      const addr=XLSX.utils.encode_cell({r:2,c});
+      if(!ws[addr]) ws[addr]={v:headers[c]||'',t:'s'};
+      ws[addr].s = {
+        font:{bold:true,color:{rgb:'FFFFFF'},sz:11,name:'Calibri'},
+        fill:{fgColor:{rgb:'0B6E4F'}},
+        alignment:{horizontal:'center',vertical:'center',wrapText:true},
+        border:{
+          top:{style:'medium',color:{rgb:'084D38'}},
+          bottom:{style:'medium',color:{rgb:'084D38'}},
+          left:{style:'thin',color:{rgb:'084D38'}},
+          right:{style:'thin',color:{rgb:'084D38'}}
+        }
+      };
     }
-    ws['!cols'] = headers.map((h,i) => ({wch:Math.min(Math.max(h.length,...data.map(r=>(r[i]||'').length),10),50)}));
+
+    // Data rows styling (starting at row 3)
+    const statusColors = {
+      'Verified':{fg:'D1FAE5',fc:'065F46'},'✓ Verified':{fg:'D1FAE5',fc:'065F46'},
+      'Received':{fg:'DBEAFE',fc:'1E40AF'},'Mail sent':{fg:'FEF3C7',fc:'92400E'},
+      'Not Delivered':{fg:'FEE2E2',fc:'991B1B'},'Pending':{fg:'F3E8FF',fc:'6B21A8'}
+    };
+    for (let r=3;r<=range.e.r;r++) {
+      const isEven=(r-3)%2===0;
+      for (let c=range.s.c;c<=range.e.c;c++) {
+        const addr=XLSX.utils.encode_cell({r,c});
+        if(!ws[addr]) ws[addr]={v:'',t:'s'};
+        const val=ws[addr].v||'';
+        const sc=statusColors[val];
+        ws[addr].s = {
+          font:{sz:10,name:'Calibri',color:sc?{rgb:sc.fc}:{rgb:'1F2937'}},
+          fill:{fgColor:{rgb:sc?sc.fg:isEven?'FFFFFF':'F0F7F3'}},
+          alignment:{vertical:'center',wrapText:true},
+          border:{
+            top:{style:'thin',color:{rgb:'D1E7DD'}},
+            bottom:{style:'thin',color:{rgb:'D1E7DD'}},
+            left:{style:'thin',color:{rgb:'D1E7DD'}},
+            right:{style:'thin',color:{rgb:'D1E7DD'}}
+          }
+        };
+        // Bold status cells
+        if(sc) ws[addr].s.font.bold=true;
+      }
+    }
+
+    // Column widths (auto-fit, sampling first 200 rows)
+    ws['!cols'] = headers.map((h,i) => {
+      const sample = data.slice(0,200).map(r=>(r[i]||'').length);
+      const maxLen = Math.max(h.length+2, ...sample);
+      return {wch:Math.min(Math.max(maxLen,8),48)};
+    });
+
+    // Row heights
+    ws['!rows'] = [{hpx:36},{hpx:20},{hpx:28}];
+
+    // Freeze panes — freeze title+sub+header (rows 0-2, start scrolling at row 3)
+    ws['!freeze'] = {xSplit:0,ySplit:3,topLeftCell:'A4',activePane:'bottomLeft',state:'frozen'};
+
+    // Auto-filter on header row
+    ws['!autofilter'] = {ref:XLSX.utils.encode_range({s:{r:2,c:0},e:{r:2,c:headers.length-1}})};
+
+    // ── Summary sheet ──
+    const sumRows = [
+      ['📊 '+label+' — Summary Report'],[''],
+      ['Generated',now.toLocaleDateString()+' '+now.toLocaleTimeString()],
+      ['Total Records',allData.length],
+      ['Exported Records',data.length],
+      [isFiltered?'Filter Applied':'Filter','None'],['']
+    ];
+    if (activeSheet==='vendors') {
+      const verified=data.filter(r=>(r[5]||'').includes('Verified')).length;
+      const rm=data.filter(r=>r[4]==='RM').length;
+      const pm=data.filter(r=>r[4]==='PM').length;
+      const industries=new Set(data.map(r=>r[3]).filter(Boolean));
+      const countries=new Set(data.map(r=>r[11]).filter(Boolean));
+      sumRows.push(['📈 Key Metrics'],[''],
+        ['Metric','Count','Percentage'],
+        ['Verified Vendors',verified,Math.round(verified/data.length*100)+'%'],
+        ['RM Vendors',rm,Math.round(rm/data.length*100)+'%'],
+        ['PM Vendors',pm,Math.round(pm/data.length*100)+'%'],
+        ['Unique Industries',industries.size,'—'],
+        ['Countries',countries.size,[...countries].slice(0,5).join(', ')],[''],
+        ['🏭 Top Industries'],['']
+      );
+      const indCount={};data.forEach(r=>{const v=r[3]||'';if(v)indCount[v]=(indCount[v]||0)+1;});
+      Object.entries(indCount).sort((a,b)=>b[1]-a[1]).slice(0,10).forEach(([k,v])=>sumRows.push([k,v,Math.round(v/data.length*100)+'%']));
+    } else if (activeSheet==='approved') {
+      const rcv=data.filter(r=>(r[7]||'').includes('Received')).length;
+      const items=new Set(data.map(r=>r[3]).filter(Boolean));
+      sumRows.push(['📈 Key Metrics'],[''],
+        ['Metric','Count','Percentage'],
+        ['MSME Received',rcv,Math.round(rcv/data.length*100)+'%'],
+        ['Unique Items',items.size,'—']
+      );
+    } else {
+      const cats=new Set(data.map(r=>r[3]).filter(Boolean));
+      const ctry=new Set(data.map(r=>r[8]).filter(Boolean));
+      sumRows.push(['📈 Key Metrics'],[''],
+        ['Metric','Count','Detail'],
+        ['Categories',cats.size,'—'],
+        ['Countries',ctry.size,[...ctry].slice(0,5).join(', ')]
+      );
+    }
+    const wsSummary = XLSX.utils.aoa_to_sheet(sumRows);
+    const sRange = XLSX.utils.decode_range(wsSummary['!ref']||'A1');
+    // Style summary title
+    const sTitleAddr=XLSX.utils.encode_cell({r:0,c:0});
+    if(wsSummary[sTitleAddr]) wsSummary[sTitleAddr].s = {font:{bold:true,sz:16,color:{rgb:'0B6E4F'},name:'Calibri'},fill:{fgColor:{rgb:'ECFDF5'}}};
+    // Style metric headers
+    for(let r=0;r<=sRange.e.r;r++){
+      for(let c=0;c<=sRange.e.c;c++){
+        const addr=XLSX.utils.encode_cell({r,c});
+        if(!wsSummary[addr])continue;
+        const v=wsSummary[addr].v||'';
+        if(v==='Metric'||v==='Count'||v==='Percentage'||v==='Detail'){
+          wsSummary[addr].s={font:{bold:true,color:{rgb:'FFFFFF'},sz:10,name:'Calibri'},fill:{fgColor:{rgb:'0B6E4F'}},border:{bottom:{style:'medium',color:{rgb:'084D38'}}}};
+        }
+        if(typeof v==='string'&&(v.startsWith('📈')||v.startsWith('🏭'))){
+          wsSummary[addr].s={font:{bold:true,sz:13,color:{rgb:'0B6E4F'},name:'Calibri'},fill:{fgColor:{rgb:'F0FDF4'}}};
+        }
+      }
+    }
+    wsSummary['!cols']=[{wch:30},{wch:15},{wch:25}];
+    wsSummary['!merges']=[{s:{r:0,c:0},e:{r:0,c:2}}];
+
     const wb = XLSX.utils.book_new();
-    const sheetName = activeSheet==='vendors'?'Vendors':activeSheet==='approved'?'Approved Vendors':'All Vendor Codes';
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    (window.XLSX_STYLE||XLSX).writeFile(wb, sheetName.replace(/\s+/g,'_')+'_Export.xlsx');
+    XLSX.utils.book_append_sheet(wb, ws, label.length>31?label.slice(0,31):label);
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+    (window.XLSX_STYLE||XLSX).writeFile(wb, label.replace(/\s+/g,'_')+'_Export_'+now.toISOString().slice(0,10)+'.xlsx');
   };
 
-  // ── Export CSV ──
+  // ── Export CSV (filtered data) ──
   window.vendorExportCsv = function() {
     const headers = vendorHeaders[activeSheet];
     const data = getFilteredData();
     const csv = [headers,...data].map(r=>r.map(c=>'"'+(c||'').replace(/"/g,'""')+'"').join(',')).join('\n');
     const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
     const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url;
-    const sheetName = activeSheet==='vendors'?'Vendors':activeSheet==='approved'?'Approved_Vendors':'All_Vendor_Codes';
-    a.download=sheetName+'_Export.csv'; a.click(); URL.revokeObjectURL(url);
+    a.download=getSheetLabel().replace(/\s+/g,'_')+'_Export.csv'; a.click(); URL.revokeObjectURL(url);
   };
 
-  // ── Print ──
+  // ── Print / PDF (all filtered data, all columns, landscape) ──
   window.vendorExportPdf = function() {
-    document.getElementById('vendorMain').style.display='block';
-    ['calcMain','planningMain','cellInvMain'].forEach(id=>document.getElementById(id).style.display='none');
-    window.print();
+    const headers = vendorHeaders[activeSheet];
+    const data = getFilteredData();
+    const label = getSheetLabel();
+    const allLen = (vendorData[activeSheet]||[]).length;
+    const isFiltered = data.length !== allLen;
+    const now = new Date().toLocaleString();
+    const filterParts = [];
+    if (searchTerm) filterParts.push('Search: "'+searchTerm+'"');
+    const fCount = Object.keys(colFilters).length;
+    if (fCount) filterParts.push(fCount+' column filter'+(fCount>1?'s':''));
+
+    // Build print HTML
+    let h = '<div id="vendorPrintWrap">';
+    // Print-only style
+    h += '<style>';
+    h += '@media print { body>*{display:none!important;} #vendorPrintWrap{display:block!important;} @page{size:landscape;margin:8mm;} }';
+    h += '#vendorPrintWrap{font-family:Arial,Helvetica,sans-serif;position:absolute;left:0;top:0;width:100%;z-index:99999;background:#fff;padding:10px;}';
+    h += '#vendorPrintWrap table{width:100%;border-collapse:collapse;page-break-inside:auto;}';
+    h += '#vendorPrintWrap thead{display:table-header-group;}';
+    h += '#vendorPrintWrap tr{page-break-inside:avoid;}';
+    h += '</style>';
+
+    // Header block
+    h += '<div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #0B6E4F;padding-bottom:8px;margin-bottom:10px;">';
+    h += '<div>';
+    h += '<div style="font-size:20px;font-weight:800;color:#0B6E4F;">'+escH(label)+'</div>';
+    h += '<div style="font-size:10px;color:#6B7280;margin-top:2px;">'+data.length+' records'+(isFiltered?' (filtered from '+allLen+')':'')+' · '+now+'</div>';
+    if (filterParts.length) h += '<div style="font-size:9px;color:#9CA3AF;margin-top:1px;">'+filterParts.join(' · ')+'</div>';
+    h += '</div>';
+    h += '<div style="text-align:right;font-size:9px;color:#9CA3AF;">SCM Ease — Vendor Sheet</div>';
+    h += '</div>';
+
+    // Table
+    const colCount = headers.length;
+    const fontSize = colCount > 12 ? '7px' : colCount > 8 ? '8px' : '9px';
+    h += '<table>';
+    h += '<thead><tr>';
+    headers.forEach(hdr => {
+      h += '<th style="background:#0B6E4F;color:#fff;padding:5px 3px;font-size:'+fontSize+';text-align:left;border:1px solid #084D38;white-space:nowrap;">'+escH(hdr)+'</th>';
+    });
+    h += '</tr></thead><tbody>';
+
+    data.forEach((row,ri) => {
+      const bg = ri%2===0?'#fff':'#f0f7f3';
+      h += '<tr>';
+      row.forEach(cell => {
+        const v = cell||'';
+        let style = 'padding:3px;border:1px solid #d1e7dd;font-size:'+fontSize+';background:'+bg+';word-break:break-word;max-width:180px;';
+        if (v==='Verified'||v==='✓ Verified') style+='background:#d1fae5;color:#065f46;font-weight:700;';
+        else if (v==='Received') style+='background:#dbeafe;color:#1e40af;font-weight:700;';
+        else if (v==='Mail sent') style+='background:#fef3c7;color:#92400e;font-weight:700;';
+        else if (v==='Not Delivered') style+='background:#fee2e2;color:#991b1b;font-weight:700;';
+        else if (v==='Pending') style+='background:#f3e8ff;color:#6b21a8;font-weight:700;';
+        h += '<td style="'+style+'">'+escH(v)+'</td>';
+      });
+      h += '</tr>';
+    });
+    h += '</tbody></table>';
+
+    // Footer
+    h += '<div style="margin-top:8px;border-top:1px solid #d1e7dd;padding-top:4px;font-size:8px;color:#9CA3AF;display:flex;justify-content:space-between;">';
+    h += '<span>Total: '+data.length+' records</span>';
+    h += '<span>'+now+' · SCM Ease</span>';
+    h += '</div></div>';
+
+    // Inject, print, remove
+    const wrap = document.createElement('div');
+    wrap.innerHTML = h;
+    document.body.appendChild(wrap.firstElementChild);
+
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => { const el = document.getElementById('vendorPrintWrap'); if(el) el.remove(); }, 500);
+    }, 100);
   };
 
 })();
