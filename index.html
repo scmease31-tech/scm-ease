@@ -1734,6 +1734,7 @@
       <button class="mode-btn" id="modePlan">Planning vs Stock Analysis</button>
       <button class="mode-btn" id="modeCell">Cell INV — Amount-wise Pricing</button>
       <button class="mode-btn" id="modeVendor">📦 Vendor Sheet</button>
+      <button class="mode-btn" id="mode3D">🔬 3D Module Explorer</button>
     </div>
   </div>
 </header>
@@ -2265,6 +2266,10 @@ const VENDOR_SHEETS = {
     <button class="vlog-btn v-edit-only" id="vendorLogBtn" onclick="vendorToggleLog()" title="Deletion log">🗑️ Log <span class="vlog-badge" id="vendorLogBadge" style="display:none">0</span></button>
   </div>
 
+</main>
+
+<main id="explorerMain" style="display:none; padding:0; margin:0;">
+  <iframe id="explorerFrame" src="about:blank" style="width:100%; height:calc(100vh - 108px); border:none; display:block;"></iframe>
 </main>
 
 <!-- VENDOR DELETE CONFIRM DIALOG -->
@@ -3518,6 +3523,10 @@ document.getElementById('modeVendor').addEventListener('click', (e) => {
   cellShowView('vendor', e.target);
 });
 
+document.getElementById('mode3D').addEventListener('click', (e) => {
+  cellShowView('explorer', e.target);
+});
+
 function cellShowView(which, btn) {
   document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
@@ -3525,6 +3534,12 @@ function cellShowView(which, btn) {
   document.getElementById('planningMain').style.display = which === 'plan' ? 'block' : 'none';
   document.getElementById('cellInvMain').style.display = which === 'cell' ? 'block' : 'none';
   document.getElementById('vendorMain').style.display = which === 'vendor' ? 'block' : 'none';
+  document.getElementById('explorerMain').style.display = which === 'explorer' ? 'block' : 'none';
+  /* Lazy-load 3D explorer iframe on first visit */
+  if (which === 'explorer') {
+    const frm = document.getElementById('explorerFrame');
+    if (frm.src === 'about:blank' || !frm.src.includes('3d-explorer')) frm.src = '3d-explorer.html';
+  }
   /* Re-run planning analysis with latest consumption data when switching to Planning tab */
   if (which === 'plan' && lastAnalysis && typeof planRaw !== 'undefined' && planRaw) runAnalysisAuto();
   /* Initialize vendor sheet on first view — requires login */
