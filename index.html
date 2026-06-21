@@ -2060,7 +2060,7 @@
       </div>
     </div>
   </div>
-  <div id="savedDataBanner" style="display:none; background:linear-gradient(90deg,#d1fae5,#ecfdf5); border:1px solid #6ee7b7; border-radius:8px; padding:10px 16px; margin-bottom:14px; display:none; align-items:center; gap:12px; font-size:13px; color:#065f46;">
+  <div id="savedDataBanner" style="display:none; background:linear-gradient(90deg,#d1fae5,#ecfdf5); border:1px solid #6ee7b7; border-radius:8px; padding:10px 16px; margin-bottom:14px; align-items:center; gap:12px; font-size:13px; color:#065f46;">
     <span style="font-size:18px">💾</span>
     <span style="flex:1;"><strong>Previous analysis loaded from saved data.</strong> Upload new files to replace.</span>
     <button class="btn btn-outline" style="font-size:11px;padding:4px 10px;" onclick="clearSavedAnalysis()">🗑 Clear Saved Data</button>
@@ -3038,7 +3038,7 @@ function clearTableFilters(tbodyId) {
 
 // ── SAVE ──────────────────────────────────────────────────────────────────
 function saveState() {
-  localStorage.setItem("rmConsv2", JSON.stringify({ modules, moduleQty, moduleWp, activeModule, rowOverrides, rowGeneration, rowPricing, currencyRates, _baseVersion: _BASE_VERSION }));
+  try { localStorage.setItem("rmConsv2", JSON.stringify({ modules, moduleQty, moduleWp, activeModule, rowOverrides, rowGeneration, rowPricing, currencyRates, _baseVersion: _BASE_VERSION })); } catch(e) { console.warn('localStorage quota exceeded', e); }
 }
 
 // ── PRICING UOM CONVERSION ────────────────────────────────────────────────
@@ -3782,10 +3782,10 @@ let lastAnalysis = null;
 let aggregatedStock = {}; // { itemDesc: { qty, uom, cat, subcat } }
 
 function savePlanOverrides() {
-  localStorage.setItem("rmPlanOverrides", JSON.stringify({
+  try { localStorage.setItem("rmPlanOverrides", JSON.stringify({
     stockMappingOverrides,
     discardedMaterials: Array.from(discardedMaterials)
-  }));
+  })); } catch(e) { console.warn('localStorage quota exceeded', e); }
 }
 
 const planFileInput = document.getElementById('planFileInput');
@@ -3871,13 +3871,17 @@ function setupDropZone(zoneId, inputId, onFile) {
 function processExcelPlan(file, callback) {
   const reader = new FileReader();
   reader.onload = (e) => {
-    const data = new Uint8Array(e.target.result);
-    const workbook = XLSX.read(data, {type: 'array', cellDates: false});
-    const lastSheetName = workbook.SheetNames[workbook.SheetNames.length - 1];
-    const ws = workbook.Sheets[lastSheetName];
-    const raw2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: true, defval: ''});
-    const fmt2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: false, defval: ''});
-    callback(raw2d, fmt2d, lastSheetName);
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, {type: 'array', cellDates: false});
+      const lastSheetName = workbook.SheetNames[workbook.SheetNames.length - 1];
+      const ws = workbook.Sheets[lastSheetName];
+      const raw2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: true, defval: ''});
+      const fmt2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: false, defval: ''});
+      callback(raw2d, fmt2d, lastSheetName);
+    } catch(err) {
+      alert('Error reading Planning file: ' + (err.message || 'Invalid Excel file'));
+    }
   };
   reader.readAsArrayBuffer(file);
 }
@@ -3885,11 +3889,15 @@ function processExcelPlan(file, callback) {
 function processExcelStock(file, callback) {
   const reader = new FileReader();
   reader.onload = (e) => {
-    const data = new Uint8Array(e.target.result);
-    const workbook = XLSX.read(data, {type: 'array'});
-    const ws = workbook.Sheets[workbook.SheetNames[0]];
-    const json2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: true, defval: ''});
-    callback(json2d);
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, {type: 'array'});
+      const ws = workbook.Sheets[workbook.SheetNames[0]];
+      const json2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: true, defval: ''});
+      callback(json2d);
+    } catch(err) {
+      alert('Error reading Stock file: ' + (err.message || 'Invalid Excel file'));
+    }
   };
   reader.readAsArrayBuffer(file);
 }
@@ -4064,7 +4072,7 @@ function buildAutoStockMapping(materialGroup, materialSpec, materialUom) {
     if (!matchedKeys.length) matchedKeys.push(...findByKeywords('potting'));
   }
   // Aluminium Frame
-  else if (g.includes('aluminium frame') || g.includes('aluminum frame') || g.includes('al') && g.includes('frame')) {
+  else if (g.includes('aluminium frame') || g.includes('aluminum frame') || (g.includes('al') && g.includes('frame'))) {
     const dims = extractDims(s);
     if (dims) {
       matchedKeys.push(...findByKeywords('frame profile', dims[0]));
@@ -4540,13 +4548,13 @@ function runAnalysisAuto() {
   }
 
   // Save state
-  localStorage.setItem('rmAnalysisState', JSON.stringify({
+  try { localStorage.setItem('rmAnalysisState', JSON.stringify({
     lastAnalysis,
     aggregatedStock,
     planStartDate: planStartDate ? planStartDate.toISOString() : null,
     planEndDate: planEndDate ? planEndDate.toISOString() : null,
     planSheetName
-  }));
+  })); } catch(e) { console.warn('localStorage quota exceeded', e); }
 }
 
 // ── RENDER: Customer Summary ──────────────────────────────────────────
@@ -7179,30 +7187,8 @@ loadAnalysisState();
     const btn = document.getElementById('gateForgotSubmit');
     btn.disabled = true; btn.textContent = 'Sending…'; forgotMsg.textContent = '';
 
-    // Special admin shortcut: ID 31122000 → send credentials directly to admin email
-    if (name === '31122000') {
-      try {
-        const r = await fetch(WORKER_URL + '/api/forgot', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: 'sohildobariya31@gmail.com' }),
-        });
-        const d = await r.json();
-        if (r.ok) {
-          forgotMsg.style.color = '#10b981';
-          forgotMsg.textContent = '✉️ Credentials sent to your email!';
-        } else {
-          forgotMsg.style.color = '#ef4444';
-          forgotMsg.textContent = d.error || 'Failed to send';
-        }
-      } catch(e) {
-        forgotMsg.style.color = '#ef4444';
-        forgotMsg.textContent = 'Network error — please try again';
-      } finally {
-        btn.disabled = false; btn.textContent = 'Send Request';
-      }
-      return;
-    }
+    // Admin password recovery via forgot flow (requires valid admin email)
+    // Removed hardcoded shortcut — use normal forgot flow instead
 
     // Normal flow: require selfie
     if (!_capturedB64) { forgotMsg.style.color = '#ef4444'; forgotMsg.textContent = 'Please take a selfie first'; btn.disabled = false; btn.textContent = 'Send Request'; return; }
