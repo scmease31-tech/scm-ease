@@ -28,8 +28,8 @@ body{background:#c8d0dc;color:#2c3e50;font-family:'Segoe UI',system-ui,sans-seri
 .cbar{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);z-index:300;
   background:rgba(255,255,255,.95);backdrop-filter:blur(14px);border:1px solid #d0d8e2;
   box-shadow:0 2px 14px rgba(0,0,0,.09);border-radius:20px;padding:6px 14px;display:flex;align-items:center;gap:8px;
-  transition:left .35s ease,transform .35s ease;max-width:calc(100vw - 40px)}
-.side:not(.collapsed)~.cbar{left:calc(50% - 160px)}
+  transition:left .35s ease,transform .35s ease,right .35s ease;max-width:calc(100vw - 40px);flex-wrap:wrap;justify-content:center}
+.side:not(.collapsed)~.cbar{left:auto;right:340px;transform:none;max-width:calc(100vw - 360px)}
 .cbar label{font-size:9px;color:#78909c;white-space:nowrap;font-weight:600;letter-spacing:.4px}
 .cbar input[type=range]{-webkit-appearance:none;width:110px;height:3px;border-radius:2px;
   background:linear-gradient(90deg,#cfd8dc,#1565c0);outline:none}
