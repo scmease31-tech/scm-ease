@@ -3838,7 +3838,7 @@ function cellShowView(which, btn) {
   /* Initialize vendor sheet on first view — auto-login from gate session */
   if (which === 'vendor') {
     const gateUser = sessionStorage.getItem('siteUser');
-    if (gateUser && gateUser !== 'Admin' && !sessionStorage.getItem('vendorUser')) {
+    if (gateUser && !sessionStorage.getItem('vendorUser')) {
       sessionStorage.setItem('vendorUser', gateUser);
     }
     if (!sessionStorage.getItem('vendorUser')) { if (typeof vendorShowLogin === 'function') vendorShowLogin(); }
