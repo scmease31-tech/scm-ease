@@ -55,6 +55,11 @@
     touch-action: manipulation;
   }
 
+  /* Reduce layout cost for hidden views */
+  #calcMain, #planningMain, #cellInvMain, #vendorMain, #explorerMain, #logMain, #usersMain {
+    contain: layout style paint;
+  }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   html { overflow-x: hidden; }
@@ -3826,33 +3831,29 @@ document.getElementById('modeUsers').addEventListener('click', (e) => {
 function cellShowView(which, btn) {
   document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  document.getElementById('calcMain').style.display = which === 'calc' ? 'block' : 'none';
-  document.getElementById('planningMain').style.display = which === 'plan' ? 'block' : 'none';
-  document.getElementById('cellInvMain').style.display = which === 'cell' ? 'block' : 'none';
-  document.getElementById('vendorMain').style.display = which === 'vendor' ? 'block' : 'none';
-  document.getElementById('explorerMain').style.display = which === 'explorer' ? 'block' : 'none';
-  document.getElementById('logMain').style.display = which === 'log' ? 'block' : 'none';
-  document.getElementById('usersMain').style.display = which === 'users' ? 'block' : 'none';
-  /* Lazy-load 3D explorer iframe on first visit */
-  if (which === 'explorer') {
-    const frm = document.getElementById('explorerFrame');
-    if (frm.src === 'about:blank' || !frm.src.includes('3d-explorer')) frm.src = '3d-explorer.html';
+  const views = {calc:'calcMain',plan:'planningMain',cell:'cellInvMain',vendor:'vendorMain',explorer:'explorerMain',log:'logMain',users:'usersMain'};
+  for (const [k,id] of Object.entries(views)) {
+    document.getElementById(id).style.display = k === which ? 'block' : 'none';
   }
-  /* Re-run planning analysis with latest consumption data when switching to Planning tab */
-  if (which === 'plan' && lastAnalysis && typeof planRaw !== 'undefined' && planRaw) runAnalysisAuto();
-  /* Initialize vendor sheet on first view — auto-login from gate session */
-  if (which === 'vendor') {
-    const gateUser = sessionStorage.getItem('siteUser');
-    if (gateUser && !sessionStorage.getItem('vendorUser')) {
-      sessionStorage.setItem('vendorUser', gateUser);
+  /* Defer heavy operations to next frame so view switch is instant */
+  requestAnimationFrame(() => {
+    if (which === 'explorer') {
+      const frm = document.getElementById('explorerFrame');
+      if (frm.src === 'about:blank' || !frm.src.includes('3d-explorer')) frm.src = '3d-explorer.html';
     }
-    if (!sessionStorage.getItem('vendorUser')) { if (typeof vendorShowLogin === 'function') vendorShowLogin(); }
-    else if (!window._vendorInitialized) { initVendorSheet(); window._vendorInitialized = true; }
-    else { if (typeof updateAuthUI === 'function') updateAuthUI(); }
-  }
-  /* Load activity logs on first view */
-  if (which === 'log') { if (typeof loadActivityLogs === 'function') loadActivityLogs(); }
-  if (which === 'users') { if (typeof loadUsers === 'function') loadUsers(); }
+    if (which === 'plan' && lastAnalysis && typeof planRaw !== 'undefined' && planRaw) runAnalysisAuto();
+    if (which === 'vendor') {
+      const gateUser = sessionStorage.getItem('siteUser');
+      if (gateUser && !sessionStorage.getItem('vendorUser')) {
+        sessionStorage.setItem('vendorUser', gateUser);
+      }
+      if (!sessionStorage.getItem('vendorUser')) { if (typeof vendorShowLogin === 'function') vendorShowLogin(); }
+      else if (!window._vendorInitialized) { initVendorSheet(); window._vendorInitialized = true; }
+      else { if (typeof updateAuthUI === 'function') updateAuthUI(); }
+    }
+    if (which === 'log') { if (typeof loadActivityLogs === 'function') loadActivityLogs(); }
+    if (which === 'users') { if (typeof loadUsers === 'function') loadUsers(); }
+  });
 }
 
 function setupDropZone(zoneId, inputId, onFile) {
