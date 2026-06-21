@@ -6298,11 +6298,11 @@ loadAnalysisState();
   function formatCell(val, ci, sheet) {
     if (!val) return '<span style="color:#ccc">—</span>';
     const v = escH(val);
-    if (val==='✓ Verified'||val==='Verified') return '<span class="v-status verified">✓ '+v+'</span>';
-    if (val==='Received') return '<span class="v-status received">✔ '+v+'</span>';
-    if (val==='Mail sent') return '<span class="v-status mailsent">✉ '+v+'</span>';
-    if (val==='Not Delivered') return '<span class="v-status notdelivered">✗ '+v+'</span>';
-    if (val==='Pending') return '<span class="v-status pending">⏳ '+v+'</span>';
+    if (val==='✓ Verified'||val==='Verified') return '<span class="v-status verified">✓ Verified</span>';
+    if (val==='Received') return '<span class="v-status received">✔ Received</span>';
+    if (val==='Mail sent') return '<span class="v-status mailsent">✉ Mail sent</span>';
+    if (val==='Not Delivered') return '<span class="v-status notdelivered">✗ Not Delivered</span>';
+    if (val==='Pending') return '<span class="v-status pending">⏳ Pending</span>';
     if (sheet==='vendors'&&ci===9&&val.includes('.')) { const url=val.startsWith('http')?val:'https://'+val; return '<a class="v-link" href="'+escH(url)+'" target="_blank" rel="noopener">'+v+'</a>'; }
     if (sheet==='vendors'&&ci===8) return val.split(/[,;]\s*/).map(e=>'<a class="v-link" href="mailto:'+escH(e.trim())+'">'+escH(e.trim())+'</a>').join(', ');
     if ((sheet==='approved'&&ci===6)||(sheet==='allcodes'&&ci===7)) return val.split(/[,;/]\s*/).map(e=>{const em=e.trim();return em.includes('@')?'<a class="v-link" href="mailto:'+escH(em)+'">'+escH(em)+'</a>':escH(em);}).join(', ');
