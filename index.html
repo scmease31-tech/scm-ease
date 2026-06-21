@@ -1872,16 +1872,16 @@
   document.body.classList.add('splash-on');
   // spawn floating particles
   const pc=document.getElementById('splashParticles');
-  for(let i=0;i<15;i++){const d=document.createElement('div');d.className='splash-dot';
+  for(let i=0;i<25;i++){const d=document.createElement('div');d.className='splash-dot';
     d.style.left=Math.random()*100+'%';d.style.top=(60+Math.random()*40)+'%';
     d.style.animationDelay=(Math.random()*3).toFixed(2)+'s';
     d.style.animationDuration=(2+Math.random()*2).toFixed(2)+'s';
     d.style.width=d.style.height=(1.5+Math.random()*2.5)+'px';pc.appendChild(d)}
-  // auto-dismiss after 1.5s
+  // auto-dismiss after 3s
   setTimeout(function(){
     var s=document.getElementById('splashOverlay');
     if(s){s.classList.add('splash-hide');document.body.classList.remove('splash-on');setTimeout(function(){s.remove()},600)}
-  },1500);
+  },3000);
   // click to skip
   document.getElementById('splashOverlay').addEventListener('click',function(){
     this.classList.add('splash-hide');document.body.classList.remove('splash-on');var self=this;setTimeout(function(){self.remove()},900)});
