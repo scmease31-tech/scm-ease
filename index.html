@@ -3835,6 +3835,12 @@ function cellShowView(which, btn) {
   for (const [k,id] of Object.entries(views)) {
     document.getElementById(id).style.display = k === which ? 'block' : 'none';
   }
+  /* Hide admin toolbar on 3D tab so it doesn't cover the 3D control bar */
+  const atb = document.getElementById('adminToolbar');
+  if (atb) {
+    if (which === 'explorer') { atb.classList.remove('show'); }
+    else if (document.body.classList.contains('admin-active')) { atb.classList.add('show'); }
+  }
   /* Unload 3D explorer when leaving to free GPU/CPU */
   if (which !== 'explorer') {
     const frm = document.getElementById('explorerFrame');
