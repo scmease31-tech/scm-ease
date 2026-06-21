@@ -3835,6 +3835,11 @@ function cellShowView(which, btn) {
   for (const [k,id] of Object.entries(views)) {
     document.getElementById(id).style.display = k === which ? 'block' : 'none';
   }
+  /* Unload 3D explorer when leaving to free GPU/CPU */
+  if (which !== 'explorer') {
+    const frm = document.getElementById('explorerFrame');
+    if (frm.src && frm.src !== 'about:blank' && frm.src.includes('3d-explorer')) frm.src = 'about:blank';
+  }
   /* Defer heavy operations to next frame so view switch is instant */
   requestAnimationFrame(() => {
     if (which === 'explorer') {
