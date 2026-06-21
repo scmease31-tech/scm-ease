@@ -1160,8 +1160,18 @@
   .log-filters{display:flex;gap:6px;flex-wrap:wrap}
   .log-filter-btn{padding:4px 12px;border-radius:14px;font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid var(--line);background:var(--panel);color:var(--ink2);transition:.2s}
   .log-filter-btn.active{background:var(--solar-1);color:#fff;border-color:var(--solar-1)}
-  .log-list{display:flex;flex-direction:column;gap:6px}
-  .log-entry{display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;font-size:13px;transition:.15s}
+  .log-list{display:flex;flex-direction:column;gap:0}
+  .log-group{margin-bottom:14px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
+  .log-group-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:linear-gradient(180deg,#e8f5ef 0%,#dff0e8 100%);cursor:pointer;user-select:none;border-bottom:1px solid var(--line);gap:8px}
+  .log-group-header:hover{background:linear-gradient(180deg,#d5eddf 0%,#cbead5 100%)}
+  .log-group-label{font-size:13px;font-weight:700;color:var(--solar-1);display:flex;align-items:center;gap:6px}
+  .log-group-count{font-size:10px;font-weight:700;background:var(--solar-1);color:#fff;padding:1px 7px;border-radius:10px;min-width:18px;text-align:center}
+  .log-group-chevron{font-size:10px;color:var(--muted);transition:transform .2s}
+  .log-group.collapsed .log-group-chevron{transform:rotate(-90deg)}
+  .log-group.collapsed .log-group-items{display:none}
+  .log-group-items{display:flex;flex-direction:column}
+  .log-entry{display:flex;align-items:flex-start;gap:12px;padding:10px 14px;font-size:13px;transition:.15s;border-bottom:1px solid var(--line)}
+  .log-entry:last-child{border-bottom:none}
   .log-entry:hover{border-color:var(--solar-2);box-shadow:var(--shadow-sm)}
   .log-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
   .log-icon.login{background:#dbeafe;color:#1d6fbf}
@@ -7304,19 +7314,52 @@ loadAnalysisState();
       listEl.innerHTML = '<div class="log-empty">No activity logs found</div>';
       return;
     }
-    listEl.innerHTML = filtered.map(log => {
-      const icon = log.type === 'login' ? '🔑' : log.type === 'deploy' ? '🚀' : '✏️';
-      const iconClass = log.type === 'login' ? 'login' : log.type === 'deploy' ? 'deploy' : 'change';
-      const title = log.type === 'login' ? 'Login' : log.type === 'deploy' ? 'Deploy' : 'Change';
-      const detail = log.detail || (log.type === 'login' ? 'User signed in' : '');
-      const ts = formatLogTime(log.ts);
-      return '<div class="log-entry">' +
-        '<div class="log-icon ' + iconClass + '">' + icon + '</div>' +
-        '<div class="log-body">' +
-          '<div class="log-title">' + title + ' — <span style="color:var(--solar-1)">' + escH(log.user || 'admin') + '</span></div>' +
-          (detail ? '<div class="log-detail">' + escH(detail) + '</div>' : '') +
+    // sort newest first
+    const sorted = filtered.slice().sort((a,b) => new Date(b.ts||0) - new Date(a.ts||0));
+    // group by date label
+    const groups = {};
+    const order = [];
+    const now = new Date();
+    const todayStr = now.toDateString();
+    const yest = new Date(now); yest.setDate(yest.getDate()-1);
+    const yestStr = yest.toDateString();
+    sorted.forEach(log => {
+      const d = log.ts ? new Date(log.ts) : null;
+      let label = 'Unknown';
+      if (d) {
+        const ds = d.toDateString();
+        if (ds === todayStr) label = '📅 Today';
+        else if (ds === yestStr) label = '📅 Yesterday';
+        else label = '📅 ' + d.toLocaleDateString(undefined, {weekday:'short', day:'numeric', month:'short', year:'numeric'});
+      }
+      if (!groups[label]) { groups[label] = []; order.push(label); }
+      groups[label].push(log);
+    });
+    listEl.innerHTML = order.map((label, gi) => {
+      const logs = groups[label];
+      const collapsed = gi > 0 ? ' collapsed' : '';
+      return '<div class="log-group' + collapsed + '">' +
+        '<div class="log-group-header" onclick="this.parentElement.classList.toggle(\'collapsed\')">' +
+          '<span class="log-group-label">' + label + ' <span class="log-group-count">' + logs.length + '</span></span>' +
+          '<span class="log-group-chevron">▼</span>' +
         '</div>' +
-        '<div class="log-time">' + ts + '</div>' +
+        '<div class="log-group-items">' +
+          logs.map(log => {
+            const icon = log.type === 'login' ? '🔑' : log.type === 'deploy' ? '🚀' : '✏️';
+            const iconClass = log.type === 'login' ? 'login' : log.type === 'deploy' ? 'deploy' : 'change';
+            const title = log.type === 'login' ? 'Login' : log.type === 'deploy' ? 'Deploy' : 'Change';
+            const detail = log.detail || (log.type === 'login' ? 'User signed in' : '');
+            const ts = formatLogTime(log.ts);
+            return '<div class="log-entry">' +
+              '<div class="log-icon ' + iconClass + '">' + icon + '</div>' +
+              '<div class="log-body">' +
+                '<div class="log-title">' + title + ' — <span style="color:var(--solar-1)">' + escH(log.user || 'admin') + '</span></div>' +
+                (detail ? '<div class="log-detail">' + escH(detail) + '</div>' : '') +
+              '</div>' +
+              '<div class="log-time">' + ts + '</div>' +
+            '</div>';
+          }).join('') +
+        '</div>' +
       '</div>';
     }).join('');
   }
