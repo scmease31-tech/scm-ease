@@ -4782,6 +4782,7 @@ function runAnalysisAuto() {
   let currentWpCol = 2;  // Module Wp column index (default C)
   let currentOaCol = 1;  // OA No column index (default B)
   let currentDateStartCol = 5; // first date column index
+  let _dbgHeaders = 0, _dbgDataRows = 0, _dbgInRange = 0, _dbgNoQty = 0, _dbgNoMod = 0;
 
   planRaw.forEach((row, ri) => {
     const col0 = String(row[0] || '').trim();
@@ -4789,6 +4790,7 @@ function runAnalysisAuto() {
 
     // Detect header rows — "Customer Name" in col0 (case-insensitive)
     if (_isHeaderRow(row)) {
+      _dbgHeaders++;
       currentDateHeadersRaw = row;
       // Auto-detect column positions from header text
       for (let c = 0; c < Math.min(row.length, 20); c++) {
@@ -4810,6 +4812,7 @@ function runAnalysisAuto() {
     }
     // Data rows: col0 has customer name, Wp col has value > 0
     else if (col0 && col0 !== '' && !col0.startsWith('Pending') && !_norm(col0).includes('total') && Number(row[currentWpCol]) > 0 && currentDateHeadersRaw.length > 0) {
+      _dbgDataRows++;
       const oaDesc = String(row[currentOaCol] || '').trim();
       const wp = Number(row[currentWpCol]) || 0;
 
@@ -4828,6 +4831,7 @@ function runAnalysisAuto() {
       }
 
       if (futureQty > 0) {
+        _dbgInRange++;
         let matchedKey = detectModuleType(oaDesc, wp);
         // Apply customer module type override if set
         const custOverride = customerModuleOverrides[col0];
@@ -4843,9 +4847,17 @@ function runAnalysisAuto() {
             qty: futureQty,
             wp: wp
           });
-        }
-      }
+        } else { _dbgNoMod++; }
+      } else { _dbgNoQty++; }
     }
+  });
+
+  console.log('[Planning Parse]', {
+    totalRows: planRaw.length, headers: _dbgHeaders, dataRows: _dbgDataRows,
+    inRange: _dbgInRange, noQty: _dbgNoQty, noMod: _dbgNoMod,
+    orders: customerOrders.length, dates: allSheetDates.length,
+    from: userDateFrom?.toLocaleDateString(), to: userDateTo?.toLocaleDateString(),
+    firstDate: allSheetDates[0]?.toLocaleDateString(), lastDate: allSheetDates[allSheetDates.length-1]?.toLocaleDateString()
   });
 
   // 2. Aggregate stock data
@@ -4992,7 +5004,9 @@ function runAnalysisAuto() {
       <div style="font-size:28px;margin-bottom:12px;">📋</div>
       <b>No production orders found for ${fmtD(userDateFrom)} → ${fmtD(userDateTo)}</b><br>
       <span style="color:#666;font-size:13px;margin-top:8px;display:inline-block;">
-        Planning file has data across ${allSheetDates.length} dates. Try adjusting the date range or check the uploaded file.
+        Rows: ${planRaw.length} | Headers: ${_dbgHeaders} | Data rows: ${_dbgDataRows} | No-qty-in-range: ${_dbgNoQty}<br>
+        File dates: ${fmtD(allSheetDates[0])} → ${fmtD(allSheetDates[allSheetDates.length-1])} (${allSheetDates.length} unique dates)<br>
+        Try adjusting the date range, or re-upload the planning file.
       </span>
     </div>`;
     document.getElementById('loadingIndicator').style.display = 'none';
