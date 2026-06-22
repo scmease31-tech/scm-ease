@@ -162,12 +162,16 @@ async function handleForgotRequest(body, env) {
 const LOG_KEY = 'activity_log';
 const MAX_LOGS = 500;
 const USERS_KEY = 'app_users';
+const PERMISSIONS_KEY = 'user_permissions';
 const DEFAULT_USERS = [
   {name:'Nikita',password:'nikita'},{name:'Akshay',password:'akshay'},
   {name:'Megha',password:'megha'},{name:'Piyush',password:'piyush'},
   {name:'Purvi',password:'purvi'},{name:'Khushi',password:'khushi'},
   {name:'Rajesh',password:'rajesh'}
 ];
+const DEFAULT_PERMS = { calc: true, plan: true, plan_edit: true, cell: true, vendor: true, vendor_edit: true, explorer: true };
+const ALLOWED_PERM_KEYS = ['calc', 'plan', 'plan_edit', 'cell', 'vendor', 'vendor_edit', 'explorer'];
+const CONSUMPTION_DEFAULTS_KEY = 'consumption_defaults';
 
 async function getUsers(env) {
   const raw = await env.LOGS.get(USERS_KEY);
@@ -175,6 +179,13 @@ async function getUsers(env) {
   return JSON.parse(raw);
 }
 async function saveUsers(env, users) { await env.LOGS.put(USERS_KEY, JSON.stringify(users)); }
+
+async function getAllPermissions(env) {
+  const raw = await env.LOGS.get(PERMISSIONS_KEY);
+  if (!raw) return {};
+  return JSON.parse(raw);
+}
+async function saveAllPermissions(env, perms) { await env.LOGS.put(PERMISSIONS_KEY, JSON.stringify(perms)); }
 
 // Verify a vendor user credential
 async function handleVerifyUser(body, env) {
@@ -239,8 +250,68 @@ async function handleDeleteUser(body, env, authHeader) {
   if (idx === -1) return jsonResp({ error: 'User not found' }, 404);
   users.splice(idx, 1);
   await saveUsers(env, users);
+  // Also remove permissions for deleted user
+  const perms = await getAllPermissions(env);
+  delete perms[name.toLowerCase()];
+  await saveAllPermissions(env, perms);
   await appendLog(env, { type: 'user-mgmt', user: 'admin', ts: new Date().toISOString(), detail: `Deleted user: ${name}` });
   return jsonResp({ ok: true });
+}
+
+// Get all user permissions (admin only)
+async function handleGetPermissions(env, authHeader) {
+  const token = (authHeader || '').replace('Bearer ', '');
+  const payload = await verifyToken(token, env.JWT_SECRET);
+  if (!payload) return jsonResp({ error: 'Unauthorized' }, 401);
+  const perms = await getAllPermissions(env);
+  return jsonResp({ permissions: perms, defaults: DEFAULT_PERMS });
+}
+
+// Update a user's permissions (admin only)
+async function handleUpdatePermissions(body, env, authHeader) {
+  const token = (authHeader || '').replace('Bearer ', '');
+  const payload = await verifyToken(token, env.JWT_SECRET);
+  if (!payload) return jsonResp({ error: 'Unauthorized' }, 401);
+  const { name, permissions } = body;
+  if (!name || !permissions || typeof permissions !== 'object') return jsonResp({ error: 'Name and permissions required' }, 400);
+  if (name.length > 50) return jsonResp({ error: 'Name too long' }, 400);
+  const clean = {};
+  for (const k of ALLOWED_PERM_KEYS) { clean[k] = !!permissions[k]; }
+  const allPerms = await getAllPermissions(env);
+  allPerms[name.toLowerCase()] = clean;
+  await saveAllPermissions(env, allPerms);
+  await appendLog(env, { type: 'permission', user: 'admin', ts: new Date().toISOString(), detail: `Updated permissions for: ${name}` });
+  return jsonResp({ ok: true });
+}
+
+// Get permissions for a specific user (called after gate login)
+async function handleGetUserPermissions(body, env) {
+  const { name } = body;
+  if (!name || typeof name !== 'string') return jsonResp({ error: 'Name required' }, 400);
+  const allPerms = await getAllPermissions(env);
+  const userPerms = allPerms[name.toLowerCase()] || { ...DEFAULT_PERMS };
+  return jsonResp({ permissions: userPerms });
+}
+
+// ── Consumption Defaults ──────────────────────────────────────────────
+async function handleSaveConsumptionDefaults(body, env, authHeader) {
+  const token = (authHeader || '').replace('Bearer ', '');
+  const payload = await verifyToken(token, env.JWT_SECRET);
+  if (!payload) return jsonResp({ error: 'Unauthorized' }, 401);
+  const { modules } = body;
+  if (!modules || !Array.isArray(modules)) return jsonResp({ error: 'Modules array required' }, 400);
+  const data = JSON.stringify(modules);
+  if (data.length > 2 * 1024 * 1024) return jsonResp({ error: 'Data too large' }, 413);
+  await env.LOGS.put(CONSUMPTION_DEFAULTS_KEY, data);
+  await appendLog(env, { type: 'config', user: 'admin', ts: new Date().toISOString(), detail: 'Saved consumption defaults' });
+  return jsonResp({ ok: true });
+}
+
+async function handleGetConsumptionDefaults(env) {
+  const raw = await env.LOGS.get(CONSUMPTION_DEFAULTS_KEY);
+  if (!raw) return jsonResp({ defaults: null });
+  try { return jsonResp({ defaults: JSON.parse(raw) }); }
+  catch { return jsonResp({ defaults: null }); }
 }
 
 async function appendLog(env, entry) {
@@ -318,8 +389,14 @@ export default {
     if (request.method === 'GET' && path === '/api/users') {
       return handleListUsers(env, request.headers.get('Authorization'));
     }
+    if (request.method === 'GET' && path === '/api/permissions') {
+      return handleGetPermissions(env, request.headers.get('Authorization'));
+    }
     if (request.method === 'GET' && path === '/api/customer-data') {
       return handleGetCustomerData(env);
+    }
+    if (request.method === 'GET' && path === '/api/consumption-defaults') {
+      return handleGetConsumptionDefaults(env);
     }
 
     if (request.method !== 'POST') return jsonResp({ error: 'Method not allowed' }, 405);
@@ -336,6 +413,9 @@ export default {
       if (path === '/api/users/add') return handleAddUser(body, env, request.headers.get('Authorization'));
       if (path === '/api/users/update') return handleUpdateUser(body, env, request.headers.get('Authorization'));
       if (path === '/api/users/delete') return handleDeleteUser(body, env, request.headers.get('Authorization'));
+      if (path === '/api/permissions/update') return handleUpdatePermissions(body, env, request.headers.get('Authorization'));
+      if (path === '/api/user-permissions') return handleGetUserPermissions(body, env);
+      if (path === '/api/consumption-defaults') return handleSaveConsumptionDefaults(body, env, request.headers.get('Authorization'));
       if (path === '/api/customer-data') return handleSaveCustomerData(body, env);
       return jsonResp({ error: 'Not found' }, 404);
     } catch (e) {

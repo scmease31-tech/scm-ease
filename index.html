@@ -1268,6 +1268,43 @@
     .um-avatar{width:28px;height:28px;font-size:11px}
   }
 
+  /* ── USER MANAGEMENT SUB-TABS ─────────────────────────────────────── */
+  .um-subtabs{display:flex;gap:4px;margin-bottom:18px;border-bottom:2px solid var(--line);padding-bottom:0}
+  .um-subtab{padding:10px 20px;font-size:12px;font-weight:700;cursor:pointer;border:none;background:none;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-2px;transition:.15s;display:flex;align-items:center;gap:6px}
+  .um-subtab:hover{color:var(--ink2)}
+  .um-subtab.active{color:var(--solar-1);border-bottom-color:var(--solar-2)}
+  .um-subtab svg{width:14px;height:14px}
+  .um-tab-content{display:none}
+  .um-tab-content.active{display:block}
+
+  /* ── PERMISSIONS PANEL ─────────────────────────────────────────────── */
+  .perm-info{background:var(--blue-bg);border:1px solid #93c5fd;border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:12px;color:#1e40af}
+  .perm-info svg{width:18px;height:18px;flex-shrink:0;color:#3b82f6}
+  .perm-table-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow-x:auto}
+  .perm-table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;min-width:600px}
+  .perm-table thead th{background:linear-gradient(180deg,#e8f5ef 0%,#dff0e8 100%);color:var(--solar-1);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:10px 14px;border-bottom:2px solid #b8dfc8;border-right:1px solid #cde8d8;white-space:nowrap;text-align:center}
+  .perm-table thead th:first-child{text-align:left;min-width:160px}
+  .perm-table thead th:last-child{border-right:0}
+  .perm-table td{padding:10px 14px;border-bottom:1px solid var(--line);color:var(--ink);vertical-align:middle;text-align:center}
+  .perm-table td:first-child{text-align:left}
+  .perm-table tr:last-child td{border-bottom:0}
+  .perm-table tbody tr{transition:background .1s}
+  .perm-table tbody tr:hover td{background:#f4fbf7}
+
+  /* Toggle switch */
+  .perm-toggle{position:relative;display:inline-block;width:36px;height:20px}
+  .perm-toggle input{opacity:0;width:0;height:0}
+  .perm-slider{position:absolute;inset:0;background:#cbd5e1;border-radius:20px;cursor:pointer;transition:.2s}
+  .perm-slider::before{content:'';position:absolute;height:14px;width:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
+  .perm-toggle input:checked + .perm-slider{background:var(--solar-2)}
+  .perm-toggle input:checked + .perm-slider::before{transform:translateX(16px)}
+  .perm-toggle input:disabled + .perm-slider{opacity:.5;cursor:not-allowed}
+
+  .perm-save-row{display:flex;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}
+  .perm-msg{font-size:12px;min-height:18px;transition:color .2s}
+  .perm-badge-on{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;background:#dcfce7;color:#166534}
+  .perm-badge-off{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;background:#fee2e2;color:#991b1b}
+
   /* ── ADMIN LOGIN & TOOLBAR ──────────────────────────────────────────── */
   .admin-btn{background:none;border:1px solid rgba(99,102,241,.5);color:#a5b4fc;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:12px;letter-spacing:1px;transition:.2s;display:flex;align-items:center;gap:6px}
   .admin-btn:hover{background:rgba(99,102,241,.2);border-color:#818cf8}
@@ -2008,6 +2045,14 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
       Clear Qty
     </button>
+    <button class="btn btn-outline" id="resetDefaultsBtn" title="Reset all consumption & wastage values to saved defaults">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+      Reset to Default
+    </button>
+    <button class="btn btn-primary" id="saveDefaultsBtn" style="display:none" title="Save current consumption values as the default for all users">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      Save as Default
+    </button>
     <button class="btn btn-primary" id="addRowBtn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
       Add Row
@@ -2629,63 +2674,115 @@ const VENDOR_SHEETS = {
       <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:22px;height:22px;color:var(--solar-1)"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> User Management</h2>
     </div>
 
-    <!-- KPI Strip -->
-    <div class="um-kpi-strip" id="umKpis">
-      <div class="um-kpi uk-green"><div class="um-kpi-label">Total Users</div><div class="um-kpi-val" id="umKpiTotal">0</div></div>
-      <div class="um-kpi uk-blue"><div class="um-kpi-label">Active Accounts</div><div class="um-kpi-val" id="umKpiActive">0</div></div>
-      <div class="um-kpi uk-purple"><div class="um-kpi-label">Search Results</div><div class="um-kpi-val" id="umKpiResults">0</div></div>
-    </div>
-
-    <!-- Toolbar: Search + Add -->
-    <div class="um-toolbar">
-      <div class="um-search-wrap">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input type="text" id="umSearchBox" placeholder="Search users by name…" oninput="umFilterUsers()"/>
-      </div>
-      <span class="um-user-count" id="umUserCount"></span>
-      <button class="um-add-btn" id="umAddBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Add User
+    <!-- Sub-tabs -->
+    <div class="um-subtabs">
+      <button class="um-subtab active" id="umTabUsers" onclick="umSwitchTab('users')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        Users
+      </button>
+      <button class="um-subtab" id="umTabPerms" onclick="umSwitchTab('perms')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Permissions
       </button>
     </div>
 
-    <!-- Add User Panel -->
-    <div class="um-add-panel" id="umAddRow">
-      <div class="um-add-panel-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="var(--solar-1)" stroke-width="2" style="width:16px;height:16px"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
-        Add New User
+    <!-- ═══ USERS TAB ═══ -->
+    <div class="um-tab-content active" id="umUsersContent">
+
+      <!-- KPI Strip -->
+      <div class="um-kpi-strip" id="umKpis">
+        <div class="um-kpi uk-green"><div class="um-kpi-label">Total Users</div><div class="um-kpi-val" id="umKpiTotal">0</div></div>
+        <div class="um-kpi uk-blue"><div class="um-kpi-label">Active Accounts</div><div class="um-kpi-val" id="umKpiActive">0</div></div>
+        <div class="um-kpi uk-purple"><div class="um-kpi-label">Search Results</div><div class="um-kpi-val" id="umKpiResults">0</div></div>
       </div>
-      <div class="um-add-form">
-        <div class="um-add-field"><label>Name</label><input id="umNewName" placeholder="Enter user name" autocomplete="off"></div>
-        <div class="um-add-field"><label>Password</label><input id="umNewPass" placeholder="Enter password" type="password" autocomplete="new-password"></div>
-        <div class="um-add-actions">
-          <button class="um-btn-sm um-btn-save" id="umNewSave" style="padding:8px 16px">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg>
-            Add
-          </button>
-          <button class="um-btn-sm um-btn-del" id="umNewCancel" style="padding:8px 12px">Cancel</button>
+
+      <!-- Toolbar: Search + Add -->
+      <div class="um-toolbar">
+        <div class="um-search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="umSearchBox" placeholder="Search users by name…" oninput="umFilterUsers()"/>
+        </div>
+        <span class="um-user-count" id="umUserCount"></span>
+        <button class="um-add-btn" id="umAddBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add User
+        </button>
+      </div>
+
+      <!-- Add User Panel -->
+      <div class="um-add-panel" id="umAddRow">
+        <div class="um-add-panel-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--solar-1)" stroke-width="2" style="width:16px;height:16px"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+          Add New User
+        </div>
+        <div class="um-add-form">
+          <div class="um-add-field"><label>Name</label><input id="umNewName" placeholder="Enter user name" autocomplete="off"></div>
+          <div class="um-add-field"><label>Password</label><input id="umNewPass" placeholder="Enter password" type="password" autocomplete="new-password"></div>
+          <div class="um-add-actions">
+            <button class="um-btn-sm um-btn-save" id="umNewSave" style="padding:8px 16px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg>
+              Add
+            </button>
+            <button class="um-btn-sm um-btn-del" id="umNewCancel" style="padding:8px 12px">Cancel</button>
+          </div>
         </div>
       </div>
+
+      <div class="um-msg" id="umMsg"></div>
+
+      <!-- Table Card -->
+      <div class="um-table-card">
+        <table class="um-table">
+          <thead>
+            <tr>
+              <th style="width:5%;text-align:center">#</th>
+              <th style="width:30%">User</th>
+              <th style="width:35%">Password</th>
+              <th style="width:30%;text-align:center">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="umBody">
+            <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:30px">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
     </div>
 
-    <div class="um-msg" id="umMsg"></div>
-
-    <!-- Table Card -->
-    <div class="um-table-card">
-      <table class="um-table">
-        <thead>
-          <tr>
-            <th style="width:5%;text-align:center">#</th>
-            <th style="width:30%">User</th>
-            <th style="width:35%">Password</th>
-            <th style="width:30%;text-align:center">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="umBody">
-          <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:30px">Loading…</td></tr>
-        </tbody>
-      </table>
+    <!-- ═══ PERMISSIONS TAB ═══ -->
+    <div class="um-tab-content" id="umPermsContent">
+      <div class="perm-info">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>Control which tabs each user can access. Changes take effect on their next login. Only the admin (31122000) can modify permissions.</span>
+      </div>
+      <div class="perm-table-card">
+        <table class="perm-table">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Calculator</th>
+              <th>Planning View</th>
+              <th>Planning Edit</th>
+              <th>Cell INV</th>
+              <th>Vendor View</th>
+              <th>Vendor Edit</th>
+              <th>3D Explorer</th>
+            </tr>
+          </thead>
+          <tbody id="permBody">
+            <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="perm-save-row">
+        <button class="um-add-btn" id="permSaveAllBtn" onclick="permSaveAll()" style="font-size:13px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px"><polyline points="20 6 9 17 4 12"/></svg>
+          Save All Permissions
+        </button>
+        <span class="perm-msg" id="permMsg"></span>
+      </div>
     </div>
+
   </div>
 </main>
 
@@ -6856,6 +6953,9 @@ loadAnalysisState();
     document.getElementById('adminLoginBtn').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span style="color:#10b981">Admin ✓</span>';
     document.getElementById('modeLog').style.display = '';
     document.getElementById('modeUsers').style.display = '';
+    // Show "Save as Default" button for admin
+    var sdBtn = document.getElementById('saveDefaultsBtn');
+    if (sdBtn) sdBtn.style.display = '';
     if (typeof render === 'function') render();
   }
   window.enterAdminMode = enterAdminMode;
@@ -6866,6 +6966,9 @@ loadAnalysisState();
     document.getElementById('adminLoginBtn').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Admin</span>';
     document.getElementById('modeLog').style.display = 'none';
     document.getElementById('modeUsers').style.display = 'none';
+    // Hide "Save as Default" button
+    var sdBtn = document.getElementById('saveDefaultsBtn');
+    if (sdBtn) sdBtn.style.display = 'none';
   }
   window.exitAdminMode = exitAdminMode;
 
@@ -7013,12 +7116,17 @@ loadAnalysisState();
     const btn = document.getElementById('vendorLoginBtn');
     const bar = document.getElementById('vendorAuthBar');
     const lock = document.getElementById('vendorLockScreen');
+    const canEdit = sessionStorage.getItem('adminToken') || sessionStorage.getItem('vendorEditPerm') !== '0';
     if (user) {
       btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> ' + escH(user) + ' ✓';
       btn.classList.add('logged-in');
       bar.classList.add('show');
       document.getElementById('vendorAuthUser').textContent = user;
-      document.body.classList.add('vendor-edit-active');
+      if (canEdit) {
+        document.body.classList.add('vendor-edit-active');
+      } else {
+        document.body.classList.remove('vendor-edit-active');
+      }
       lock.classList.add('hidden');
     } else {
       btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Login to Edit';
@@ -8047,6 +8155,10 @@ loadAnalysisState();
 
   if (getSiteUser()) {
     gate.classList.add('hidden');
+    // Re-apply permissions on page reload for non-admin users
+    if (!sessionStorage.getItem('adminToken') && typeof applyUserPermissions === 'function') {
+      setTimeout(() => applyUserPermissions(getSiteUser()), 200);
+    }
   }
 
   // Password toggle
@@ -8075,6 +8187,8 @@ loadAnalysisState();
         sessionStorage.setItem('vendorUser', vd.user);
         gate.classList.add('hidden');
         logGateLogin(vd.user);
+        // Apply tab permissions for this user
+        if (typeof applyUserPermissions === 'function') applyUserPermissions(vd.user);
         gateLoginBtn.disabled = false;
         gateLoginBtn.textContent = 'Sign In';
         return;
@@ -8229,8 +8343,16 @@ loadAnalysisState();
     sessionStorage.removeItem('siteToken');
     sessionStorage.removeItem('adminToken');
     sessionStorage.removeItem('vendorUser');
+    sessionStorage.removeItem('userPermissions');
+    sessionStorage.removeItem('planEditPerm');
+    sessionStorage.removeItem('vendorEditPerm');
     window._vendorInitialized = false;
     if (typeof exitAdminMode === 'function') exitAdminMode();
+    // Reset all tab visibility
+    ['modeCalc','modePlan','modeCell','modeVendor','mode3D'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = '';
+    });
     gate.classList.remove('hidden');
     updateSiteLabel();
   });
@@ -8527,6 +8649,279 @@ loadAnalysisState();
     const el = document.getElementById('umMsg');
     el.textContent = txt; el.style.color = color || 'var(--muted)';
   }
+})();
+</script>
+
+<!-- SUB-TAB SWITCHING + PERMISSIONS SCRIPT -->
+<script>
+// ── Sub-tab switching inside User Management ──
+window.umSwitchTab = function(tab) {
+  document.querySelectorAll('.um-subtab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.um-tab-content').forEach(c => c.classList.remove('active'));
+  if (tab === 'perms') {
+    document.getElementById('umTabPerms').classList.add('active');
+    document.getElementById('umPermsContent').classList.add('active');
+    if (typeof loadPermissions === 'function') loadPermissions();
+  } else {
+    document.getElementById('umTabUsers').classList.add('active');
+    document.getElementById('umUsersContent').classList.add('active');
+  }
+};
+
+// ── Permissions Management ──
+(function(){
+  const WORKER_URL = 'https://scm-ease-admin.scm-ease.workers.dev';
+  const TAB_KEYS = ['calc', 'plan', 'plan_edit', 'cell', 'vendor', 'vendor_edit', 'explorer'];
+  const TAB_LABELS = {
+    calc: 'Calculator',
+    plan: 'Planning View',
+    plan_edit: 'Planning Edit',
+    cell: 'Cell INV',
+    vendor: 'Vendor View',
+    vendor_edit: 'Vendor Edit',
+    explorer: '3D Explorer'
+  };
+  const UM_COLORS = ['#0b6e4f','#1d6fbf','#7c3aed','#d97706','#dc2626','#0891b2','#4f46e5','#059669','#b45309','#6d28d9'];
+
+  let permUsers = [];
+  let permData = {};
+  let permDefaults = { calc: true, plan: true, plan_edit: true, cell: true, vendor: true, vendor_edit: true, explorer: true };
+
+  function getToken() { return sessionStorage.getItem('adminToken') || ''; }
+  function escH(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  window.loadPermissions = async function() {
+    const body = document.getElementById('permBody');
+    const token = getToken();
+    if (!token) { body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Admin login required</td></tr>'; return; }
+    body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Loading…</td></tr>';
+    try {
+      // Fetch users and permissions in parallel
+      const [usersRes, permsRes] = await Promise.all([
+        fetch(WORKER_URL + '/api/users', { headers: { 'Authorization': 'Bearer ' + token } }),
+        fetch(WORKER_URL + '/api/permissions', { headers: { 'Authorization': 'Bearer ' + token } })
+      ]);
+      const usersData = await usersRes.json();
+      const permsDataResp = await permsRes.json();
+      if (!usersRes.ok) { body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#f87171;padding:30px">' + escH(usersData.error) + '</td></tr>'; return; }
+      permUsers = usersData.users || [];
+      permData = permsDataResp.permissions || {};
+      if (permsDataResp.defaults) permDefaults = permsDataResp.defaults;
+      renderPermissions();
+    } catch(e) {
+      body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#f87171;padding:30px">Network error</td></tr>';
+    }
+  };
+
+  function getUserPerms(name) {
+    return permData[name.toLowerCase()] || { ...permDefaults };
+  }
+
+  function renderPermissions() {
+    const body = document.getElementById('permBody');
+    if (!permUsers.length) {
+      body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">No users found</td></tr>';
+      return;
+    }
+    body.innerHTML = permUsers.map((u, i) => {
+      const perms = getUserPerms(u.name);
+      const initial = u.name.charAt(0).toUpperCase();
+      const color = UM_COLORS[i % UM_COLORS.length];
+      return '<tr>' +
+        '<td><div class="um-user-info">' +
+          '<div class="um-avatar" style="background:' + color + '">' + escH(initial) + '</div>' +
+          '<span class="um-user-name">' + escH(u.name) + '</span>' +
+        '</div></td>' +
+        TAB_KEYS.map(k => {
+          const checked = perms[k] ? ' checked' : '';
+          return '<td><label class="perm-toggle"><input type="checkbox" data-user="' + escH(u.name) + '" data-tab="' + k + '"' + checked + '><span class="perm-slider"></span></label></td>';
+        }).join('') +
+      '</tr>';
+    }).join('');
+  }
+
+  // Collect all toggle states and save
+  window.permSaveAll = async function() {
+    const msgEl = document.getElementById('permMsg');
+    msgEl.textContent = 'Saving…'; msgEl.style.color = '#94a3b8';
+    const token = getToken();
+    if (!token) { msgEl.textContent = 'Admin login required'; msgEl.style.color = '#f87171'; return; }
+
+    // Gather permissions from checkboxes
+    const checkboxes = document.querySelectorAll('#permBody input[type="checkbox"]');
+    const updates = {};
+    checkboxes.forEach(cb => {
+      const user = cb.dataset.user;
+      const tab = cb.dataset.tab;
+      if (!updates[user]) updates[user] = {};
+      updates[user][tab] = cb.checked;
+    });
+
+    // Save each user's permissions
+    let failed = 0;
+    for (const [name, permissions] of Object.entries(updates)) {
+      try {
+        const r = await fetch(WORKER_URL + '/api/permissions/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ name, permissions }),
+        });
+        if (!r.ok) failed++;
+      } catch(e) { failed++; }
+    }
+
+    if (failed === 0) {
+      msgEl.textContent = 'All permissions saved successfully!';
+      msgEl.style.color = '#10b981';
+    } else {
+      msgEl.textContent = failed + ' user(s) failed to update';
+      msgEl.style.color = '#f87171';
+    }
+    setTimeout(() => { msgEl.textContent = ''; }, 4000);
+  };
+})();
+
+// ── Apply tab permissions after gate login ──
+(function(){
+  const WORKER_URL = 'https://scm-ease-admin.scm-ease.workers.dev';
+  const TAB_MAP = {
+    calc: 'modeCalc',
+    plan: 'modePlan',
+    cell: 'modeCell',
+    vendor: 'modeVendor',
+    explorer: 'mode3D'
+  };
+
+  window.applyUserPermissions = async function(userName) {
+    // Admin gets all tabs — skip permission check
+    if (sessionStorage.getItem('adminToken')) return;
+    try {
+      const r = await fetch(WORKER_URL + '/api/user-permissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: userName }),
+      });
+      const d = await r.json();
+      if (!r.ok) return;
+      const perms = d.permissions || {};
+      // Store for reference
+      sessionStorage.setItem('userPermissions', JSON.stringify(perms));
+      // Hide/show tabs based on permissions
+      for (const [key, btnId] of Object.entries(TAB_MAP)) {
+        const btn = document.getElementById(btnId);
+        if (btn) {
+          btn.style.display = perms[key] ? '' : 'none';
+        }
+      }
+      // Enforce plan edit permission
+      applyPlanEditPerm(perms.plan_edit !== false);
+      // Enforce vendor edit permission
+      applyVendorEditPerm(perms.vendor_edit !== false);
+      // If current active tab is now hidden, switch to first visible
+      const activeBtn = document.querySelector('.mode-btn.active');
+      if (activeBtn && activeBtn.style.display === 'none') {
+        for (const [key, btnId] of Object.entries(TAB_MAP)) {
+          if (perms[key]) {
+            const btn = document.getElementById(btnId);
+            if (btn) { btn.click(); break; }
+          }
+        }
+      }
+    } catch(e) { /* silently allow all tabs on network error */ }
+  };
+
+  // Planning tab: hide/show upload zones based on edit permission
+  window.applyPlanEditPerm = function(canEdit) {
+    const uploadContainer = document.getElementById('uploadContainer');
+    if (uploadContainer) uploadContainer.style.display = canEdit ? '' : 'none';
+    // Hide clear saved data button
+    const banner = document.getElementById('savedDataBanner');
+    if (banner) {
+      const clearBtn = banner.querySelector('button');
+      if (clearBtn) clearBtn.style.display = canEdit ? '' : 'none';
+    }
+    // Store for reference
+    sessionStorage.setItem('planEditPerm', canEdit ? '1' : '0');
+  };
+
+  // Vendor tab: prevent edit mode if no vendor_edit permission
+  window.applyVendorEditPerm = function(canEdit) {
+    sessionStorage.setItem('vendorEditPerm', canEdit ? '1' : '0');
+    if (!canEdit) {
+      // Remove vendor edit active class so edit UI elements stay hidden
+      document.body.classList.remove('vendor-edit-active');
+    }
+  };
+})();
+</script>
+
+<!-- CONSUMPTION DEFAULTS MANAGEMENT -->
+<script>
+(function(){
+  const WORKER = 'https://scm-ease-admin.scm-ease.workers.dev';
+
+  // Save current consumption values as default (admin only)
+  document.getElementById('saveDefaultsBtn').addEventListener('click', async function() {
+    const btn = this;
+    const token = sessionStorage.getItem('adminToken');
+    if (!token) return alert('Admin login required');
+    if (!confirm('Save current consumption & wastage values as the default for all users?')) return;
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      // modules is global from the consumption IIFE
+      const res = await fetch(WORKER + '/api/consumption-defaults', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ modules: modules })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        btn.textContent = 'Saved ✓';
+        setTimeout(() => { btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save as Default'; btn.disabled = false; }, 1500);
+      } else {
+        alert('Error: ' + (data.error || 'Unknown'));
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save as Default'; btn.disabled = false;
+      }
+    } catch(e) {
+      alert('Network error');
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save as Default'; btn.disabled = false;
+    }
+  });
+
+  // Reset consumption to saved defaults (all users)
+  document.getElementById('resetDefaultsBtn').addEventListener('click', async function() {
+    const btn = this;
+    if (!confirm('Reset consumption & wastage values to the saved defaults? Your personal changes will be lost.')) return;
+    btn.disabled = true; btn.textContent = 'Loading…';
+    try {
+      const res = await fetch(WORKER + '/api/consumption-defaults');
+      const data = await res.json();
+      if (data.ok && data.modules && data.modules.length > 0) {
+        // Replace global modules with the defaults
+        modules.length = 0;
+        data.modules.forEach(function(m) { modules.push(m); });
+        // Clear overrides since we're resetting
+        Object.keys(rowOverrides).forEach(function(k) { delete rowOverrides[k]; });
+        Object.keys(rowGeneration).forEach(function(k) { delete rowGeneration[k]; });
+        Object.keys(rowPricing).forEach(function(k) { delete rowPricing[k]; });
+        saveState();
+        if (typeof renderControls === 'function') renderControls();
+        if (typeof render === 'function') render();
+        btn.textContent = 'Reset ✓';
+      } else if (data.ok && (!data.modules || data.modules.length === 0)) {
+        alert('No defaults have been saved yet. Ask the admin to save defaults first.');
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Reset to Default';
+        btn.disabled = false;
+        return;
+      } else {
+        alert('Error: ' + (data.error || 'Unknown'));
+      }
+      setTimeout(function() { btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Reset to Default'; btn.disabled = false; }, 1500);
+    } catch(e) {
+      alert('Network error');
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Reset to Default'; btn.disabled = false;
+    }
+  });
 })();
 </script>
 </body>
