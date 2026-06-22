@@ -169,8 +169,8 @@ const DEFAULT_USERS = [
   {name:'Purvi',password:'purvi'},{name:'Khushi',password:'khushi'},
   {name:'Rajesh',password:'rajesh'}
 ];
-const DEFAULT_PERMS = { calc: true, plan: true, plan_edit: true, cell: true, vendor: true, vendor_edit: true, explorer: true };
-const ALLOWED_PERM_KEYS = ['calc', 'plan', 'plan_edit', 'cell', 'vendor', 'vendor_edit', 'explorer'];
+const DEFAULT_PERMS = { calc: true, calc_changes: false, plan: true, plan_edit: true, plan_changes: false, cell: true, vendor: true, vendor_edit: true, explorer: true };
+const ALLOWED_PERM_KEYS = ['calc', 'calc_changes', 'plan', 'plan_edit', 'plan_changes', 'cell', 'vendor', 'vendor_edit', 'explorer'];
 const CONSUMPTION_DEFAULTS_KEY = 'consumption_defaults';
 const PLANNING_CONFIG_KEY = 'planning_config';
 
@@ -187,6 +187,22 @@ async function getAllPermissions(env) {
   return JSON.parse(raw);
 }
 async function saveAllPermissions(env, perms) { await env.LOGS.put(PERMISSIONS_KEY, JSON.stringify(perms)); }
+
+// Check if a user has a specific permission
+async function userHasPermission(env, userName, permKey) {
+  if (!userName || !permKey) return false;
+  const allPerms = await getAllPermissions(env);
+  const userPerms = allPerms[userName.toLowerCase()] || { ...DEFAULT_PERMS };
+  return !!userPerms[permKey];
+}
+
+// Verify user credentials and return name if valid
+async function verifyUserCredentials(env, userName, password) {
+  if (!userName || !password) return null;
+  const users = await getUsers(env);
+  const match = users.find(u => u.name.toLowerCase() === userName.toLowerCase() && u.password === password);
+  return match ? match.name : null;
+}
 
 // Verify a vendor user credential
 async function handleVerifyUser(body, env) {
@@ -296,15 +312,25 @@ async function handleGetUserPermissions(body, env) {
 
 // ── Consumption Defaults ──────────────────────────────────────────────
 async function handleSaveConsumptionDefaults(body, env, authHeader) {
+  // Admin JWT auth
   const token = (authHeader || '').replace('Bearer ', '');
   const payload = await verifyToken(token, env.JWT_SECRET);
-  if (!payload) return jsonResp({ error: 'Unauthorized' }, 401);
+  let actingUser = 'admin';
+  // If no admin token, check user permission
+  if (!payload) {
+    const { userName, userPassword } = body;
+    const verified = await verifyUserCredentials(env, userName, userPassword);
+    if (!verified) return jsonResp({ error: 'Unauthorized' }, 401);
+    const hasPerm = await userHasPermission(env, verified, 'calc_changes');
+    if (!hasPerm) return jsonResp({ error: 'No calc_changes permission' }, 403);
+    actingUser = verified;
+  }
   const { modules } = body;
   if (!modules || !Array.isArray(modules)) return jsonResp({ error: 'Modules array required' }, 400);
   const data = JSON.stringify(modules);
   if (data.length > 2 * 1024 * 1024) return jsonResp({ error: 'Data too large' }, 413);
   await env.LOGS.put(CONSUMPTION_DEFAULTS_KEY, data);
-  await appendLog(env, { type: 'config', user: 'admin', ts: new Date().toISOString(), detail: 'Saved consumption defaults' });
+  await appendLog(env, { type: 'config', user: actingUser, ts: new Date().toISOString(), detail: 'Saved consumption defaults' });
   return jsonResp({ ok: true });
 }
 
@@ -317,7 +343,14 @@ async function handleGetConsumptionDefaults(env) {
 
 // ── Planning Config (customer module overrides, shared across all users) ──
 async function handleSavePlanningConfig(body, env) {
-  const { customerModuleOverrides } = body;
+  // Check permission: admin token or user with plan_changes
+  const { userName, userPassword, customerModuleOverrides } = body;
+  if (userName && userPassword) {
+    const verified = await verifyUserCredentials(env, userName, userPassword);
+    if (!verified) return jsonResp({ error: 'Unauthorized' }, 401);
+    const hasPerm = await userHasPermission(env, verified, 'plan_changes');
+    if (!hasPerm) return jsonResp({ error: 'No plan_changes permission' }, 403);
+  }
   if (!customerModuleOverrides || typeof customerModuleOverrides !== 'object')
     return jsonResp({ error: 'customerModuleOverrides object required' }, 400);
   const data = JSON.stringify({ customerModuleOverrides, _ts: Date.now() });
@@ -377,7 +410,14 @@ async function handleAddLog(body, env, authHeader) {
 const CUSTOMER_DATA_KEY = 'customer_mappings_data';
 
 async function handleSaveCustomerData(body, env) {
-  const { customerStockMappings, customerVariantSelections, _ts } = body;
+  // Check permission: admin or user with plan_changes
+  const { customerStockMappings, customerVariantSelections, _ts, userName, userPassword } = body;
+  if (userName && userPassword) {
+    const verified = await verifyUserCredentials(env, userName, userPassword);
+    if (!verified) return jsonResp({ error: 'Unauthorized' }, 401);
+    const hasPerm = await userHasPermission(env, verified, 'plan_changes');
+    if (!hasPerm) return jsonResp({ error: 'No plan_changes permission' }, 403);
+  }
   if (!customerStockMappings && !customerVariantSelections) return jsonResp({ error: 'No data provided' }, 400);
   const data = JSON.stringify({ customerStockMappings: customerStockMappings || {}, customerVariantSelections: customerVariantSelections || {}, _ts: _ts || Date.now() });
   if (data.length > 5 * 1024 * 1024) return jsonResp({ error: 'Data too large' }, 413);

@@ -2765,8 +2765,10 @@ const VENDOR_SHEETS = {
             <tr>
               <th>User</th>
               <th>Calculator</th>
+              <th>Calc Deploy</th>
               <th>Planning View</th>
               <th>Planning Edit</th>
+              <th>Plan Deploy</th>
               <th>Cell INV</th>
               <th>Vendor View</th>
               <th>Vendor Edit</th>
@@ -2774,7 +2776,7 @@ const VENDOR_SHEETS = {
             </tr>
           </thead>
           <tbody id="permBody">
-            <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Loading…</td></tr>
+            <tr><td colspan="10" style="text-align:center;color:var(--muted);padding:30px">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -4086,7 +4088,16 @@ function savePlanOverrides() {
 const _KV_URL = 'https://scm-ease-admin.scm-ease.workers.dev';
 
 function syncCustomerDataToCloud() {
+  // Only sync if user has plan_changes permission or is admin
+  if (!sessionStorage.getItem('adminToken') && sessionStorage.getItem('planChangesPerm') !== '1') {
+    console.log('Cloud sync skipped — no plan_changes permission');
+    return;
+  }
   const data = { customerStockMappings, customerVariantSelections, _ts: Date.now() };
+  if (!sessionStorage.getItem('adminToken')) {
+    data.userName = sessionStorage.getItem('siteUser') || '';
+    data.userPassword = sessionStorage.getItem('sitePass') || '';
+  }
   fetch(_KV_URL + '/api/customer-data', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -4174,7 +4185,7 @@ function cellShowView(which, btn) {
       const frm = document.getElementById('explorerFrame');
       if (frm.src === 'about:blank' || !frm.src.includes('3d-explorer')) frm.src = '3d-explorer.html';
     }
-    if (which === 'plan' && lastAnalysis && typeof planRaw !== 'undefined' && planRaw) runAnalysisAuto();
+    if (which === 'plan' && lastAnalysis && planRaw && planRaw.length > 0) runAnalysisAuto();
     if (which === 'vendor') {
       const gateUser = sessionStorage.getItem('siteUser');
       if (gateUser && !sessionStorage.getItem('vendorUser')) {
@@ -5081,14 +5092,24 @@ window.setCustModOverride = function(sel) {
 };
 
 window.saveCustomerModuleOverrides = async function() {
+  // Check permission
+  if (!sessionStorage.getItem('adminToken') && sessionStorage.getItem('planChangesPerm') !== '1') {
+    alert('You do not have permission to save global changes. Contact admin.');
+    return;
+  }
   const btn = document.getElementById('saveModOverridesBtn');
   btn.textContent = 'Saving…';
   btn.disabled = true;
   try {
+    const payload = { customerModuleOverrides };
+    if (!sessionStorage.getItem('adminToken')) {
+      payload.userName = sessionStorage.getItem('siteUser') || '';
+      payload.userPassword = sessionStorage.getItem('sitePass') || '';
+    }
     const r = await fetch('https://scm-ease-admin.scm-ease.workers.dev/api/planning-config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customerModuleOverrides })
+      body: JSON.stringify(payload)
     });
     if (r.ok) {
       btn.textContent = '✅ Saved!';
@@ -6770,6 +6791,8 @@ async function loadAnalysisState() {
     
     renderConsolidatedTable(lastAnalysis.consolidated);
     renderDetailedTable(lastAnalysis.plannedModules, lastAnalysis.consolidated);
+    renderCustomerMaterials(lastAnalysis.customerOrders, lastAnalysis.consolidated);
+    renderStockCapacity(lastAnalysis.customerOrders, lastAnalysis.plannedModules, lastAnalysis.consolidated);
     
     // Re-render KPIs
     const totMods = Object.values(lastAnalysis.plannedModules).reduce((s, v) => s + v.qty, 0);
@@ -7091,9 +7114,15 @@ loadAnalysisState();
     document.getElementById('adminLoginBtn').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span style="color:#10b981">Admin ✓</span>';
     document.getElementById('modeLog').style.display = '';
     document.getElementById('modeUsers').style.display = '';
-    // Show "Save as Default" button for admin
+    // Admin has all deploy permissions
+    sessionStorage.setItem('calcChangesPerm', '1');
+    sessionStorage.setItem('planChangesPerm', '1');
     var sdBtn = document.getElementById('saveDefaultsBtn');
     if (sdBtn) sdBtn.style.display = '';
+    var deployBtn = document.getElementById('adminDeployBtn');
+    if (deployBtn) deployBtn.style.display = '';
+    var addModBtn = document.getElementById('adminAddModuleBtn');
+    if (addModBtn) addModBtn.style.display = '';
     if (typeof render === 'function') render();
   }
   window.enterAdminMode = enterAdminMode;
@@ -7104,9 +7133,15 @@ loadAnalysisState();
     document.getElementById('adminLoginBtn').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Admin</span>';
     document.getElementById('modeLog').style.display = 'none';
     document.getElementById('modeUsers').style.display = 'none';
-    // Hide "Save as Default" button
+    // Reset deploy permissions to user level
+    sessionStorage.setItem('calcChangesPerm', '0');
+    sessionStorage.setItem('planChangesPerm', '0');
     var sdBtn = document.getElementById('saveDefaultsBtn');
     if (sdBtn) sdBtn.style.display = 'none';
+    var deployBtn = document.getElementById('adminDeployBtn');
+    if (deployBtn) deployBtn.style.display = 'none';
+    var addModBtn = document.getElementById('adminAddModuleBtn');
+    if (addModBtn) addModBtn.style.display = 'none';
   }
   window.exitAdminMode = exitAdminMode;
 
@@ -7181,8 +7216,23 @@ loadAnalysisState();
   // deploy
   document.getElementById('adminDeployBtn').addEventListener('click', async () => {
     if (!_WORKER_URL) { alert('Worker URL not configured'); return; }
+    // Check permission for non-admin
+    if (!getToken() && sessionStorage.getItem('calcChangesPerm') !== '1') {
+      alert('You do not have permission to deploy changes. Contact admin.');
+      return;
+    }
     const token = getToken();
-    if (!token) { alert('Session expired. Please login again.'); exitAdminMode(); return; }
+    if (!token) {
+      // Non-admin user with calc_changes permission — use a special deploy flow
+      if (!confirm('Deploy current module data to GitHub?\nThis will update the live site for ALL users.')) return;
+      const btn = document.getElementById('adminDeployBtn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Deploying…';
+      alert('Admin token required for deploy. Please contact admin or login as admin.');
+      btn.disabled = false;
+      btn.textContent = '🚀 Deploy Changes';
+      return;
+    }
     if (!confirm('Deploy current module data to GitHub?\nThis will update the live site for ALL users.')) return;
     const btn = document.getElementById('adminDeployBtn');
     btn.disabled = true;
@@ -8322,6 +8372,7 @@ loadAnalysisState();
       const vd = await vr.json();
       if (vr.ok && vd.user) {
         setSiteUser(vd.user);
+        sessionStorage.setItem('sitePass', pw);
         sessionStorage.setItem('vendorUser', vd.user);
         gate.classList.add('hidden');
         logGateLogin(vd.user);
@@ -8809,11 +8860,13 @@ window.umSwitchTab = function(tab) {
 // ── Permissions Management ──
 (function(){
   const WORKER_URL = 'https://scm-ease-admin.scm-ease.workers.dev';
-  const TAB_KEYS = ['calc', 'plan', 'plan_edit', 'cell', 'vendor', 'vendor_edit', 'explorer'];
+  const TAB_KEYS = ['calc', 'calc_changes', 'plan', 'plan_edit', 'plan_changes', 'cell', 'vendor', 'vendor_edit', 'explorer'];
   const TAB_LABELS = {
     calc: 'Calculator',
+    calc_changes: 'Calc Deploy',
     plan: 'Planning View',
     plan_edit: 'Planning Edit',
+    plan_changes: 'Plan Deploy',
     cell: 'Cell INV',
     vendor: 'Vendor View',
     vendor_edit: 'Vendor Edit',
@@ -8823,7 +8876,7 @@ window.umSwitchTab = function(tab) {
 
   let permUsers = [];
   let permData = {};
-  let permDefaults = { calc: true, plan: true, plan_edit: true, cell: true, vendor: true, vendor_edit: true, explorer: true };
+  let permDefaults = { calc: true, calc_changes: false, plan: true, plan_edit: true, plan_changes: false, cell: true, vendor: true, vendor_edit: true, explorer: true };
 
   function getToken() { return sessionStorage.getItem('adminToken') || ''; }
   function escH(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
@@ -8841,13 +8894,13 @@ window.umSwitchTab = function(tab) {
       ]);
       const usersData = await usersRes.json();
       const permsDataResp = await permsRes.json();
-      if (!usersRes.ok) { body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#f87171;padding:30px">' + escH(usersData.error) + '</td></tr>'; return; }
+      if (!usersRes.ok) { body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#f87171;padding:30px">' + escH(usersData.error) + '</td></tr>'; return; }
       permUsers = usersData.users || [];
       permData = permsDataResp.permissions || {};
       if (permsDataResp.defaults) permDefaults = permsDataResp.defaults;
       renderPermissions();
     } catch(e) {
-      body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#f87171;padding:30px">Network error</td></tr>';
+      body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#f87171;padding:30px">Network error</td></tr>';
     }
   };
 
@@ -8858,7 +8911,7 @@ window.umSwitchTab = function(tab) {
   function renderPermissions() {
     const body = document.getElementById('permBody');
     if (!permUsers.length) {
-      body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">No users found</td></tr>';
+      body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:30px">No users found</td></tr>';
       return;
     }
     body.innerHTML = permUsers.map((u, i) => {
@@ -8955,6 +9008,10 @@ window.umSwitchTab = function(tab) {
       applyPlanEditPerm(perms.plan_edit !== false);
       // Enforce vendor edit permission
       applyVendorEditPerm(perms.vendor_edit !== false);
+      // Enforce calc deploy permission
+      applyCalcChangesPerm(perms.calc_changes === true);
+      // Enforce plan deploy permission
+      applyPlanChangesPerm(perms.plan_changes === true);
       // If current active tab is now hidden, switch to first visible
       const activeBtn = document.querySelector('.mode-btn.active');
       if (activeBtn && activeBtn.style.display === 'none') {
@@ -8990,6 +9047,41 @@ window.umSwitchTab = function(tab) {
       document.body.classList.remove('vendor-edit-active');
     }
   };
+
+  // Calc tab: show/hide Deploy Changes + Save as Default buttons
+  window.applyCalcChangesPerm = function(canDeploy) {
+    sessionStorage.setItem('calcChangesPerm', canDeploy ? '1' : '0');
+    // Deploy button in admin toolbar
+    const deployBtn = document.getElementById('adminDeployBtn');
+    if (deployBtn) deployBtn.style.display = canDeploy ? '' : 'none';
+    // Save as Default button
+    const sdBtn = document.getElementById('saveDefaultsBtn');
+    if (sdBtn) sdBtn.style.display = canDeploy ? '' : 'none';
+    // Add Module Type button
+    const addModBtn = document.getElementById('adminAddModuleBtn');
+    if (addModBtn) addModBtn.style.display = canDeploy ? '' : 'none';
+    // Show toolbar for non-admin users with calc_changes permission
+    if (canDeploy && !sessionStorage.getItem('adminToken')) {
+      const toolbar = document.getElementById('adminToolbar');
+      if (toolbar) {
+        toolbar.classList.add('show');
+        // Hide admin-only elements
+        const logoutBtn = document.getElementById('adminLogoutBtn');
+        if (logoutBtn) logoutBtn.style.display = 'none';
+        // Update label
+        const label = toolbar.querySelector('.atb-label');
+        if (label) label.textContent = '🔧 Changes Mode — Deploy & Save as Default enabled';
+      }
+    }
+  };
+
+  // Plan tab: show/hide global save buttons (module type overrides, customer data sync)
+  window.applyPlanChangesPerm = function(canSave) {
+    sessionStorage.setItem('planChangesPerm', canSave ? '1' : '0');
+    // Save Module Type Overrides button
+    const modBtn = document.getElementById('saveModOverridesBtn');
+    if (modBtn) modBtn.style.display = canSave ? '' : 'none';
+  };
 })();
 </script>
 
@@ -9002,15 +9094,25 @@ window.umSwitchTab = function(tab) {
   document.getElementById('saveDefaultsBtn').addEventListener('click', async function() {
     const btn = this;
     const token = sessionStorage.getItem('adminToken');
-    if (!token) return alert('Admin login required');
+    const hasCalcPerm = sessionStorage.getItem('calcChangesPerm') === '1';
+    if (!token && !hasCalcPerm) return alert('Permission required');
     if (!confirm('Save current consumption & wastage values as the default for all users?')) return;
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
-      // modules is global from the consumption IIFE
+      // Build request — admin uses JWT, regular users send credentials
+      const payload = { modules: modules };
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = 'Bearer ' + token;
+      } else {
+        // Send gate login credentials for permission verification
+        payload.userName = sessionStorage.getItem('siteUser') || '';
+        payload.userPassword = sessionStorage.getItem('sitePass') || '';
+      }
       const res = await fetch(WORKER + '/api/consumption-defaults', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ modules: modules })
+        headers: headers,
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (data.ok) {
