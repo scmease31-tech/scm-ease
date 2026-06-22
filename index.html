@@ -2621,12 +2621,7 @@ const VENDOR_SHEETS = {
       <strong id="mapModalMaterial">—</strong><br>
       <span style="color: var(--muted); font-size: 11px;" id="mapModalSpec">—</span>
     </div>
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
-      <input type="text" class="mapping-search" id="mapModalSearch" placeholder="Search stock items..." oninput="filterMappingItems()" style="flex:1;margin:0;">
-      <select id="mapModalVariant" onchange="filterMappingItems()" style="font-size:11px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;background:#fff;min-width:120px;">
-        <option value="">All Variants</option>
-      </select>
-    </div>
+    <input type="text" class="mapping-search" id="mapModalSearch" placeholder="Search stock items..." oninput="filterMappingItems()">
     <div class="modal-fields" id="mapModalItems"></div>
     <div class="modal-footer">
       <button class="btn-modal-cancel" onclick="closeModal('stockMapModal')">Cancel</button>
@@ -3802,6 +3797,7 @@ let userDateTo = null;   // User-selected end date (null = use all)
 // Persisted planning overrides
 const savedPlan = JSON.parse(localStorage.getItem("rmPlanOverrides") || "{}");
 const stockMappingOverrides = savedPlan.stockMappingOverrides || {}; // { materialKey: [stockItemDesc1, ...] }
+const stockVariantSelections = savedPlan.stockVariantSelections || {}; // { "materialKey|||stockDesc": ["variant1", ...] }
 const discardedMaterials = new Set(savedPlan.discardedMaterials || []); // Set of materialKey
 
 // Aggregated analysis results (shared between renders)
@@ -3851,6 +3847,7 @@ const analysisDB = {
 function savePlanOverrides() {
   try { localStorage.setItem("rmPlanOverrides", JSON.stringify({
     stockMappingOverrides,
+    stockVariantSelections,
     discardedMaterials: Array.from(discardedMaterials)
   })); } catch(e) { console.warn('localStorage quota exceeded', e); }
 }
@@ -4312,6 +4309,19 @@ function buildAutoStockMapping(materialGroup, materialSpec, materialUom) {
   return [...new Set(matchedKeys)];
 }
 
+function getStockQtyWithVariants(materialKey, desc) {
+  const info = aggregatedStock[desc];
+  if (!info) return 0;
+  const vKey = materialKey + '|||' + desc;
+  const selVariants = stockVariantSelections[vKey];
+  // If no variant selection saved or item has no variants, use full qty
+  if (!selVariants || !info.variants || Object.keys(info.variants).length === 0) return info.qty;
+  // Sum only selected variant quantities
+  let sum = 0;
+  selVariants.forEach(v => { if (info.variants[v]) sum += info.variants[v]; });
+  return sum;
+}
+
 function getStockForMaterial(materialKey, materialGroup, materialSpec, materialUom) {
   // Check manual override first
   if (stockMappingOverrides[materialKey] && stockMappingOverrides[materialKey].length > 0) {
@@ -4319,8 +4329,9 @@ function getStockForMaterial(materialKey, materialGroup, materialSpec, materialU
     const items = [];
     stockMappingOverrides[materialKey].forEach(desc => {
       if (aggregatedStock[desc]) {
-        total += aggregatedStock[desc].qty;
-        items.push({ desc, qty: aggregatedStock[desc].qty, uom: aggregatedStock[desc].uom, manual: true });
+        const qty = getStockQtyWithVariants(materialKey, desc);
+        total += qty;
+        items.push({ desc, qty, uom: aggregatedStock[desc].uom, manual: true });
       }
     });
     return { total, items, isManual: true };
@@ -4332,8 +4343,9 @@ function getStockForMaterial(materialKey, materialGroup, materialSpec, materialU
   const items = [];
   autoMapped.forEach(desc => {
     if (aggregatedStock[desc]) {
-      total += aggregatedStock[desc].qty;
-      items.push({ desc, qty: aggregatedStock[desc].qty, uom: aggregatedStock[desc].uom, manual: false });
+      const qty = getStockQtyWithVariants(materialKey, desc);
+      total += qty;
+      items.push({ desc, qty, uom: aggregatedStock[desc].uom, manual: false });
     }
   });
   return { total, items, isManual: false };
@@ -4949,30 +4961,19 @@ window.openStockMapModal = function(materialKey) {
   document.getElementById('mapModalSpec').textContent = spec;
   document.getElementById('mapModalSearch').value = '';
 
-  // Populate variant dropdown from all stock items
-  const variantSet = new Set();
-  Object.values(aggregatedStock).forEach(info => {
-    if (info.variants) Object.keys(info.variants).forEach(v => { if (v) variantSet.add(v); });
-  });
-  const variantSelect = document.getElementById('mapModalVariant');
-  variantSelect.innerHTML = '<option value="">All Variants</option>' +
-    Array.from(variantSet).sort().map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
-  variantSelect.value = '';
-
   // Get currently mapped items
   const currentlyMapped = stockMappingOverrides[materialKey] || [];
   const autoMapped = buildAutoStockMapping(group, spec, '');
 
   // Build item list — currently mapped + auto mapped first, then all
-  renderMappingItems(currentlyMapped, autoMapped, '', '');
+  renderMappingItems(currentlyMapped, autoMapped, '');
   document.getElementById('stockMapModal').classList.add('open');
 };
 
-function renderMappingItems(currentlyMapped, autoMapped, searchTerm, variantFilter) {
+function renderMappingItems(currentlyMapped, autoMapped, searchTerm) {
   const container = document.getElementById('mapModalItems');
   const allItems = Object.entries(aggregatedStock);
   const filter = searchTerm.toLowerCase();
-  const vFilter = (variantFilter || '').toLowerCase();
 
   // Sort: currently mapped first, then auto-mapped, then rest
   const scored = allItems.map(([desc, info]) => {
@@ -4982,26 +4983,30 @@ function renderMappingItems(currentlyMapped, autoMapped, searchTerm, variantFilt
     if (info.cat === 'Raw' || info.cat === 'Packing') score += 0.5;
     return { desc, info, score };
   })
-  .filter(item => {
-    if (filter && !item.desc.toLowerCase().includes(filter) && !item.info.cat.toLowerCase().includes(filter) && !item.info.subcat.toLowerCase().includes(filter)) return false;
-    // Variant filter: show item only if it has the selected variant (or no filter)
-    if (vFilter && item.info.variants) {
-      const hasVariant = Object.keys(item.info.variants).some(v => v.toLowerCase() === vFilter);
-      if (!hasVariant) return false;
-    }
-    return true;
-  })
+  .filter(item => !filter || item.desc.toLowerCase().includes(filter) || item.info.cat.toLowerCase().includes(filter) || item.info.subcat.toLowerCase().includes(filter))
   .sort((a, b) => b.score - a.score);
 
   container.innerHTML = scored.slice(0, 100).map(item => {
     const isSelected = currentlyMapped.includes(item.desc) || (!stockMappingOverrides[currentMappingKey] && autoMapped.includes(item.desc));
-    // Build variant pills
+    const vKey = currentMappingKey + '|||' + item.desc;
+    const savedVariants = stockVariantSelections[vKey] || [];
+    // Build clickable variant pills
     let variantHtml = '';
     if (item.info.variants && Object.keys(item.info.variants).length > 0) {
-      variantHtml = '<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:2px;">' +
-        Object.entries(item.info.variants).map(([v, q]) =>
-          `<span style="font-size:9px;padding:1px 5px;border-radius:4px;background:#e0e7ff;color:#3730a3;">${escHtml(v)}: ${fmt2.format(q)}</span>`
-        ).join('') + '</div>';
+      const allVNames = Object.keys(item.info.variants);
+      const hasSelection = savedVariants.length > 0;
+      variantHtml = '<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px;" onclick="event.stopPropagation()">' +
+        allVNames.map(v => {
+          const q = item.info.variants[v];
+          const isOn = !hasSelection || savedVariants.includes(v);
+          return `<span class="variant-pill" data-variant="${escHtml(v)}" data-stock="${escHtml(item.desc)}" 
+            onclick="toggleVariantPill(this)" 
+            style="font-size:9px;padding:2px 6px;border-radius:4px;cursor:pointer;user-select:none;
+            background:${isOn ? '#e0e7ff' : '#f3f4f6'};color:${isOn ? '#3730a3' : '#9ca3af'};
+            border:1px solid ${isOn ? '#818cf8' : '#d1d5db'};${!isOn ? 'text-decoration:line-through;' : ''}"
+            title="Click to ${isOn ? 'exclude' : 'include'} this variant">
+            ${escHtml(v)}: ${fmt2.format(q)}</span>`;
+        }).join('') + '</div>';
     }
     return `<div class="mapping-item ${isSelected ? 'selected' : ''}" onclick="toggleMappingItem(this)">
       <input type="checkbox" ${isSelected ? 'checked' : ''} value="${escHtml(item.desc)}">
@@ -5019,6 +5024,39 @@ function renderMappingItems(currentlyMapped, autoMapped, searchTerm, variantFilt
   }
 }
 
+window.toggleVariantPill = function(pill) {
+  const variant = pill.dataset.variant;
+  const stockDesc = pill.dataset.stock;
+  const vKey = currentMappingKey + '|||' + stockDesc;
+  const info = aggregatedStock[stockDesc];
+  if (!info || !info.variants) return;
+
+  const allVNames = Object.keys(info.variants);
+  let selected = stockVariantSelections[vKey] ? [...stockVariantSelections[vKey]] : [...allVNames];
+
+  if (selected.includes(variant)) {
+    selected = selected.filter(v => v !== variant);
+    if (selected.length === 0) selected = [...allVNames]; // can't deselect all, reset to all
+  } else {
+    selected.push(variant);
+  }
+
+  // If all are selected, remove the override (means "use all")
+  if (selected.length === allVNames.length) {
+    delete stockVariantSelections[vKey];
+  } else {
+    stockVariantSelections[vKey] = selected;
+  }
+
+  // Update pill visuals
+  const isOn = !stockVariantSelections[vKey] || (stockVariantSelections[vKey] && stockVariantSelections[vKey].includes(variant));
+  pill.style.background = isOn ? '#e0e7ff' : '#f3f4f6';
+  pill.style.color = isOn ? '#3730a3' : '#9ca3af';
+  pill.style.borderColor = isOn ? '#818cf8' : '#d1d5db';
+  pill.style.textDecoration = isOn ? 'none' : 'line-through';
+  pill.title = 'Click to ' + (isOn ? 'exclude' : 'include') + ' this variant';
+};
+
 window.toggleMappingItem = function(div) {
   const cb = div.querySelector('input[type="checkbox"]');
   cb.checked = !cb.checked;
@@ -5027,11 +5065,10 @@ window.toggleMappingItem = function(div) {
 
 window.filterMappingItems = function() {
   const search = document.getElementById('mapModalSearch').value;
-  const variant = document.getElementById('mapModalVariant').value;
   const [group, spec] = (currentMappingKey || '').split('|||');
   const currentlyMapped = stockMappingOverrides[currentMappingKey] || [];
   const autoMapped = buildAutoStockMapping(group || '', spec || '', '');
-  renderMappingItems(currentlyMapped, autoMapped, search, variant);
+  renderMappingItems(currentlyMapped, autoMapped, search);
 };
 
 window.saveStockMapping = function() {
@@ -5043,6 +5080,13 @@ window.saveStockMapping = function() {
   } else {
     delete stockMappingOverrides[currentMappingKey];
   }
+  // Clean up variant selections for unchecked items
+  Object.keys(stockVariantSelections).forEach(vk => {
+    if (vk.startsWith(currentMappingKey + '|||')) {
+      const desc = vk.split('|||').slice(2).join('|||');
+      if (!checked.includes(desc)) delete stockVariantSelections[vk];
+    }
+  });
   savePlanOverrides();
   closeModal('stockMapModal');
   if (lastAnalysis) runAnalysisAuto();
