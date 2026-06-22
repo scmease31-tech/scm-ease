@@ -4230,6 +4230,21 @@ function processExcelPlan(file, callback, onError) {
       workbook.SheetNames.forEach(name => {
         const ws = workbook.Sheets[name];
         if (!ws) return;
+        // Fill merged cells so values propagate to all cells in the merge range
+        if (ws['!merges']) {
+          ws['!merges'].forEach(range => {
+            const startAddr = XLSX.utils.encode_cell(range.s);
+            const startCell = ws[startAddr];
+            if (!startCell) return;
+            for (let r = range.s.r; r <= range.e.r; r++) {
+              for (let c = range.s.c; c <= range.e.c; c++) {
+                if (r === range.s.r && c === range.s.c) continue;
+                const addr = XLSX.utils.encode_cell({r: r, c: c});
+                if (!ws[addr]) ws[addr] = {v: startCell.v, t: startCell.t};
+              }
+            }
+          });
+        }
         const raw2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: true, defval: ''});
         const fmt2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: false, defval: ''});
         allRaw = allRaw.concat(raw2d);
@@ -4851,6 +4866,13 @@ function runAnalysisAuto() {
         }
       }
     }
+    // Debug: catch rows with customer names that fail the data-row condition
+    else if (col0 && !_isHeaderRow(row) && !col0.startsWith('Pending') && !_norm(col0).includes('total')) {
+      const _lc2 = _norm(col0);
+      if (_lc2.includes('ankur') || _lc2.includes('lubi') || _lc2.includes('unisol') || _lc2.includes('dd ')) {
+        console.log('[Skipped Row]', col0, {ri, wp: row[currentWpCol], wpCol: currentWpCol, hasHeader: currentDateHeadersRaw.length > 0, rowLen: row.length, first5: row.slice(0,5)});
+      }
+    }
   });
 
   // Debug: log parsing results
@@ -4870,7 +4892,7 @@ function runAnalysisAuto() {
   if (headerRows.length > 0) {
     const lastHdr = headerRows[headerRows.length - 1];
     const lastHdrIdx = planRaw.lastIndexOf(lastHdr);
-    const lastSectionRows = planRaw.slice(lastHdrIdx, Math.min(lastHdrIdx + 15, planRaw.length));
+    const lastSectionRows = planRaw.slice(lastHdrIdx, planRaw.length);
     console.log('[Last Section] starts at row', lastHdrIdx, 'of', planRaw.length);
     lastSectionRows.forEach((row, i) => {
       const r = lastHdrIdx + i;
