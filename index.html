@@ -2221,7 +2221,7 @@
           <table>
             <thead>
               <tr class="group-row">
-                <th colspan="5" style="text-align:left">Material Details</th>
+                <th colspan="6" style="text-align:left">Material Details</th>
                 <th colspan="2" style="text-align:center">Requirement</th>
                 <th colspan="3" style="text-align:center; background:#0d4f38">Stock Analysis</th>
                 <th style="background:#1a1a2e">Actions</th>
@@ -2232,6 +2232,7 @@
                 <th class="center">UOM</th>
                 <th class="num">Per Module</th>
                 <th>Used By</th>
+                <th>Material Code</th>
                 <th class="num">Total Modules</th>
                 <th class="num" style="background:#e6f7f1; color:var(--solar-1);">Required Qty</th>
                 <th>Mapped Stock Item(s)</th>
@@ -2245,11 +2246,12 @@
                 <th><div class="cf-wrap" data-col="2" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
                 <th></th>
                 <th><div class="cf-wrap" data-col="4" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+                <th><div class="cf-wrap" data-col="5" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
                 <th></th>
                 <th></th>
-                <th><div class="cf-wrap" data-col="7" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+                <th><div class="cf-wrap" data-col="8" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
                 <th></th>
-                <th><div class="cf-wrap" data-col="9" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+                <th><div class="cf-wrap" data-col="10" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
                 <th></th>
               </tr>
             </thead>
@@ -2270,6 +2272,7 @@
               <th>Material Group</th>
               <th>Technical Specifications</th>
               <th class="center">UOM</th>
+              <th>Material Code</th>
               <th class="num">Qty / Module</th>
               <th class="num">Wastage %</th>
               <th class="num">Consumption</th>
@@ -2284,9 +2287,10 @@
               <th><div class="cf-wrap" data-col="1" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
               <th><div class="cf-wrap" data-col="2" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
               <th><div class="cf-wrap" data-col="3" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+              <th><div class="cf-wrap" data-col="4" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
               <th></th><th></th><th></th><th></th>
               <th></th><th></th><th></th>
-              <th><div class="cf-wrap" data-col="11" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+              <th><div class="cf-wrap" data-col="12" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
             </tr>
           </thead>
           <tbody id="resultBodyPlan"></tbody>
@@ -5009,6 +5013,18 @@ function renderConsolidatedTable(consolidated) {
     // Used by
     const usedByHtml = mat.usedBy.map(name => `<span class="mod-badge" style="font-size:9px;padding:1px 5px;">${escHtml(name.split(' ')[0])}</span>`).join(' ');
 
+    // Material codes from mapped stock items
+    const matCodes = [];
+    if (mat.stockResult && mat.stockResult.items.length > 0) {
+      mat.stockResult.items.forEach(item => {
+        const si = aggregatedStock[item.desc];
+        if (si && si.code && !matCodes.includes(si.code)) matCodes.push(si.code);
+      });
+    }
+    const matCodeHtml = matCodes.length > 0
+      ? matCodes.map(c => `<span style="font-size:9px;padding:1px 5px;background:#f0f4f8;border:1px solid #e2eaf0;border-radius:3px;color:#3a4a56;font-family:'JetBrains Mono',monospace;display:inline-block;margin:1px 2px;">${escHtml(c)}</span>`).join('')
+      : '<span style="color:var(--muted);font-size:9px;">—</span>';
+
     // Diff display
     const diff = mat.diff;
     const diffStr = isDiscarded ? '—' : (diff >= 0 ? `<span style="color:#059669">+${fmt2.format(diff)}</span>` : `<span style="color:#dc2626;font-weight:800">${fmt2.format(diff)}</span>`);
@@ -5022,6 +5038,7 @@ function renderConsolidatedTable(consolidated) {
       <td class="center" style="font-weight:600;color:var(--muted);font-size:11px">${escHtml(mat.uom)}</td>
       <td class="num" style="font-family:'JetBrains Mono',monospace;font-size:11px">${fmt(mat.perModule)}</td>
       <td>${usedByHtml}</td>
+      <td style="padding:4px 6px">${matCodeHtml}</td>
       <td class="num" style="font-weight:700">${fmt2.format(mat.totalModules)}</td>
       <td class="total-cell num" style="font-size:12px">${isDiscarded ? '—' : fmt2.format(mat.requiredQty)}</td>
       <td style="padding:4px 6px">${stockPillsHtml}</td>
@@ -5081,11 +5098,24 @@ function renderDetailedTable(plannedModules, consolidated) {
       else if (available >= reqQty * 0.5) statusBadge = '<span class="status-badge low">⚠️</span>';
       else statusBadge = '<span class="status-badge short">❌</span>';
 
+      // Material codes from mapped stock items for detailed view
+      const detailCodes = [];
+      if (cData && cData.stockResult && cData.stockResult.items.length > 0) {
+        cData.stockResult.items.forEach(item => {
+          const si = aggregatedStock[item.desc];
+          if (si && si.code && !detailCodes.includes(si.code)) detailCodes.push(si.code);
+        });
+      }
+      const detailCodeHtml = detailCodes.length > 0
+        ? detailCodes.map(c => `<span style="font-size:9px;padding:1px 5px;background:#f0f4f8;border:1px solid #e2eaf0;border-radius:3px;color:#3a4a56;font-family:'JetBrains Mono',monospace;display:inline-block;margin:1px 2px;">${escHtml(c)}</span>`).join('')
+        : '<span style="color:var(--muted);font-size:9px;">—</span>';
+
       html += `<tr class="${isDiscarded ? 'discarded' : ''}">
         <td><span class="mod-badge">${escHtml(mod.name)}</span><br><span style="font-size:10px;color:#666;">×${fmt2.format(mQty)} modules</span></td>
         <td class="group-cell">${escHtml(row.group)}</td>
         <td class="spec">${escHtml(row.spec)}</td>
         <td class="center" style="font-weight:600;color:var(--muted);font-size:11px">${escHtml(row.uom)}</td>
+        <td style="padding:4px 6px">${detailCodeHtml}</td>
         <td class="num">${row.qty}</td>
         <td class="num">${row.wastage}%</td>
         <td class="num">${cons.toFixed(6)}</td>
@@ -5159,6 +5189,7 @@ function renderCustomerMaterials(customerOrders, consolidated) {
               <th>Material Group</th>
               <th>Specification</th>
               <th class="center">UOM</th>
+              <th>Material Code</th>
               <th class="num">Required Qty</th>
               <th>Stock Mapping</th>
               <th class="num">Stock Qty</th>
@@ -5195,10 +5226,21 @@ function renderCustomerMaterials(customerOrders, consolidated) {
         ? stockResult.items.map(i => `<span class="stock-pill ${stockResult.isCustomer ? 'manual' : 'matched'}" title="${escHtml(i.desc)}" style="font-size:9px;padding:1px 5px;">${escHtml(i.desc.substring(0,30))}${i.desc.length>30?'…':''}</span>`).join(' ')
         : '<span style="color:var(--muted);font-size:10px;">No match</span>';
 
+      // Material codes from mapped stock items
+      const custMatCodes = [];
+      stockResult.items.forEach(item => {
+        const si = aggregatedStock[item.desc];
+        if (si && si.code && !custMatCodes.includes(si.code)) custMatCodes.push(si.code);
+      });
+      const custMatCodeHtml = custMatCodes.length > 0
+        ? custMatCodes.map(c => `<span style="font-size:9px;padding:1px 5px;background:#f0f4f8;border:1px solid #e2eaf0;border-radius:3px;color:#3a4a56;font-family:'JetBrains Mono',monospace;display:inline-block;margin:1px 2px;">${escHtml(c)}</span>`).join('')
+        : '<span style="color:var(--muted);font-size:9px;">—</span>';
+
       html += `<tr>
         <td class="group-cell">${escHtml(mat.group)}</td>
         <td class="spec">${escHtml(mat.spec)}</td>
         <td class="center" style="color:var(--muted)">${escHtml(mat.uom)}</td>
+        <td style="padding:4px 6px">${custMatCodeHtml}</td>
         <td class="num" style="font-weight:600">${fmt2.format(mat.reqQty)}</td>
         <td style="padding:4px 6px">${mappingLabel}</td>
         <td class="num" style="font-weight:700;color:var(--solar-1)">${fmt2.format(stockResult.total)}</td>
@@ -5869,8 +5911,8 @@ const _EX_BORDERS = { top: _EX_BORDER, bottom: _EX_BORDER, left: _EX_BORDER, rig
 function _colLetter(c){let s='';for(let n=c;n>=0;n=Math.floor(n/26)-1)s=String.fromCharCode(65+(n%26))+s;return s}
 const _TABLE_FORMULAS={
   resultBody:{7:'F{r}*(1+G{r}/100)',9:'H{r}*I{r}'},
-  consolidatedBody:{6:'D{r}*F{r}',9:'I{r}-G{r}'},
-  resultBodyPlan:{6:'E{r}*(1+F{r}/100)',8:'G{r}*H{r}',10:'J{r}-I{r}'},
+  consolidatedBody:{7:'D{r}*G{r}',10:'J{r}-H{r}'},
+  resultBodyPlan:{7:'F{r}*(1+G{r}/100)',9:'H{r}*I{r}',11:'K{r}-J{r}'},
   cellBody:{5:'D{r}*E{r}',7:'G{r}*D{r}',8:'H{r}*E{r}'},
   planOrderBody:{6:'E{r}*F{r}'}
 };
