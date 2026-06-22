@@ -344,16 +344,20 @@ async function handleGetConsumptionDefaults(env) {
 // ── Planning Config (customer module overrides, shared across all users) ──
 async function handleSavePlanningConfig(body, env) {
   // Check permission: admin token or user with plan_changes
-  const { userName, userPassword, customerModuleOverrides } = body;
+  const { userName, userPassword, customerModuleOverrides, globalStockMappings } = body;
   if (userName && userPassword) {
     const verified = await verifyUserCredentials(env, userName, userPassword);
     if (!verified) return jsonResp({ error: 'Unauthorized' }, 401);
     const hasPerm = await userHasPermission(env, verified, 'plan_changes');
     if (!hasPerm) return jsonResp({ error: 'No plan_changes permission' }, 403);
   }
-  if (!customerModuleOverrides || typeof customerModuleOverrides !== 'object')
-    return jsonResp({ error: 'customerModuleOverrides object required' }, 400);
-  const data = JSON.stringify({ customerModuleOverrides, _ts: Date.now() });
+  // Load existing config to merge partial updates
+  let existing = {};
+  try { const raw = await env.LOGS.get(PLANNING_CONFIG_KEY); if (raw) existing = JSON.parse(raw); } catch {}
+  if (customerModuleOverrides && typeof customerModuleOverrides === 'object') existing.customerModuleOverrides = customerModuleOverrides;
+  if (globalStockMappings && typeof globalStockMappings === 'object') existing.globalStockMappings = globalStockMappings;
+  existing._ts = Date.now();
+  const data = JSON.stringify(existing);
   if (data.length > 2 * 1024 * 1024) return jsonResp({ error: 'Data too large' }, 413);
   await env.LOGS.put(PLANNING_CONFIG_KEY, data);
   return jsonResp({ ok: true });

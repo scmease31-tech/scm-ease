@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>SCM Ease</title>
 <meta name="description" content="SCM Ease is a free online supply chain tool for solar module manufacturing: calculate raw material (RM) consumption per module, compare production planning against store stock, and price solar cells by amount and Wp."/>
@@ -2365,21 +2368,27 @@
         <span><strong>Stock Capacity:</strong> Shows how many modules and how much power (W/kW/MW/GW) your current stock can support for each material. The bottleneck material limits actual production capacity.</span>
       </div>
       <!-- Capacity sub-tabs -->
-      <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+      <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
         <button class="btn btn-sm cap-sub-tab active" data-captab="consolidated" onclick="switchCapTab('consolidated')" style="font-size:11px;padding:4px 12px;">📋 Consolidated</button>
         <button class="btn btn-sm cap-sub-tab" data-captab="detailed" onclick="switchCapTab('detailed')" style="font-size:11px;padding:4px 12px;">🔍 Detailed</button>
         <button class="btn btn-sm cap-sub-tab" data-captab="individual" onclick="switchCapTab('individual')" style="font-size:11px;padding:4px 12px;">📦 Individual Items</button>
         <button class="btn btn-sm cap-sub-tab" data-captab="customerCap" onclick="switchCapTab('customerCap')" style="font-size:11px;padding:4px 12px;">👥 Customer-wise</button>
+        <span style="flex:1"></span>
+        <button class="btn" id="saveStockMappingsBtn" onclick="saveGlobalStockMappings()"
+          style="background:var(--solar-1);color:#fff;padding:4px 14px;border-radius:6px;font-size:11px;font-weight:600;">
+          💾 Save Stock Mappings (for all users)
+        </button>
       </div>
       <!-- Capacity KPIs -->
       <div class="summary-grid" id="capacityKpi" style="margin-bottom:12px;"></div>
       <!-- Consolidated capacity -->
       <div id="capViewConsolidated">
+        <div style="margin-bottom:8px;"><input type="text" class="mapping-search" id="capSearchConsolidated" placeholder="Search consolidated materials..." oninput="filterCapView('consolidated')" style="width:280px;font-size:12px;padding:6px 10px;"></div>
         <div class="table-wrap">
           <table>
             <thead>
               <tr class="group-row">
-                <th colspan="4" style="text-align:left">Material</th>
+                <th colspan="5" style="text-align:left">Material</th>
                 <th colspan="2" style="text-align:center">Stock</th>
                 <th colspan="4" style="text-align:center;background:#78350f">⚡ Production Capacity from Stock</th>
               </tr>
@@ -2388,6 +2397,7 @@
                 <th>Specification</th>
                 <th class="center">UOM</th>
                 <th class="num">Per Module</th>
+                <th style="font-size:10px">Material Code</th>
                 <th class="num">Stock Qty</th>
                 <th>Mapped Item(s)</th>
                 <th class="num">Modules Possible</th>
@@ -2402,6 +2412,7 @@
       </div>
       <!-- Detailed capacity -->
       <div id="capViewDetailed" style="display:none;">
+        <div style="margin-bottom:8px;"><input type="text" class="mapping-search" id="capSearchDetailed" placeholder="Search detailed view..." oninput="filterCapView('detailed')" style="width:280px;font-size:12px;padding:6px 10px;"></div>
         <div class="table-wrap">
           <table>
             <thead>
@@ -2412,6 +2423,7 @@
                 <th class="center">UOM</th>
                 <th class="num">Per Module</th>
                 <th class="num">Module Wp</th>
+                <th style="font-size:10px">Material Code</th>
                 <th class="num">Stock Qty</th>
                 <th class="num">Modules Possible</th>
                 <th class="num">Power Capacity</th>
@@ -2423,11 +2435,13 @@
       </div>
       <!-- Individual stock items -->
       <div id="capViewIndividual" style="display:none;">
+        <div style="margin-bottom:8px;"><input type="text" class="mapping-search" id="capSearchIndividual" placeholder="Search stock items..." oninput="filterCapView('individual')" style="width:280px;font-size:12px;padding:6px 10px;"></div>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>Stock Item Description</th>
+                <th style="font-size:10px">Material Code</th>
                 <th>Category</th>
                 <th class="center">UOM</th>
                 <th class="num">Stock Qty</th>
@@ -2443,6 +2457,7 @@
       </div>
       <!-- Customer-wise capacity -->
       <div id="capViewCustomerCap" style="display:none;">
+        <div style="margin-bottom:8px;"><input type="text" class="mapping-search" id="capSearchCustomer" placeholder="Search customers & materials..." oninput="filterCapView('customer')" style="width:280px;font-size:12px;padding:6px 10px;"></div>
         <div id="capCustomerContainer"></div>
       </div>
     </div>
@@ -4020,13 +4035,23 @@ const customerVariantSelections = savedPlan.customerVariantSelections || {}; // 
 // Customer module type overrides (loaded from KV, shared across all users)
 let customerModuleOverrides = {}; // { customerName: { modKey: "m10r", wp: 595 } }
 
-// Fetch customer module overrides from KV on load
+// Global stock mappings (loaded from KV, shared across all users)
+let globalStockMappings = {}; // { materialKey: [stockItemDesc1, ...] }
+
+// Fetch planning config from KV on load (customer overrides + global stock mappings)
 (async function loadPlanningConfig() {
   try {
     const r = await fetch('https://scm-ease-admin.scm-ease.workers.dev/api/planning-config');
     if (r.ok) {
       const data = await r.json();
       customerModuleOverrides = data.customerModuleOverrides || {};
+      globalStockMappings = data.globalStockMappings || {};
+      // Merge global stock mappings into local overrides (KV takes precedence for keys not locally overridden)
+      Object.keys(globalStockMappings).forEach(mk => {
+        if (!stockMappingOverrides[mk] || stockMappingOverrides[mk].length === 0) {
+          stockMappingOverrides[mk] = globalStockMappings[mk];
+        }
+      });
     }
   } catch(e) { console.warn('Failed to load planning config:', e); }
 })();
@@ -5233,6 +5258,40 @@ window.saveCustomerModuleOverrides = async function() {
   }
 };
 
+// ── Save Global Stock Mappings to KV ─────────────────────────────────
+window.saveGlobalStockMappings = async function() {
+  if (!sessionStorage.getItem('adminToken') && sessionStorage.getItem('planChangesPerm') !== '1') {
+    alert('You do not have permission to save global changes. Contact admin.');
+    return;
+  }
+  const btn = document.getElementById('saveStockMappingsBtn');
+  btn.textContent = 'Saving…';
+  btn.disabled = true;
+  try {
+    const payload = { globalStockMappings: stockMappingOverrides };
+    if (!sessionStorage.getItem('adminToken')) {
+      payload.userName = sessionStorage.getItem('siteUser') || '';
+      payload.userPassword = sessionStorage.getItem('sitePass') || '';
+    }
+    const r = await fetch('https://scm-ease-admin.scm-ease.workers.dev/api/planning-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (r.ok) {
+      globalStockMappings = { ...stockMappingOverrides };
+      btn.textContent = '✅ Saved!';
+      setTimeout(() => { btn.textContent = '💾 Save Stock Mappings (for all users)'; btn.disabled = false; }, 1500);
+    } else {
+      btn.textContent = '❌ Failed';
+      setTimeout(() => { btn.textContent = '💾 Save Stock Mappings (for all users)'; btn.disabled = false; }, 2000);
+    }
+  } catch(e) {
+    btn.textContent = '❌ Error';
+    setTimeout(() => { btn.textContent = '💾 Save Stock Mappings (for all users)'; btn.disabled = false; }, 2000);
+  }
+};
+
 // ── RENDER: Orders Table ──────────────────────────────────────────────
 function renderOrdersTable(orders) {
   let html = '';
@@ -5763,11 +5822,16 @@ function renderStockCapacity(customerOrders, plannedModules, consolidated) {
       ? mat.stockResult.items.map(i => `<span class="stock-pill ${i.manual?'manual':'matched'}" style="font-size:9px;padding:1px 4px;" title="${escHtml(i.desc)}">${escHtml(i.desc.substring(0,25))}${i.desc.length>25?'…':''}</span>`).join(' ')
       : '<span style="color:var(--muted);font-size:10px;">—</span>';
 
+    // Collect material codes from mapped stock items
+    const matCodes = mat.stockResult.items.map(i => aggregatedStock[i.desc] ? aggregatedStock[i.desc].code : '').filter(Boolean);
+    const codeHtml = matCodes.length > 0 ? matCodes.map(c => `<span style="font-size:9px;background:#e0f2fe;color:#0c4a6e;padding:1px 5px;border-radius:3px;display:inline-block;margin:1px;">${escHtml(c)}</span>`).join(' ') : '<span style="color:var(--muted);font-size:9px;">—</span>';
+
     conHtml += `<tr>
       <td class="group-cell">${escHtml(mat.group)}</td>
       <td class="spec">${escHtml(mat.spec)}</td>
       <td class="center" style="color:var(--muted)">${escHtml(mat.uom)}</td>
       <td class="num" style="font-family:'JetBrains Mono',monospace;font-size:11px">${fmt(perMod)}</td>
+      <td style="padding:4px 6px">${codeHtml}</td>
       <td class="num" style="font-weight:700">${fmt2.format(stockQty)}</td>
       <td style="padding:4px 6px">${stockPills}</td>
       <td class="num" style="font-weight:700;color:var(--solar-1)">${fmt2.format(modulesPossible)}</td>
@@ -5805,6 +5869,10 @@ function renderStockCapacity(customerOrders, plannedModules, consolidated) {
       const wattsCapacity = modulesPossible * wp;
       const pwrFmt = fmtPower(wattsCapacity);
 
+      // Material codes from mapped stock items
+      const detCodes = cData && cData.stockResult.items ? cData.stockResult.items.map(i => aggregatedStock[i.desc] ? aggregatedStock[i.desc].code : '').filter(Boolean) : [];
+      const detCodeHtml = detCodes.length > 0 ? detCodes.map(c => `<span style="font-size:9px;background:#e0f2fe;color:#0c4a6e;padding:1px 5px;border-radius:3px;display:inline-block;margin:1px;">${escHtml(c)}</span>`).join(' ') : '<span style="color:var(--muted);font-size:9px;">—</span>';
+
       detHtml += `<tr>
         <td><span class="mod-badge">${escHtml(mod.name)}</span></td>
         <td class="group-cell">${escHtml(row.group)}</td>
@@ -5812,6 +5880,7 @@ function renderStockCapacity(customerOrders, plannedModules, consolidated) {
         <td class="center" style="color:var(--muted)">${escHtml(row.uom)}</td>
         <td class="num" style="font-family:'JetBrains Mono',monospace;font-size:11px">${cons.toFixed(6)}</td>
         <td class="num">${wp} Wp</td>
+        <td style="padding:4px 6px">${detCodeHtml}</td>
         <td class="num" style="font-weight:700">${fmt2.format(stockQty)}</td>
         <td class="num" style="font-weight:700;color:var(--solar-1)">${fmt2.format(modulesPossible)}</td>
         <td class="num" style="font-weight:700;color:var(--amber)">${pwrFmt.val} ${pwrFmt.unit}</td>
@@ -5850,6 +5919,7 @@ function renderStockCapacity(customerOrders, plannedModules, consolidated) {
 
       indHtml += `<tr>
         <td><span style="font-size:11px">${escHtml(desc)}</span></td>
+        <td style="font-size:10px">${info.code ? `<span style="background:#e0f2fe;color:#0c4a6e;padding:1px 5px;border-radius:3px;">${escHtml(info.code)}</span>` : '<span style="color:var(--muted)">—</span>'}</td>
         <td>${info.cat} → ${info.subcat}</td>
         <td class="center" style="color:var(--muted)">${info.uom}</td>
         <td class="num" style="font-weight:700">${fmt2.format(info.qty)}</td>
@@ -5924,9 +5994,15 @@ function renderStockCapacity(customerOrders, plannedModules, consolidated) {
         custBottleneckName = mat.group;
       }
 
+      // Get material codes for this material
+      const custCData = consolidated[mk];
+      const custMatCodes = custCData && custCData.stockResult.items ? custCData.stockResult.items.map(i => aggregatedStock[i.desc] ? aggregatedStock[i.desc].code : '').filter(Boolean) : [];
+      const custCodeHtml = custMatCodes.length > 0 ? custMatCodes.map(c => `<span style="font-size:9px;background:#e0f2fe;color:#0c4a6e;padding:1px 4px;border-radius:3px;">${escHtml(c)}</span>`).join(' ') : '';
+
       matRows += `<tr>
         <td class="group-cell">${escHtml(mat.group)}</td>
         <td class="spec" style="font-size:10px">${escHtml(mat.spec)}</td>
+        <td style="font-size:9px;padding:3px 4px">${custCodeHtml}</td>
         <td class="num">${fmt2.format(stockQty)}</td>
         <td class="num">${fmt2.format(mat.reqQty)}</td>
         <td class="num" style="font-weight:700;color:var(--solar-1)">${fmt2.format(modulesPossible)}</td>
@@ -5948,7 +6024,7 @@ function renderStockCapacity(customerOrders, plannedModules, consolidated) {
       <div class="table-wrap" style="max-height:250px;overflow-y:auto;">
         <table style="font-size:11px;">
           <thead><tr>
-            <th>Material</th><th>Specification</th><th class="num">Stock</th><th class="num">Required</th><th class="num">Modules Possible</th><th class="num">Power Capacity</th>
+            <th>Material</th><th>Specification</th><th style="font-size:10px">Code</th><th class="num">Stock</th><th class="num">Required</th><th class="num">Modules Possible</th><th class="num">Power Capacity</th>
           </tr></thead>
           <tbody>${matRows}</tbody>
         </table>
@@ -6616,10 +6692,46 @@ window.filterPlanViews = function() {
     const matchesSearch = !term || tr.textContent.toLowerCase().includes(term);
     tr.dataset.searchHidden = matchesSearch ? '' : '1';
   });
+  // Filter stock capacity views with the global search term too
+  ['capConsolidatedBody', 'capDetailedBody', 'capIndividualBody'].forEach(id => {
+    document.querySelectorAll('#' + id + ' tr').forEach(tr => {
+      tr.style.display = (!term || tr.textContent.toLowerCase().includes(term)) ? '' : 'none';
+    });
+  });
+  // Filter customer-wise capacity cards
+  document.querySelectorAll('#capCustomerContainer > div').forEach(card => {
+    card.style.display = (!term || card.textContent.toLowerCase().includes(term)) ? '' : 'none';
+  });
   // Re-apply column filters on top of search
   applyColumnFilters('planOrderBody');
   applyColumnFilters('consolidatedBody');
   applyColumnFilters('resultBodyPlan');
+};
+
+// ── Stock Capacity per-tab search ────────────────────────────────────
+window.filterCapView = function(view) {
+  if (view === 'consolidated') {
+    const term = (document.getElementById('capSearchConsolidated')?.value || '').toLowerCase();
+    document.querySelectorAll('#capConsolidatedBody tr').forEach(tr => {
+      tr.style.display = (!term || tr.textContent.toLowerCase().includes(term)) ? '' : 'none';
+    });
+  } else if (view === 'detailed') {
+    const term = (document.getElementById('capSearchDetailed')?.value || '').toLowerCase();
+    document.querySelectorAll('#capDetailedBody tr').forEach(tr => {
+      tr.style.display = (!term || tr.textContent.toLowerCase().includes(term)) ? '' : 'none';
+    });
+  } else if (view === 'individual') {
+    const term = (document.getElementById('capSearchIndividual')?.value || '').toLowerCase();
+    document.querySelectorAll('#capIndividualBody tr').forEach(tr => {
+      tr.style.display = (!term || tr.textContent.toLowerCase().includes(term)) ? '' : 'none';
+    });
+  } else if (view === 'customer') {
+    const term = (document.getElementById('capSearchCustomer')?.value || '').toLowerCase();
+    document.querySelectorAll('#capCustomerContainer > div').forEach(card => {
+      if (!term) { card.style.display = ''; return; }
+      card.style.display = card.textContent.toLowerCase().includes(term) ? '' : 'none';
+    });
+  }
 };
 
 // ── PLAN FILTER: Customer / Module / Line dropdowns ──────────────────
@@ -9197,6 +9309,9 @@ window.umSwitchTab = function(tab) {
     // Save Module Type Overrides button
     const modBtn = document.getElementById('saveModOverridesBtn');
     if (modBtn) modBtn.style.display = canSave ? '' : 'none';
+    // Save Stock Mappings button
+    const stockBtn = document.getElementById('saveStockMappingsBtn');
+    if (stockBtn) stockBtn.style.display = canSave ? '' : 'none';
   };
 })();
 </script>
