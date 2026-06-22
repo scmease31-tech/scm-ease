@@ -2621,7 +2621,12 @@ const VENDOR_SHEETS = {
       <strong id="mapModalMaterial">—</strong><br>
       <span style="color: var(--muted); font-size: 11px;" id="mapModalSpec">—</span>
     </div>
-    <input type="text" class="mapping-search" id="mapModalSearch" placeholder="Search stock items..." oninput="filterMappingItems()">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+      <input type="text" class="mapping-search" id="mapModalSearch" placeholder="Search stock items..." oninput="filterMappingItems()" style="flex:1;margin:0;">
+      <select id="mapModalVariant" onchange="filterMappingItems()" style="font-size:11px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;background:#fff;min-width:120px;">
+        <option value="">All Variants</option>
+      </select>
+    </div>
     <div class="modal-fields" id="mapModalItems"></div>
     <div class="modal-footer">
       <button class="btn-modal-cancel" onclick="closeModal('stockMapModal')">Cancel</button>
@@ -4485,28 +4490,44 @@ function runAnalysisAuto() {
 
   // 2. Aggregate stock data
   aggregatedStock = {};
-  let stockDescCol = 3, stockQtyCol = 8, stockUomCol = 9;
+  let stockDescCol = 3, stockQtyCol = 8, stockUomCol = 9, stockLocCol = -1, stockVariantCol = -1;
+  let rejectedCount = 0;
 
   stockRaw.forEach((row, ri) => {
     if (ri === 0) {
       const c1 = row.findIndex(c => String(c).toLowerCase().includes('description'));
       const c2 = row.findIndex(c => String(c).toLowerCase() === 'quantity' || String(c).toLowerCase().includes('qty'));
       const c3 = row.findIndex(c => String(c).toLowerCase().includes('unit') || String(c).toLowerCase().includes('uom'));
+      const c4 = row.findIndex(c => String(c).toLowerCase().includes('location'));
+      const c5 = row.findIndex(c => { const h = String(c).toLowerCase(); return h.includes('variant') || h.includes('item variant'); });
       if (c1 !== -1) stockDescCol = c1;
       if (c2 !== -1) stockQtyCol = c2;
       if (c3 !== -1) stockUomCol = c3;
+      if (c4 !== -1) stockLocCol = c4;
+      if (c5 !== -1) stockVariantCol = c5;
     } else {
+      // Skip rejection location items
+      if (stockLocCol !== -1) {
+        const loc = String(row[stockLocCol] || '').toLowerCase();
+        if (loc.includes('rej')) { rejectedCount++; return; }
+      }
       const desc = String(row[stockDescCol] || '').trim();
       const qty = Number(row[stockQtyCol]) || 0;
       const uom = String(row[stockUomCol] || '');
       const cat = String(row[0] || '');
       const subcat = String(row[1] || '');
+      const variant = stockVariantCol !== -1 ? String(row[stockVariantCol] || '').trim() : '';
       if (desc && qty > 0) {
-        if (!aggregatedStock[desc]) aggregatedStock[desc] = { qty: 0, uom, cat, subcat };
+        if (!aggregatedStock[desc]) aggregatedStock[desc] = { qty: 0, uom, cat, subcat, variants: {} };
         aggregatedStock[desc].qty += qty;
+        if (variant) {
+          if (!aggregatedStock[desc].variants[variant]) aggregatedStock[desc].variants[variant] = 0;
+          aggregatedStock[desc].variants[variant] += qty;
+        }
       }
     }
   });
+  if (rejectedCount > 0) console.log(`Excluded ${rejectedCount} rejection-location stock rows`);
 
   // 3. Aggregate planned modules by type
   let plannedModules = {};
@@ -4840,6 +4861,13 @@ function renderConsolidatedTable(consolidated) {
 function renderDetailedTable(plannedModules, consolidated) {
   let html = '';
 
+  // Track remaining stock per material — waterfall: each module consumes from the pool
+  const remainingStock = {};
+  Object.keys(consolidated).forEach(mk => {
+    const cData = consolidated[mk];
+    remainingStock[mk] = cData ? cData.stockResult.total : 0;
+  });
+
   Object.keys(plannedModules).forEach(mk => {
     const mod = modules.find(m => m.key === mk);
     if (!mod) return;
@@ -4851,13 +4879,23 @@ function renderDetailedTable(plannedModules, consolidated) {
       const materialKey = `${row.group}|||${row.spec}`;
       const isDiscarded = discardedMaterials.has(materialKey);
       const cData = consolidated[materialKey];
-      const stockTotal = cData ? cData.stockResult.total : 0;
-      const shortage = reqQty - stockTotal;
+      const totalStock = cData ? cData.stockResult.total : 0;
+
+      // Available = remaining after prior modules consumed
+      const available = remainingStock[materialKey] !== undefined ? remainingStock[materialKey] : 0;
+      const shortage = reqQty - available;
+
+      // Deduct what this module uses from the pool
+      if (!isDiscarded && remainingStock[materialKey] !== undefined) {
+        remainingStock[materialKey] = Math.max(0, available - reqQty);
+      }
+
+      const wasConsumed = available < totalStock;
 
       let statusBadge;
       if (isDiscarded) statusBadge = '<span class="status-badge na">🚫</span>';
-      else if (stockTotal >= reqQty) statusBadge = '<span class="status-badge ok">✅</span>';
-      else if (stockTotal >= reqQty * 0.5) statusBadge = '<span class="status-badge low">⚠️</span>';
+      else if (available >= reqQty) statusBadge = '<span class="status-badge ok">✅</span>';
+      else if (available >= reqQty * 0.5) statusBadge = '<span class="status-badge low">⚠️</span>';
       else statusBadge = '<span class="status-badge short">❌</span>';
 
       html += `<tr class="${isDiscarded ? 'discarded' : ''}">
@@ -4870,9 +4908,9 @@ function renderDetailedTable(plannedModules, consolidated) {
         <td class="num">${cons.toFixed(6)}</td>
         <td class="num">${fmt2.format(mQty)}</td>
         <td class="num" style="background:#e6f7f1;color:var(--solar-1);font-weight:bold;">${fmt2.format(reqQty)}</td>
-        <td class="num" style="color:${stockTotal < reqQty ? 'var(--danger)' : 'var(--solar-1)'};font-weight:bold;">
-          ${fmt2.format(stockTotal)}<br>
-          <span style="font-size:9px;color:var(--muted);font-weight:normal;">${cData && cData.stockResult.isManual ? '🔗 Manual' : 'Auto'}</span>
+        <td class="num" style="color:${available < reqQty ? 'var(--danger)' : 'var(--solar-1)'};font-weight:bold;">
+          ${fmt2.format(available)}<br>
+          <span style="font-size:9px;color:var(--muted);font-weight:normal;">${cData && cData.stockResult.isManual ? '🔗 Manual' : 'Auto'}${wasConsumed ? ' (after prior use)' : ''}</span>
         </td>
         <td class="num" style="color:${shortage > 0 ? 'var(--danger)' : '#333'};font-weight:bold;">${shortage > 0 ? fmt2.format(shortage) : '—'}</td>
         <td class="center">${statusBadge}</td>
@@ -4911,19 +4949,30 @@ window.openStockMapModal = function(materialKey) {
   document.getElementById('mapModalSpec').textContent = spec;
   document.getElementById('mapModalSearch').value = '';
 
+  // Populate variant dropdown from all stock items
+  const variantSet = new Set();
+  Object.values(aggregatedStock).forEach(info => {
+    if (info.variants) Object.keys(info.variants).forEach(v => { if (v) variantSet.add(v); });
+  });
+  const variantSelect = document.getElementById('mapModalVariant');
+  variantSelect.innerHTML = '<option value="">All Variants</option>' +
+    Array.from(variantSet).sort().map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
+  variantSelect.value = '';
+
   // Get currently mapped items
   const currentlyMapped = stockMappingOverrides[materialKey] || [];
   const autoMapped = buildAutoStockMapping(group, spec, '');
 
   // Build item list — currently mapped + auto mapped first, then all
-  renderMappingItems(currentlyMapped, autoMapped, '');
+  renderMappingItems(currentlyMapped, autoMapped, '', '');
   document.getElementById('stockMapModal').classList.add('open');
 };
 
-function renderMappingItems(currentlyMapped, autoMapped, searchTerm) {
+function renderMappingItems(currentlyMapped, autoMapped, searchTerm, variantFilter) {
   const container = document.getElementById('mapModalItems');
   const allItems = Object.entries(aggregatedStock);
   const filter = searchTerm.toLowerCase();
+  const vFilter = (variantFilter || '').toLowerCase();
 
   // Sort: currently mapped first, then auto-mapped, then rest
   const scored = allItems.map(([desc, info]) => {
@@ -4933,16 +4982,33 @@ function renderMappingItems(currentlyMapped, autoMapped, searchTerm) {
     if (info.cat === 'Raw' || info.cat === 'Packing') score += 0.5;
     return { desc, info, score };
   })
-  .filter(item => !filter || item.desc.toLowerCase().includes(filter) || item.info.cat.toLowerCase().includes(filter) || item.info.subcat.toLowerCase().includes(filter))
+  .filter(item => {
+    if (filter && !item.desc.toLowerCase().includes(filter) && !item.info.cat.toLowerCase().includes(filter) && !item.info.subcat.toLowerCase().includes(filter)) return false;
+    // Variant filter: show item only if it has the selected variant (or no filter)
+    if (vFilter && item.info.variants) {
+      const hasVariant = Object.keys(item.info.variants).some(v => v.toLowerCase() === vFilter);
+      if (!hasVariant) return false;
+    }
+    return true;
+  })
   .sort((a, b) => b.score - a.score);
 
   container.innerHTML = scored.slice(0, 100).map(item => {
     const isSelected = currentlyMapped.includes(item.desc) || (!stockMappingOverrides[currentMappingKey] && autoMapped.includes(item.desc));
+    // Build variant pills
+    let variantHtml = '';
+    if (item.info.variants && Object.keys(item.info.variants).length > 0) {
+      variantHtml = '<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:2px;">' +
+        Object.entries(item.info.variants).map(([v, q]) =>
+          `<span style="font-size:9px;padding:1px 5px;border-radius:4px;background:#e0e7ff;color:#3730a3;">${escHtml(v)}: ${fmt2.format(q)}</span>`
+        ).join('') + '</div>';
+    }
     return `<div class="mapping-item ${isSelected ? 'selected' : ''}" onclick="toggleMappingItem(this)">
       <input type="checkbox" ${isSelected ? 'checked' : ''} value="${escHtml(item.desc)}">
       <div style="flex:1">
         <div class="mapping-item-desc">${escHtml(item.desc)}</div>
         <div class="mapping-item-uom">${item.info.cat} → ${item.info.subcat}</div>
+        ${variantHtml}
       </div>
       <div class="mapping-item-qty">${fmt2.format(item.info.qty)} ${item.info.uom}</div>
     </div>`;
@@ -4961,10 +5027,11 @@ window.toggleMappingItem = function(div) {
 
 window.filterMappingItems = function() {
   const search = document.getElementById('mapModalSearch').value;
+  const variant = document.getElementById('mapModalVariant').value;
   const [group, spec] = (currentMappingKey || '').split('|||');
   const currentlyMapped = stockMappingOverrides[currentMappingKey] || [];
   const autoMapped = buildAutoStockMapping(group || '', spec || '', '');
-  renderMappingItems(currentlyMapped, autoMapped, search);
+  renderMappingItems(currentlyMapped, autoMapped, search, variant);
 };
 
 window.saveStockMapping = function() {
