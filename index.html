@@ -4327,12 +4327,8 @@ function runAnalysisAuto() {
     const fromInput = document.getElementById('planDateFrom');
     const toInput = document.getElementById('planDateTo');
     
-    // Set min/max constraints
+    // Set default values (no min/max constraints — user can pick any date)
     const fmtISO = d => d.toISOString().split('T')[0];
-    fromInput.min = fmtISO(minDate);
-    fromInput.max = fmtISO(maxDate);
-    toInput.min = fmtISO(minDate);
-    toInput.max = fmtISO(maxDate);
     
     if (!fromInput.value) fromInput.value = fmtISO(minDate);
     if (!toInput.value) toInput.value = fmtISO(maxDate);
