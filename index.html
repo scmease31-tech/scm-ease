@@ -1836,7 +1836,7 @@
   }
   .vlog-entry .vlog-restore:hover { background:#d1fae5; }
 </style>
-<script defer src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<!-- Single XLSX library — xlsx-js-style includes SheetJS core + styling -->
 <script defer src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 </head>
 <body>
@@ -4219,40 +4219,63 @@ function setupDropZone(zoneId, inputId, onFile) {
 }
 
 function processExcelPlan(file, callback, onError) {
+  const MAX_COLS = 100; // Cap columns to prevent corrupt sheets from causing memory issues
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
       const data = new Uint8Array(e.target.result);
       const workbook = XLSX.read(data, {type: 'array', cellDates: false});
-      // Load ALL sheets and concatenate so date range filter covers any period
       let allRaw = [];
       let allFmt = [];
+      const sheetStats = [];
       workbook.SheetNames.forEach(name => {
         const ws = workbook.Sheets[name];
-        if (!ws) return;
+        if (!ws || !ws['!ref']) return;
+        // Check sheet dimensions — skip corrupt/empty sheets
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        const cols = range.e.c - range.s.c + 1;
+        const rows = range.e.r - range.s.r + 1;
+        if (cols > 500) {
+          sheetStats.push({name, rows, cols, status: 'skipped-wide'});
+          return; // Skip sheets with absurd column counts (corrupt data)
+        }
+        if (rows < 2) {
+          sheetStats.push({name, rows, cols, status: 'skipped-empty'});
+          return;
+        }
         // Fill merged cells so values propagate to all cells in the merge range
         if (ws['!merges']) {
-          ws['!merges'].forEach(range => {
-            const startAddr = XLSX.utils.encode_cell(range.s);
+          ws['!merges'].forEach(merge => {
+            const startAddr = XLSX.utils.encode_cell(merge.s);
             const startCell = ws[startAddr];
             if (!startCell) return;
-            for (let r = range.s.r; r <= range.e.r; r++) {
-              for (let c = range.s.c; c <= range.e.c; c++) {
-                if (r === range.s.r && c === range.s.c) continue;
+            for (let r = merge.s.r; r <= merge.e.r; r++) {
+              for (let c = merge.s.c; c <= merge.e.c; c++) {
+                if (r === merge.s.r && c === merge.s.c) continue;
                 const addr = XLSX.utils.encode_cell({r: r, c: c});
                 if (!ws[addr]) ws[addr] = {v: startCell.v, t: startCell.t};
               }
             }
           });
         }
-        const raw2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: true, defval: ''});
-        const fmt2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: false, defval: ''});
+        let raw2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: true, defval: ''});
+        let fmt2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: false, defval: ''});
+        // Cap columns to prevent memory bloat from wide sheets
+        if (cols > MAX_COLS) {
+          raw2d = raw2d.map(r => r.slice(0, MAX_COLS));
+          fmt2d = fmt2d.map(r => r.slice(0, MAX_COLS));
+        }
+        sheetStats.push({name, rows: raw2d.length, cols: Math.min(cols, MAX_COLS), status: 'ok'});
         allRaw = allRaw.concat(raw2d);
         allFmt = allFmt.concat(fmt2d);
       });
+      const skipped = sheetStats.filter(s => s.status !== 'ok');
+      if (skipped.length) console.warn('[Excel] Skipped sheets:', skipped.map(s => s.name + ' (' + s.status + ', ' + s.cols + ' cols)').join(', '));
+      console.log('[Excel] Parsed ' + sheetStats.filter(s => s.status === 'ok').length + '/' + workbook.SheetNames.length + ' sheets, ' + allRaw.length + ' total rows');
       if (allRaw.length === 0) throw new Error('No data found in file');
       callback(allRaw, allFmt, workbook.SheetNames.join(', '));
     } catch(err) {
+      console.error('[Excel Parse Error]', err);
       alert('Error reading Planning file: ' + (err.message || 'Invalid Excel file'));
       if (onError) onError();
     }
@@ -4270,11 +4293,15 @@ function processExcelStock(file, callback, onError) {
     try {
       const data = new Uint8Array(e.target.result);
       const workbook = XLSX.read(data, {type: 'array'});
-      const ws = workbook.Sheets[workbook.SheetNames[0]];
+      const sheetName = workbook.SheetNames[0];
+      const ws = workbook.Sheets[sheetName];
+      if (!ws || !ws['!ref']) throw new Error('Stock file has no data');
       const json2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: true, defval: ''});
-      if (json2d.length === 0) throw new Error('No data found in file');
+      if (json2d.length < 2) throw new Error('Stock file is empty (no data rows)');
+      console.log('[Stock] Parsed ' + json2d.length + ' rows from sheet "' + sheetName + '"');
       callback(json2d);
     } catch(err) {
+      console.error('[Stock Parse Error]', err);
       alert('Error reading Stock file: ' + (err.message || 'Invalid Excel file'));
       if (onError) onError();
     }
@@ -4852,13 +4879,7 @@ function runAnalysisAuto() {
     }
   });
 
-  console.log('[Planning Parse]', {
-    totalRows: planRaw.length, headers: _dbgHeaders, dataRows: _dbgDataRows,
-    inRange: _dbgInRange, noQty: _dbgNoQty, noMod: _dbgNoMod,
-    orders: customerOrders.length, dates: allSheetDates.length,
-    from: userDateFrom?.toLocaleDateString(), to: userDateTo?.toLocaleDateString(),
-    firstDate: allSheetDates[0]?.toLocaleDateString(), lastDate: allSheetDates[allSheetDates.length-1]?.toLocaleDateString()
-  });
+  console.log('[Planning] ' + customerOrders.length + ' orders from ' + _dbgDataRows + ' data rows (' + _dbgHeaders + ' sections, ' + planRaw.length + ' total rows) | Date range: ' + (userDateFrom ? userDateFrom.toLocaleDateString() : '?') + ' → ' + (userDateTo ? userDateTo.toLocaleDateString() : '?'));
 
   // 2. Aggregate stock data
   aggregatedStock = {};
@@ -5000,12 +5021,19 @@ function runAnalysisAuto() {
     const fmtD = d => d ? d.toLocaleDateString() : '?';
     const noDataMsg = document.getElementById('analysisResults');
     noDataMsg.style.display = 'block';
+    const fileDatesStr = allSheetDates.length > 0
+      ? `File contains dates: ${fmtD(allSheetDates[0])} → ${fmtD(allSheetDates[allSheetDates.length-1])}`
+      : 'No dates found in file';
+    const suggestion = allSheetDates.length > 0 && userDateFrom && userDateTo
+      ? (userDateTo < allSheetDates[0] || userDateFrom > allSheetDates[allSheetDates.length-1]
+        ? '<br><b style="color:#dc2626;">Your date range is outside the file dates — please adjust.</b>' : '')
+      : '';
     noDataMsg.innerHTML = `<div style="text-align:center;padding:40px 20px;color:#b45309;font-size:15px;">
       <div style="font-size:28px;margin-bottom:12px;">📋</div>
       <b>No production orders found for ${fmtD(userDateFrom)} → ${fmtD(userDateTo)}</b><br>
       <span style="color:#666;font-size:13px;margin-top:8px;display:inline-block;">
-        Rows: ${planRaw.length} | Headers: ${_dbgHeaders} | Data rows: ${_dbgDataRows} | No-qty-in-range: ${_dbgNoQty}<br>
-        File dates: ${fmtD(allSheetDates[0])} → ${fmtD(allSheetDates[allSheetDates.length-1])} (${allSheetDates.length} unique dates)<br>
+        ${fileDatesStr}<br>
+        Parsed ${planRaw.length} rows, ${_dbgHeaders} section headers, ${_dbgDataRows} data rows${suggestion}<br>
         Try adjusting the date range, or re-upload the planning file.
       </span>
     </div>`;
