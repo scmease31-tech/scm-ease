@@ -4304,6 +4304,9 @@ setupDropZone('planUpload', 'planFileInput', (file) => {
   planEl.style.borderColor = 'var(--solar-2)';
   planEl.style.background = 'var(--solar-bg)';
   document.getElementById('savedDataBanner').style.display = 'none';
+  // Reset date filters so new file gets fresh defaults
+  document.getElementById('planDateFrom').value = '';
+  document.getElementById('planDateTo').value = '';
   processExcelPlan(file, (raw2d, fmt2d, sheetName) => {
     planRaw = raw2d;
     planFmt = fmt2d;
@@ -4745,9 +4748,14 @@ function runAnalysisAuto() {
     const toInput = document.getElementById('planDateTo');
     
     // Set default values (no min/max constraints — user can pick any date)
-    const fmtISO = d => d.toISOString().split('T')[0];
+    const fmtISO = d => { const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0'); return y+'-'+m+'-'+dd; };
     
-    if (!fromInput.value) fromInput.value = fmtISO(minDate);
+    if (!fromInput.value) {
+      // Default to 1st of current month (not earliest date which can be years ago)
+      const now = new Date(); now.setHours(0,0,0,0);
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      fromInput.value = fmtISO(monthStart < minDate ? minDate : (monthStart > maxDate ? minDate : monthStart));
+    }
     if (!toInput.value) toInput.value = fmtISO(maxDate);
     
     // Read user selection
@@ -4974,6 +4982,22 @@ function runAnalysisAuto() {
 
   // Save analysis for re-renders
   lastAnalysis = { customerOrders, plannedModules, consolidated };
+
+  // Show helpful message if no orders found
+  if (customerOrders.length === 0) {
+    const fmtD = d => d ? d.toLocaleDateString() : '?';
+    const noDataMsg = document.getElementById('analysisResults');
+    noDataMsg.style.display = 'block';
+    noDataMsg.innerHTML = `<div style="text-align:center;padding:40px 20px;color:#b45309;font-size:15px;">
+      <div style="font-size:28px;margin-bottom:12px;">📋</div>
+      <b>No production orders found for ${fmtD(userDateFrom)} → ${fmtD(userDateTo)}</b><br>
+      <span style="color:#666;font-size:13px;margin-top:8px;display:inline-block;">
+        Planning file has data across ${allSheetDates.length} dates. Try adjusting the date range or check the uploaded file.
+      </span>
+    </div>`;
+    document.getElementById('loadingIndicator').style.display = 'none';
+    return;
+  }
 
   // Populate filter dropdowns
   populatePlanFilterDropdowns(customerOrders);
@@ -6727,11 +6751,15 @@ window.onDateRangeChange = function() {
 window.resetDateRange = function() {
   const fromInput = document.getElementById('planDateFrom');
   const toInput = document.getElementById('planDateTo');
-  // Reset to full sheet range
+  // Reset to current month → max date
   if (allSheetDates.length > 0) {
-    const fmtISO = d => d.toISOString().split('T')[0];
-    fromInput.value = fmtISO(allSheetDates[0]);
-    toInput.value = fmtISO(allSheetDates[allSheetDates.length - 1]);
+    const fmtISO = d => { const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0'); return y+'-'+m+'-'+dd; };
+    const now = new Date(); now.setHours(0,0,0,0);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const minDate = allSheetDates[0];
+    const maxDate = allSheetDates[allSheetDates.length - 1];
+    fromInput.value = fmtISO(monthStart < minDate ? minDate : (monthStart > maxDate ? minDate : monthStart));
+    toInput.value = fmtISO(maxDate);
   } else {
     fromInput.value = '';
     toInput.value = '';
