@@ -4866,6 +4866,23 @@ function runAnalysisAuto() {
     firstHeaderCol0: headerRows.length ? String(headerRows[0][0]) : 'NO HEADER FOUND'
   });
 
+  // Debug: dump LAST section (last header row to end) to see June 2026 data
+  if (headerRows.length > 0) {
+    const lastHdr = headerRows[headerRows.length - 1];
+    const lastHdrIdx = planRaw.lastIndexOf(lastHdr);
+    const lastSectionRows = planRaw.slice(lastHdrIdx, Math.min(lastHdrIdx + 15, planRaw.length));
+    console.log('[Last Section] starts at row', lastHdrIdx, 'of', planRaw.length);
+    lastSectionRows.forEach((row, i) => {
+      const r = lastHdrIdx + i;
+      const c0 = String(row[0] || '').substring(0, 25);
+      const c1 = String(row[1] || '').substring(0, 30);
+      const c2 = row[2];
+      // Show last 10 values (date columns)
+      const tail = row.slice(Math.max(5, row.length - 12));
+      console.log(`  [R${r}] col0="${c0}" col1="${c1}" col2=${c2} tail=`, tail);
+    });
+  }
+
   // 2. Aggregate stock data
   aggregatedStock = {};
   let stockDescCol = 3, stockQtyCol = 8, stockUomCol = 9, stockLocCol = -1, stockVariantCol = -1, stockVariantNameCol = -1, stockCodeCol = -1;
