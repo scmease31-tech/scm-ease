@@ -4807,10 +4807,8 @@ function runAnalysisAuto() {
 
       // Sum quantities within user-selected date range
       let futureQty = 0;
-      let _dbgDatesInRange = 0;
       for (let i = currentDateStartCol; i < row.length; i++) {
         if (currentDateHeadersRaw[i] && isDateInRange(currentDateHeadersRaw[i])) {
-          _dbgDatesInRange++;
           futureQty += Number(row[i]) || 0;
           const dObj = parseRawDate(currentDateHeadersRaw[i]);
           if (dObj) {
@@ -4819,32 +4817,6 @@ function runAnalysisAuto() {
             if (!planEndDate || dObj > planEndDate) planEndDate = dObj;
           }
         }
-      }
-
-      // Debug: log sample customer rows to diagnose zero-qty issue
-      const _lc = _norm(col0);
-      if (_lc.includes('ankur') || _lc.includes('lubi') || _lc.includes('unisol') || _lc.includes('dd ')) {
-        // Find last date column with a value
-        let _lastDateIdx = -1;
-        for (let i = row.length - 1; i >= currentDateStartCol; i--) {
-          if (Number(row[i]) > 0) { _lastDateIdx = i; break; }
-        }
-        const _lastHdrDate = _lastDateIdx >= 0 && currentDateHeadersRaw[_lastDateIdx] ? parseRawDate(currentDateHeadersRaw[_lastDateIdx]) : null;
-        console.log('[Row Debug]', col0, {
-          wp, futureQty, datesInRange: _dbgDatesInRange,
-          dateStartCol: currentDateStartCol,
-          rowLength: row.length,
-          headerLength: currentDateHeadersRaw.length,
-          lastNonZeroIdx: _lastDateIdx,
-          lastNonZeroDate: _lastHdrDate ? _lastHdrDate.toLocaleDateString() : 'none',
-          lastNonZeroVal: _lastDateIdx >= 0 ? row[_lastDateIdx] : 'none',
-          // Show values at the last few date columns
-          tailValues: row.slice(Math.max(currentDateStartCol, row.length - 15)).map((v, i) => {
-            const ci = Math.max(currentDateStartCol, row.length - 15) + i;
-            const hd = currentDateHeadersRaw[ci] ? parseRawDate(currentDateHeadersRaw[ci]) : null;
-            return { col: ci, val: v, date: hd ? hd.toLocaleDateString() : '?', inRange: hd ? isDateInRange(currentDateHeadersRaw[ci]) : false };
-          })
-        });
       }
 
       if (futureQty > 0) {
@@ -4866,44 +4838,7 @@ function runAnalysisAuto() {
         }
       }
     }
-    // Debug: catch rows with customer names that fail the data-row condition
-    else if (col0 && !_isHeaderRow(row) && !col0.startsWith('Pending') && !_norm(col0).includes('total')) {
-      const _lc2 = _norm(col0);
-      if (_lc2.includes('ankur') || _lc2.includes('lubi') || _lc2.includes('unisol') || _lc2.includes('dd ')) {
-        console.log('[Skipped Row]', col0, {ri, wp: row[currentWpCol], wpCol: currentWpCol, hasHeader: currentDateHeadersRaw.length > 0, rowLen: row.length, first5: row.slice(0,5)});
-      }
-    }
   });
-
-  // Debug: log parsing results
-  console.log('[Planning Parse]', {
-    totalRows: planRaw.length,
-    headerRowsFound: headerRows.length,
-    datesFound: allSheetDates.length,
-    dateRange: allSheetDates.length ? allSheetDates[0].toLocaleDateString() + ' - ' + allSheetDates[allSheetDates.length-1].toLocaleDateString() : 'none',
-    customerOrders: customerOrders.length,
-    userDateFrom: userDateFrom ? userDateFrom.toLocaleDateString() : 'none',
-    userDateTo: userDateTo ? userDateTo.toLocaleDateString() : 'none',
-    sampleRow0: planRaw[0] ? String(planRaw[0][0]).substring(0, 30) : 'empty',
-    firstHeaderCol0: headerRows.length ? String(headerRows[0][0]) : 'NO HEADER FOUND'
-  });
-
-  // Debug: dump LAST section (last header row to end) to see June 2026 data
-  if (headerRows.length > 0) {
-    const lastHdr = headerRows[headerRows.length - 1];
-    const lastHdrIdx = planRaw.lastIndexOf(lastHdr);
-    const lastSectionRows = planRaw.slice(lastHdrIdx, planRaw.length);
-    console.log('[Last Section] starts at row', lastHdrIdx, 'of', planRaw.length);
-    lastSectionRows.forEach((row, i) => {
-      const r = lastHdrIdx + i;
-      const c0 = String(row[0] || '').substring(0, 25);
-      const c1 = String(row[1] || '').substring(0, 30);
-      const c2 = row[2];
-      // Show last 10 values (date columns)
-      const tail = row.slice(Math.max(5, row.length - 12));
-      console.log(`  [R${r}] col0="${c0}" col1="${c1}" col2=${c2} tail=`, tail);
-    });
-  }
 
   // 2. Aggregate stock data
   aggregatedStock = {};
