@@ -3803,6 +3803,46 @@ const discardedMaterials = new Set(savedPlan.discardedMaterials || []); // Set o
 let lastAnalysis = null;
 let aggregatedStock = {}; // { itemDesc: { qty, uom, cat, subcat } }
 
+// ── IndexedDB wrapper for large data persistence (no 5MB limit like localStorage) ──
+const analysisDB = {
+  _dbName: 'scmEaseDB', _storeName: 'analysisStore', _version: 1,
+  _open() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(this._dbName, this._version);
+      req.onupgradeneeded = (e) => { e.target.result.createObjectStore(this._storeName); };
+      req.onsuccess = (e) => resolve(e.target.result);
+      req.onerror = (e) => reject(e.target.error);
+    });
+  },
+  async save(key, value) {
+    const db = await this._open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this._storeName, 'readwrite');
+      tx.objectStore(this._storeName).put(value, key);
+      tx.oncomplete = () => { db.close(); resolve(true); };
+      tx.onerror = (e) => { db.close(); reject(e.target.error); };
+    });
+  },
+  async load(key) {
+    const db = await this._open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this._storeName, 'readonly');
+      const req = tx.objectStore(this._storeName).get(key);
+      req.onsuccess = () => { db.close(); resolve(req.result || null); };
+      req.onerror = (e) => { db.close(); reject(e.target.error); };
+    });
+  },
+  async remove(key) {
+    const db = await this._open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this._storeName, 'readwrite');
+      tx.objectStore(this._storeName).delete(key);
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = (e) => { db.close(); reject(e.target.error); };
+    });
+  }
+};
+
 function savePlanOverrides() {
   try { localStorage.setItem("rmPlanOverrides", JSON.stringify({
     stockMappingOverrides,
@@ -3897,7 +3937,7 @@ function setupDropZone(zoneId, inputId, onFile) {
   });
 }
 
-function processExcelPlan(file, callback) {
+function processExcelPlan(file, callback, onError) {
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
@@ -3914,15 +3954,21 @@ function processExcelPlan(file, callback) {
         allRaw = allRaw.concat(raw2d);
         allFmt = allFmt.concat(fmt2d);
       });
+      if (allRaw.length === 0) throw new Error('No data found in file');
       callback(allRaw, allFmt, workbook.SheetNames.join(', '));
     } catch(err) {
       alert('Error reading Planning file: ' + (err.message || 'Invalid Excel file'));
+      if (onError) onError();
     }
+  };
+  reader.onerror = () => {
+    alert('Failed to read Planning file. Please try again.');
+    if (onError) onError();
   };
   reader.readAsArrayBuffer(file);
 }
 
-function processExcelStock(file, callback) {
+function processExcelStock(file, callback, onError) {
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
@@ -3930,10 +3976,16 @@ function processExcelStock(file, callback) {
       const workbook = XLSX.read(data, {type: 'array'});
       const ws = workbook.Sheets[workbook.SheetNames[0]];
       const json2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: true, defval: ''});
+      if (json2d.length === 0) throw new Error('No data found in file');
       callback(json2d);
     } catch(err) {
       alert('Error reading Stock file: ' + (err.message || 'Invalid Excel file'));
+      if (onError) onError();
     }
+  };
+  reader.onerror = () => {
+    alert('Failed to read Stock file. Please try again.');
+    if (onError) onError();
   };
   reader.readAsArrayBuffer(file);
 }
@@ -3950,30 +4002,50 @@ function checkAndRunAnalysis() {
 }
 
 setupDropZone('planUpload', 'planFileInput', (file) => {
-  document.getElementById('planUploadName').textContent = '✓ ' + file.name;
-  document.getElementById('planUpload').style.borderColor = 'var(--solar-2)';
-  document.getElementById('planUpload').style.background = 'var(--solar-bg)';
-  // Clear saved state when new file is uploaded
-  localStorage.removeItem('rmAnalysisState');
+  const planEl = document.getElementById('planUpload');
+  const planNameEl = document.getElementById('planUploadName');
+  planNameEl.textContent = '⏳ Reading ' + file.name + '...';
+  planEl.style.borderColor = 'var(--solar-2)';
+  planEl.style.background = 'var(--solar-bg)';
   document.getElementById('savedDataBanner').style.display = 'none';
   processExcelPlan(file, (raw2d, fmt2d, sheetName) => {
     planRaw = raw2d;
     planFmt = fmt2d;
     planSheetName = sheetName;
+    planNameEl.textContent = '✓ ' + file.name;
+    // Clear old saved state
+    analysisDB.remove('rmAnalysisState').catch(() => {});
+    analysisDB.remove('rmRawData').catch(() => {});
+    localStorage.removeItem('rmAnalysisState');
     checkAndRunAnalysis();
+  }, () => {
+    // On error – reset UI so user can retry
+    planNameEl.textContent = '❌ Failed – Drop Planning Sheet Here';
+    planEl.style.borderColor = 'var(--danger)';
+    planEl.style.background = '';
   });
 });
 
 setupDropZone('stockUpload', 'stockFileInput', (file) => {
-  document.getElementById('stockUploadName').textContent = '✓ ' + file.name;
-  document.getElementById('stockUpload').style.borderColor = 'var(--solar-2)';
-  document.getElementById('stockUpload').style.background = 'var(--solar-bg)';
-  // Clear saved state when new file is uploaded
-  localStorage.removeItem('rmAnalysisState');
+  const stockEl = document.getElementById('stockUpload');
+  const stockNameEl = document.getElementById('stockUploadName');
+  stockNameEl.textContent = '⏳ Reading ' + file.name + '...';
+  stockEl.style.borderColor = 'var(--solar-2)';
+  stockEl.style.background = 'var(--solar-bg)';
   document.getElementById('savedDataBanner').style.display = 'none';
   processExcelStock(file, (data2d) => {
     stockRaw = data2d;
+    stockNameEl.textContent = '✓ ' + file.name;
+    // Clear old saved state
+    analysisDB.remove('rmAnalysisState').catch(() => {});
+    analysisDB.remove('rmRawData').catch(() => {});
+    localStorage.removeItem('rmAnalysisState');
     checkAndRunAnalysis();
+  }, () => {
+    // On error – reset UI so user can retry
+    stockNameEl.textContent = '❌ Failed – Drop Store Stock Report Here';
+    stockEl.style.borderColor = 'var(--danger)';
+    stockEl.style.background = '';
   });
 });
 
@@ -4579,17 +4651,26 @@ function runAnalysisAuto() {
     document.getElementById('planDateRange').textContent = `${planStartDate.toLocaleDateString()} → ${planEndDate.toLocaleDateString()} (${days} days)`;
   }
 
-  // Save state
-  try { localStorage.setItem('rmAnalysisState', JSON.stringify({
+  // Save state to IndexedDB (no size limit unlike localStorage)
+  const stateToSave = {
     lastAnalysis,
     aggregatedStock,
     planStartDate: planStartDate ? planStartDate.toISOString() : null,
     planEndDate: planEndDate ? planEndDate.toISOString() : null,
     planSheetName
-  })); } catch(e) { console.warn('localStorage quota exceeded', e); }
-  // Save raw data to sessionStorage so date filter works after page refresh
-  try { sessionStorage.setItem('rmPlanRaw', JSON.stringify(planRaw)); } catch(e) {}
-  try { sessionStorage.setItem('rmStockRaw', JSON.stringify(stockRaw)); } catch(e) {}
+  };
+  analysisDB.save('rmAnalysisState', stateToSave).then(() => {
+    console.log('Analysis state saved to IndexedDB');
+  }).catch(e => {
+    console.warn('IndexedDB save failed, trying localStorage', e);
+    try { localStorage.setItem('rmAnalysisState', JSON.stringify(stateToSave)); } catch(e2) {
+      console.warn('localStorage also failed', e2);
+    }
+  });
+  // Save raw data to IndexedDB so date filter & reload both work
+  analysisDB.save('rmRawData', { planRaw, stockRaw, planFmt }).catch(e => {
+    console.warn('Failed to save raw data', e);
+  });
 }
 
 // ── RENDER: Customer Summary ──────────────────────────────────────────
@@ -5478,24 +5559,30 @@ window.onDateRangeChange = function() {
     rangeSpan.textContent = `${days} day${days !== 1 ? 's' : ''} selected`;
   }
   
-  // Try restoring raw data from sessionStorage if not in memory
-  if (planRaw.length === 0) {
-    try { const s = sessionStorage.getItem('rmPlanRaw'); if (s) planRaw = JSON.parse(s); } catch(e) {}
-  }
-  if (stockRaw.length === 0) {
-    try { const s = sessionStorage.getItem('rmStockRaw'); if (s) stockRaw = JSON.parse(s); } catch(e) {}
-  }
-  
-  // Re-run analysis with loading indicator so UI refreshes
-  if (planRaw.length > 0 && stockRaw.length > 0) {
-    document.getElementById('loadingIndicator').style.display = 'block';
-    setTimeout(() => {
-      try { runAnalysisAuto(); } catch(e) { console.error('Analysis error:', e); }
-      document.getElementById('loadingIndicator').style.display = 'none';
-    }, 50);
-  } else if (lastAnalysis) {
-    alert('Please re-upload the Planning Sheet to recalculate with new date range.');
-  }
+  // Try restoring raw data from IndexedDB if not in memory
+  const restoreAndRun = async () => {
+    if (planRaw.length === 0 || stockRaw.length === 0) {
+      try {
+        const rawData = await analysisDB.load('rmRawData');
+        if (rawData) {
+          if (planRaw.length === 0 && rawData.planRaw) planRaw = rawData.planRaw;
+          if (stockRaw.length === 0 && rawData.stockRaw) stockRaw = rawData.stockRaw;
+          if (rawData.planFmt) planFmt = rawData.planFmt;
+        }
+      } catch(e) { console.warn('Could not restore raw data', e); }
+    }
+    // Re-run analysis with loading indicator so UI refreshes
+    if (planRaw.length > 0 && stockRaw.length > 0) {
+      document.getElementById('loadingIndicator').style.display = 'block';
+      setTimeout(() => {
+        try { runAnalysisAuto(); } catch(e) { console.error('Analysis error:', e); }
+        document.getElementById('loadingIndicator').style.display = 'none';
+      }, 50);
+    } else if (lastAnalysis) {
+      alert('Please re-upload the Planning Sheet to recalculate with new date range.');
+    }
+  };
+  restoreAndRun();
 };
 
 window.resetDateRange = function() {
@@ -5518,6 +5605,8 @@ window.resetDateRange = function() {
 window.clearSavedAnalysis = function() {
   if (!confirm('Clear saved analysis data? You will need to re-upload your files.')) return;
   localStorage.removeItem('rmAnalysisState');
+  analysisDB.remove('rmAnalysisState').catch(() => {});
+  analysisDB.remove('rmRawData').catch(() => {});
   lastAnalysis = null;
   aggregatedStock = {};
   planRaw = [];
@@ -5538,83 +5627,98 @@ window.clearSavedAnalysis = function() {
   userDateTo = null;
 };
 
-function loadAnalysisState() {
-  const saved = localStorage.getItem('rmAnalysisState');
-  if (saved) {
+async function loadAnalysisState() {
+  let data = null;
+  // Try IndexedDB first (new, no size limit), then localStorage (legacy fallback)
+  try { data = await analysisDB.load('rmAnalysisState'); } catch(e) { console.warn('IndexedDB load failed', e); }
+  if (!data) {
     try {
-      const data = JSON.parse(saved);
-      if (data.lastAnalysis && data.aggregatedStock) {
-        lastAnalysis = data.lastAnalysis;
-        aggregatedStock = data.aggregatedStock;
-        planSheetName = data.planSheetName || 'Saved Plan';
-        
-        let planStartDate = data.planStartDate ? new Date(data.planStartDate) : null;
-        let planEndDate = data.planEndDate ? new Date(data.planEndDate) : null;
-
-        // Show saved data banner, keep upload zones visible for re-upload
-        document.getElementById('savedDataBanner').style.display = 'flex';
-        document.getElementById('planUploadName').textContent = '💾 Saved Plan Data (upload new to replace)';
-        document.getElementById('stockUploadName').textContent = '💾 Saved Stock Data (upload new to replace)';
-        
-        // Re-render
-        populatePlanFilterDropdowns(lastAnalysis.customerOrders);
-        renderCustomerSummary(lastAnalysis.customerOrders);
-        renderOrdersTable(lastAnalysis.customerOrders);
-        renderModuleSummary(lastAnalysis.plannedModules);
-        
-        // Re-run mapping on consolidated object
-        let itemsShort = 0, itemsOk = 0, itemsLow = 0;
-        Object.keys(lastAnalysis.consolidated).forEach(mk => {
-          const mat = lastAnalysis.consolidated[mk];
-          if (discardedMaterials.has(mk)) {
-            mat.stockResult = { total: 0, items: [], isManual: false };
-            mat.diff = 0;
-            mat.status = 'discarded';
-            return;
-          }
-          const stockResult = getStockForMaterial(mk, mat.group, mat.spec, mat.uom);
-          mat.stockResult = stockResult;
-          mat.diff = stockResult.total - mat.requiredQty;
-          if (stockResult.total >= mat.requiredQty * 1.0) { mat.status = 'ok'; itemsOk++; }
-          else if (stockResult.total >= mat.requiredQty * 0.5) { mat.status = 'low'; itemsLow++; }
-          else { mat.status = 'short'; itemsShort++; }
-        });
-        
-        renderConsolidatedTable(lastAnalysis.consolidated);
-        renderDetailedTable(lastAnalysis.plannedModules, lastAnalysis.consolidated);
-        
-        // Re-render KPIs
-        const totMods = Object.values(lastAnalysis.plannedModules).reduce((s, v) => s + v.qty, 0);
-        const totalMW = lastAnalysis.customerOrders.reduce((s, o) => s + (o.qty * o.wp / 1e6), 0);
-        const numCustomers = new Set(lastAnalysis.customerOrders.map(o => o.customer)).size;
-        
-        document.getElementById('planKpi').innerHTML = `
-          <div class="kpi teal"><div class="kpi-label">Total Planned</div><div class="kpi-val">${fmt2.format(totMods)}</div><div class="kpi-sub">modules to build</div></div>
-          <div class="kpi green"><div class="kpi-label">Total Power</div><div class="kpi-val">${totalMW.toFixed(2)}<span style="font-size:12px;color:var(--muted)"> MW</span></div><div class="kpi-sub">combined output</div></div>
-          <div class="kpi blue"><div class="kpi-label">Customers</div><div class="kpi-val">${numCustomers}</div><div class="kpi-sub">with active orders</div></div>
-          <div class="kpi purple"><div class="kpi-label">Unique Materials</div><div class="kpi-val">${Object.keys(lastAnalysis.consolidated).length}</div><div class="kpi-sub">required for plan</div></div>
-          <div class="kpi amber"><div class="kpi-label">⚠ Low Stock</div><div class="kpi-val">${itemsLow}</div><div class="kpi-sub">need attention</div></div>
-          <div class="kpi" style="border-left:3px solid var(--danger)"><div class="kpi-label">❌ Short</div><div class="kpi-val" style="color:var(--danger)">${itemsShort}</div><div class="kpi-sub">need procurement</div></div>
-        `;
-        
-        const allOk = itemsShort === 0 && itemsLow === 0;
-        document.getElementById('shortageBar').innerHTML = `
-          <div class="shortage-bar ${allOk ? 'all-ok' : ''}">
-            <span class="shortage-bar-icon">${allOk ? '✅' : '⚠️'}</span>
-            <span class="shortage-bar-text">${allOk ? 'All materials are sufficiently stocked!' : `${itemsShort} material(s) in SHORTAGE, ${itemsLow} material(s) LOW`}</span>
-            <span class="shortage-bar-count">${allOk ? itemsOk + ' OK' : itemsShort + ' Short'}</span>
-          </div>
-        `;
-
-        document.getElementById('analysisResults').style.display = 'block';
-        document.getElementById('planningTitle').textContent = `Planned Module Details & Power Output (Sheet: ${planSheetName})`;
-        if (planStartDate && planEndDate) {
-          const days = Math.round((planEndDate - planStartDate) / 86400000) + 1;
-          document.getElementById('planDateRange').textContent = `${planStartDate.toLocaleDateString()} \u2192 ${planEndDate.toLocaleDateString()} (${days} days)`;
-        }
-      }
-    } catch(e) { console.error("Error loading saved analysis", e); }
+      const ls = localStorage.getItem('rmAnalysisState');
+      if (ls) { data = JSON.parse(ls); }
+    } catch(e) {}
   }
+  if (!data || !data.lastAnalysis || !data.aggregatedStock) return;
+
+  try {
+    lastAnalysis = data.lastAnalysis;
+    aggregatedStock = data.aggregatedStock;
+    planSheetName = data.planSheetName || 'Saved Plan';
+    
+    let planStartDate = data.planStartDate ? new Date(data.planStartDate) : null;
+    let planEndDate = data.planEndDate ? new Date(data.planEndDate) : null;
+
+    // Restore raw data from IndexedDB so date filter works without re-upload
+    try {
+      const rawData = await analysisDB.load('rmRawData');
+      if (rawData) {
+        if (rawData.planRaw && rawData.planRaw.length) planRaw = rawData.planRaw;
+        if (rawData.stockRaw && rawData.stockRaw.length) stockRaw = rawData.stockRaw;
+        if (rawData.planFmt && rawData.planFmt.length) planFmt = rawData.planFmt;
+      }
+    } catch(e) { console.warn('Could not restore raw data', e); }
+
+    // Show saved data banner, keep upload zones visible for re-upload
+    document.getElementById('savedDataBanner').style.display = 'flex';
+    document.getElementById('planUploadName').textContent = '💾 Saved Plan Data (upload new to replace)';
+    document.getElementById('stockUploadName').textContent = '💾 Saved Stock Data (upload new to replace)';
+    
+    // Re-render
+    populatePlanFilterDropdowns(lastAnalysis.customerOrders);
+    renderCustomerSummary(lastAnalysis.customerOrders);
+    renderOrdersTable(lastAnalysis.customerOrders);
+    renderModuleSummary(lastAnalysis.plannedModules);
+    
+    // Re-run mapping on consolidated object
+    let itemsShort = 0, itemsOk = 0, itemsLow = 0;
+    Object.keys(lastAnalysis.consolidated).forEach(mk => {
+      const mat = lastAnalysis.consolidated[mk];
+      if (discardedMaterials.has(mk)) {
+        mat.stockResult = { total: 0, items: [], isManual: false };
+        mat.diff = 0;
+        mat.status = 'discarded';
+        return;
+      }
+      const stockResult = getStockForMaterial(mk, mat.group, mat.spec, mat.uom);
+      mat.stockResult = stockResult;
+      mat.diff = stockResult.total - mat.requiredQty;
+      if (stockResult.total >= mat.requiredQty * 1.0) { mat.status = 'ok'; itemsOk++; }
+      else if (stockResult.total >= mat.requiredQty * 0.5) { mat.status = 'low'; itemsLow++; }
+      else { mat.status = 'short'; itemsShort++; }
+    });
+    
+    renderConsolidatedTable(lastAnalysis.consolidated);
+    renderDetailedTable(lastAnalysis.plannedModules, lastAnalysis.consolidated);
+    
+    // Re-render KPIs
+    const totMods = Object.values(lastAnalysis.plannedModules).reduce((s, v) => s + v.qty, 0);
+    const totalMW = lastAnalysis.customerOrders.reduce((s, o) => s + (o.qty * o.wp / 1e6), 0);
+    const numCustomers = new Set(lastAnalysis.customerOrders.map(o => o.customer)).size;
+    
+    document.getElementById('planKpi').innerHTML = `
+      <div class="kpi teal"><div class="kpi-label">Total Planned</div><div class="kpi-val">${fmt2.format(totMods)}</div><div class="kpi-sub">modules to build</div></div>
+      <div class="kpi green"><div class="kpi-label">Total Power</div><div class="kpi-val">${totalMW.toFixed(2)}<span style="font-size:12px;color:var(--muted)"> MW</span></div><div class="kpi-sub">combined output</div></div>
+      <div class="kpi blue"><div class="kpi-label">Customers</div><div class="kpi-val">${numCustomers}</div><div class="kpi-sub">with active orders</div></div>
+      <div class="kpi purple"><div class="kpi-label">Unique Materials</div><div class="kpi-val">${Object.keys(lastAnalysis.consolidated).length}</div><div class="kpi-sub">required for plan</div></div>
+      <div class="kpi amber"><div class="kpi-label">⚠ Low Stock</div><div class="kpi-val">${itemsLow}</div><div class="kpi-sub">need attention</div></div>
+      <div class="kpi" style="border-left:3px solid var(--danger)"><div class="kpi-label">❌ Short</div><div class="kpi-val" style="color:var(--danger)">${itemsShort}</div><div class="kpi-sub">need procurement</div></div>
+    `;
+    
+    const allOk = itemsShort === 0 && itemsLow === 0;
+    document.getElementById('shortageBar').innerHTML = `
+      <div class="shortage-bar ${allOk ? 'all-ok' : ''}">
+        <span class="shortage-bar-icon">${allOk ? '✅' : '⚠️'}</span>
+        <span class="shortage-bar-text">${allOk ? 'All materials are sufficiently stocked!' : `${itemsShort} material(s) in SHORTAGE, ${itemsLow} material(s) LOW`}</span>
+        <span class="shortage-bar-count">${allOk ? itemsOk + ' OK' : itemsShort + ' Short'}</span>
+      </div>
+    `;
+
+    document.getElementById('analysisResults').style.display = 'block';
+    document.getElementById('planningTitle').textContent = `Planned Module Details & Power Output (Sheet: ${planSheetName})`;
+    if (planStartDate && planEndDate) {
+      const days = Math.round((planEndDate - planStartDate) / 86400000) + 1;
+      document.getElementById('planDateRange').textContent = `${planStartDate.toLocaleDateString()} \u2192 ${planEndDate.toLocaleDateString()} (${days} days)`;
+    }
+  } catch(e) { console.error("Error loading saved analysis", e); }
 }
 
 renderControls();
