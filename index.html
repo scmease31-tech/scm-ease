@@ -4611,7 +4611,7 @@ function runAnalysisAuto() {
 
   // 2. Aggregate stock data
   aggregatedStock = {};
-  let stockDescCol = 3, stockQtyCol = 8, stockUomCol = 9, stockLocCol = -1, stockVariantCol = -1, stockVariantNameCol = -1;
+  let stockDescCol = 3, stockQtyCol = 8, stockUomCol = 9, stockLocCol = -1, stockVariantCol = -1, stockVariantNameCol = -1, stockCodeCol = -1;
   let rejectedCount = 0;
 
   stockRaw.forEach((row, ri) => {
@@ -4622,12 +4622,14 @@ function runAnalysisAuto() {
       const c4 = row.findIndex(c => String(c).toLowerCase().includes('location'));
       const c5 = row.findIndex(c => { const h = String(c).toLowerCase(); return (h.includes('variant') || h.includes('item variant')) && !h.includes('variant name') && !h.includes('variant description'); });
       const c6 = row.findIndex(c => { const h = String(c).toLowerCase(); return h.includes('variant name') || h.includes('variant description'); });
+      const c7 = row.findIndex(c => { const h = String(c).toLowerCase(); return h === 'item code' || h === 'material code' || h === 'code' || h === 'item no' || h === 'item no.' || h.includes('item code') || h.includes('material code'); });
       if (c1 !== -1) stockDescCol = c1;
       if (c2 !== -1) stockQtyCol = c2;
       if (c3 !== -1) stockUomCol = c3;
       if (c4 !== -1) stockLocCol = c4;
       if (c5 !== -1) stockVariantCol = c5;
       if (c6 !== -1) stockVariantNameCol = c6;
+      if (c7 !== -1) stockCodeCol = c7;
     } else {
       // Skip rejection location items
       if (stockLocCol !== -1) {
@@ -4641,9 +4643,11 @@ function runAnalysisAuto() {
       const subcat = String(row[1] || '');
       const variant = stockVariantCol !== -1 ? String(row[stockVariantCol] || '').trim() : '';
       const variantName = stockVariantNameCol !== -1 ? String(row[stockVariantNameCol] || '').trim() : '';
+      const itemCode = stockCodeCol !== -1 ? String(row[stockCodeCol] || '').trim() : '';
       if (desc && qty > 0) {
-        if (!aggregatedStock[desc]) aggregatedStock[desc] = { qty: 0, uom, cat, subcat, variants: {}, variantNames: {} };
+        if (!aggregatedStock[desc]) aggregatedStock[desc] = { qty: 0, uom, cat, subcat, variants: {}, variantNames: {}, code: '' };
         aggregatedStock[desc].qty += qty;
+        if (itemCode && !aggregatedStock[desc].code) aggregatedStock[desc].code = itemCode;
         if (variant) {
           if (!aggregatedStock[desc].variants[variant]) aggregatedStock[desc].variants[variant] = 0;
           aggregatedStock[desc].variants[variant] += qty;
@@ -5164,7 +5168,7 @@ function renderCustomerMaterials(customerOrders, consolidated) {
 // ── Customer Stock Mapping Modal ─────────────────────────────────────
 let currentCustMapCustomer = '', currentCustMapKey = '';
 
-window.openCustomerMapModal = function(customer, materialKey) {
+window.openCustomerMapModal = function(customer, materialKey, isRefilter) {
   currentCustMapCustomer = customer;
   currentCustMapKey = materialKey;
   const [group, spec] = materialKey.split('|||');
@@ -5173,14 +5177,17 @@ window.openCustomerMapModal = function(customer, materialKey) {
   const globalMapped = stockMappingOverrides[materialKey] || buildAutoStockMapping(group, spec, '');
 
   // Use the existing mapping modal
-  document.getElementById('mapModalMaterial').textContent = `${customer}: ${group}`;
-  document.getElementById('mapModalSpec').textContent = `${spec} (customer-specific mapping — leave empty to use global)`;
-  document.getElementById('mapModalSearch').value = '';
+  if (!isRefilter) {
+    document.getElementById('mapModalMaterial').textContent = `${customer}: ${group}`;
+    document.getElementById('mapModalSpec').textContent = `${spec} (customer-specific mapping — leave empty to use global)`;
+    document.getElementById('mapModalSearch').value = '';
+  }
 
   // Render items in the modal
   const container = document.getElementById('mapModalItems');
   const allItems = Object.entries(aggregatedStock);
 
+  const custSearch = document.getElementById('mapModalSearch').value.toLowerCase();
   const scored = allItems.map(([desc, info]) => {
     let score = 0;
     if (currentlyMapped.includes(desc)) score = 100;
@@ -5189,24 +5196,48 @@ window.openCustomerMapModal = function(customer, materialKey) {
     gl.split(/\s+/).forEach(w => { if (w.length > 2 && dl.includes(w)) score += 3; });
     sl.split(/\s+/).forEach(w => { if (w.length > 2 && dl.includes(w)) score += 2; });
     return { desc, info, score };
-  }).sort((a, b) => b.score - a.score);
+  })
+  .filter(item => {
+    if (!custSearch) return true;
+    if (item.desc.toLowerCase().includes(custSearch)) return true;
+    if (item.info.cat.toLowerCase().includes(custSearch)) return true;
+    if (item.info.subcat.toLowerCase().includes(custSearch)) return true;
+    if (item.info.code && item.info.code.toLowerCase().includes(custSearch)) return true;
+    if (item.info.variantNames && Object.values(item.info.variantNames).some(vn => vn.toLowerCase().includes(custSearch))) return true;
+    return false;
+  })
+  .sort((a, b) => b.score - a.score);
 
   container.innerHTML = scored.slice(0, 100).map(item => {
     const isSelected = currentlyMapped.includes(item.desc);
     const isGlobal = globalMapped.includes(item.desc);
+    const codeTag = item.info.code ? `<span style="font-size:9px;padding:1px 5px;background:#f0f4f8;border:1px solid #e2eaf0;border-radius:3px;color:#3a4a56;font-family:'JetBrains Mono',monospace;">${escHtml(item.info.code)}</span> ` : '';
+    // Build variant pills for customer modal too
+    let variantHtml = '';
+    if (item.info.variants && Object.keys(item.info.variants).length > 0) {
+      variantHtml = '<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px;">' +
+        Object.keys(item.info.variants).map(v => {
+          const q = item.info.variants[v];
+          const vLabel = item.info.variantNames && item.info.variantNames[v] ? item.info.variantNames[v] : v;
+          return `<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:#e0e7ff;color:#3730a3;border:1px solid #818cf8;">${escHtml(vLabel)}: ${fmt2.format(q)}</span>`;
+        }).join('') + '</div>';
+    }
     return `<div class="mapping-item ${isSelected ? 'selected' : ''}" onclick="toggleMappingItem(this)">
       <input type="checkbox" ${isSelected ? 'checked' : ''} value="${escHtml(item.desc)}">
       <div style="flex:1">
-        <div class="mapping-item-desc">${escHtml(item.desc)}</div>
+        <div class="mapping-item-desc">${codeTag}${escHtml(item.desc)}</div>
         <div class="mapping-item-uom">${item.info.cat} → ${item.info.subcat} ${isGlobal ? '<span style="color:#818cf8;font-size:9px;">● global match</span>' : ''}</div>
+        ${variantHtml}
       </div>
       <div class="mapping-item-qty">${fmt2.format(item.info.qty)} ${item.info.uom}</div>
     </div>`;
   }).join('');
 
-  // Set customer mode flag
-  document.getElementById('stockMapModal')._custMode = true;
-  document.getElementById('stockMapModal').classList.add('open');
+  // Set customer mode flag and open modal (skip if refiltering)
+  if (!isRefilter) {
+    document.getElementById('stockMapModal')._custMode = true;
+    document.getElementById('stockMapModal').classList.add('open');
+  }
 };
 
 window.toggleCustMappingItem = function(el) {
@@ -5516,7 +5547,19 @@ function renderMappingItems(currentlyMapped, autoMapped, searchTerm) {
     if (info.cat === 'Raw' || info.cat === 'Packing') score += 0.5;
     return { desc, info, score };
   })
-  .filter(item => !filter || item.desc.toLowerCase().includes(filter) || item.info.cat.toLowerCase().includes(filter) || item.info.subcat.toLowerCase().includes(filter))
+  .filter(item => {
+    if (!filter) return true;
+    if (item.desc.toLowerCase().includes(filter)) return true;
+    if (item.info.cat.toLowerCase().includes(filter)) return true;
+    if (item.info.subcat.toLowerCase().includes(filter)) return true;
+    if (item.info.code && item.info.code.toLowerCase().includes(filter)) return true;
+    // Search by variant name
+    if (item.info.variantNames) {
+      const vNames = Object.values(item.info.variantNames);
+      if (vNames.some(vn => vn.toLowerCase().includes(filter))) return true;
+    }
+    return false;
+  })
   .sort((a, b) => b.score - a.score);
 
   container.innerHTML = scored.slice(0, 100).map(item => {
@@ -5541,10 +5584,11 @@ function renderMappingItems(currentlyMapped, autoMapped, searchTerm) {
             ${escHtml(item.info.variantNames && item.info.variantNames[v] ? item.info.variantNames[v] : v)}: ${fmt2.format(q)}</span>`;
         }).join('') + '</div>';
     }
+    const codeTag = item.info.code ? `<span style="font-size:9px;padding:1px 5px;background:#f0f4f8;border:1px solid #e2eaf0;border-radius:3px;color:#3a4a56;font-family:'JetBrains Mono',monospace;">${escHtml(item.info.code)}</span> ` : '';
     return `<div class="mapping-item ${isSelected ? 'selected' : ''}" onclick="toggleMappingItem(this)">
       <input type="checkbox" ${isSelected ? 'checked' : ''} value="${escHtml(item.desc)}">
       <div style="flex:1">
-        <div class="mapping-item-desc">${escHtml(item.desc)}</div>
+        <div class="mapping-item-desc">${codeTag}${escHtml(item.desc)}</div>
         <div class="mapping-item-uom">${item.info.cat} → ${item.info.subcat}</div>
         ${variantHtml}
       </div>
@@ -5597,6 +5641,11 @@ window.toggleMappingItem = function(div) {
 };
 
 window.filterMappingItems = function() {
+  const modal = document.getElementById('stockMapModal');
+  if (modal._custMode) {
+    openCustomerMapModal(currentCustMapCustomer, currentCustMapKey, true);
+    return;
+  }
   const search = document.getElementById('mapModalSearch').value;
   const [group, spec] = (currentMappingKey || '').split('|||');
   const currentlyMapped = stockMappingOverrides[currentMappingKey] || [];
