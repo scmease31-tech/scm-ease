@@ -4880,39 +4880,6 @@ function runAnalysisAuto() {
     }
   });
 
-  // Diagnostic: count date columns in/out of range from last header
-  if (customerOrders.length === 0 && currentDateHeadersRaw.length > 0) {
-    let inCols = 0, outCols = 0, sampleIn = [], sampleOut = [];
-    for (let i = currentDateStartCol; i < currentDateHeadersRaw.length; i++) {
-      const d = parseRawDate(currentDateHeadersRaw[i]);
-      if (d) {
-        if (isDateInRange(currentDateHeadersRaw[i])) { inCols++; if (sampleIn.length < 3) sampleIn.push({col:i, raw:currentDateHeadersRaw[i], date:d.toLocaleDateString()}); }
-        else { outCols++; if (sampleOut.length < 3) sampleOut.push({col:i, raw:currentDateHeadersRaw[i], date:d.toLocaleDateString()}); }
-      }
-    }
-    // Check first 5 data rows for non-zero values in in-range columns
-    let rowSamples = [];
-    planRaw.forEach((row, ri) => {
-      if (rowSamples.length >= 3) return;
-      const c0 = _norm(row[0]);
-      if (row[0] && !_isHeaderRow(row) && !c0.includes('total') && Number(row[currentWpCol]) > 0) {
-        let vals = {};
-        for (let i = currentDateStartCol; i < row.length; i++) {
-          if (currentDateHeadersRaw[i] && isDateInRange(currentDateHeadersRaw[i]) && Number(row[i])) {
-            vals['col'+i] = Number(row[i]);
-          }
-        }
-        if (Object.keys(vals).length > 0) rowSamples.push({row:ri, customer:String(row[0]).trim().substring(0,20), vals});
-      }
-    });
-    console.warn('[Planning Debug] 0 orders diagnostic:', {
-      userFrom: userDateFrom?.toISOString(), userTo: userDateTo?.toISOString(),
-      dateColsInRange: inCols, dateColsOutRange: outCols,
-      sampleInRange: sampleIn, sampleOutRange: sampleOut,
-      rowsWithData: rowSamples
-    });
-  }
-
   console.log('[Planning] ' + customerOrders.length + ' orders from ' + _dbgDataRows + ' data rows (' + _dbgHeaders + ' sections, ' + planRaw.length + ' total rows) | Date range: ' + (userDateFrom ? userDateFrom.toLocaleDateString() : '?') + ' → ' + (userDateTo ? userDateTo.toLocaleDateString() : '?'));
 
   // 2. Aggregate stock data
