@@ -1066,6 +1066,11 @@
   .plan-view-tab:hover { border-color: var(--solar-2); color: var(--solar-1); }
   .plan-view-tab.active { background: var(--solar-1); color: #fff; border-color: var(--solar-1); }
 
+  /* Capacity sub-tabs */
+  .cap-sub-tab { border: 1px solid var(--line2); background: var(--panel); color: var(--ink2); border-radius: 5px; cursor: pointer; transition: all 0.15s; }
+  .cap-sub-tab:hover { border-color: var(--amber); color: #78350f; }
+  .cap-sub-tab.active { background: var(--amber); color: #fff; border-color: var(--amber); }
+
   /* Shortage summary bar */
   .shortage-bar { display: flex; gap: 12px; align-items: center; padding: 10px 16px; background: linear-gradient(90deg, #fef2f2, #fff1f2); border: 1px solid #fca5a5; border-radius: var(--radius); margin-bottom: 14px; }
   .shortage-bar.all-ok { background: linear-gradient(90deg, #ecfdf5, #d1fae5); border-color: #6ee7b7; }
@@ -2145,9 +2150,11 @@
     <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom: 10px;">
       <div class="plan-view-tabs" style="margin-bottom:0;">
         <button class="plan-view-tab active" data-planview="customers" onclick="switchPlanView('customers')">👥 Customer Orders</button>
+        <button class="plan-view-tab" data-planview="customerMaterials" onclick="switchPlanView('customerMaterials')">🔗 Customer Materials</button>
         <button class="plan-view-tab" data-planview="modules" onclick="switchPlanView('modules')">📦 Module Summary</button>
         <button class="plan-view-tab" data-planview="consolidated" onclick="switchPlanView('consolidated')">📋 Consolidated Materials</button>
         <button class="plan-view-tab" data-planview="detailed" onclick="switchPlanView('detailed')">🔍 Detailed Breakdown</button>
+        <button class="plan-view-tab" data-planview="capacity" onclick="switchPlanView('capacity')">⚡ Stock Capacity</button>
       </div>
       <div style="margin-left:auto; display:flex; align-items:center; gap:6px;">
         <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" style="width:16px;height:16px;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -2284,6 +2291,106 @@
           </thead>
           <tbody id="resultBodyPlan"></tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Customer Materials Mapping View -->
+    <div id="planViewCustomerMaterials" style="display:none;">
+      <div class="section-label">Customer-wise Material Requirements & Stock Mapping</div>
+      <div style="background:linear-gradient(90deg,#dbeafe,#e0f2fe);border:1px solid #93c5fd;border-radius:8px;padding:9px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:12px;color:#1e3a5f;">
+        <span style="font-size:16px">🔗</span>
+        <span><strong>Customer Stock Mapping:</strong> Map specific stock items to each customer. If not mapped, the global/default mapping is used. Click <strong>🔗 Map</strong> on any material to assign specific stock items for that customer.</span>
+      </div>
+      <div id="customerMaterialsContainer"></div>
+    </div>
+
+    <!-- Stock Capacity View -->
+    <div id="planViewCapacity" style="display:none;">
+      <div class="section-label">⚡ Stock Capacity — Materials in Watt / kW / MW / GW</div>
+      <div style="background:linear-gradient(90deg,#fef3c7,#fffbeb);border:1px solid #f59e0b;border-radius:8px;padding:9px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:12px;color:#78350f;">
+        <span style="font-size:16px">⚡</span>
+        <span><strong>Stock Capacity:</strong> Shows how many modules and how much power (W/kW/MW/GW) your current stock can support for each material. The bottleneck material limits actual production capacity.</span>
+      </div>
+      <!-- Capacity sub-tabs -->
+      <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+        <button class="btn btn-sm cap-sub-tab active" data-captab="consolidated" onclick="switchCapTab('consolidated')" style="font-size:11px;padding:4px 12px;">📋 Consolidated</button>
+        <button class="btn btn-sm cap-sub-tab" data-captab="detailed" onclick="switchCapTab('detailed')" style="font-size:11px;padding:4px 12px;">🔍 Detailed</button>
+        <button class="btn btn-sm cap-sub-tab" data-captab="individual" onclick="switchCapTab('individual')" style="font-size:11px;padding:4px 12px;">📦 Individual Items</button>
+        <button class="btn btn-sm cap-sub-tab" data-captab="customerCap" onclick="switchCapTab('customerCap')" style="font-size:11px;padding:4px 12px;">👥 Customer-wise</button>
+      </div>
+      <!-- Capacity KPIs -->
+      <div class="summary-grid" id="capacityKpi" style="margin-bottom:12px;"></div>
+      <!-- Consolidated capacity -->
+      <div id="capViewConsolidated">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr class="group-row">
+                <th colspan="4" style="text-align:left">Material</th>
+                <th colspan="2" style="text-align:center">Stock</th>
+                <th colspan="4" style="text-align:center;background:#78350f">⚡ Production Capacity from Stock</th>
+              </tr>
+              <tr>
+                <th>Material Group</th>
+                <th>Specification</th>
+                <th class="center">UOM</th>
+                <th class="num">Per Module</th>
+                <th class="num">Stock Qty</th>
+                <th>Mapped Item(s)</th>
+                <th class="num">Modules Possible</th>
+                <th class="num">Watt (W)</th>
+                <th class="num">Kilowatt (kW)</th>
+                <th class="num">MW / GW</th>
+              </tr>
+            </thead>
+            <tbody id="capConsolidatedBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Detailed capacity -->
+      <div id="capViewDetailed" style="display:none;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Module Type</th>
+                <th>Material Group</th>
+                <th>Specification</th>
+                <th class="center">UOM</th>
+                <th class="num">Per Module</th>
+                <th class="num">Module Wp</th>
+                <th class="num">Stock Qty</th>
+                <th class="num">Modules Possible</th>
+                <th class="num">Power Capacity</th>
+              </tr>
+            </thead>
+            <tbody id="capDetailedBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Individual stock items -->
+      <div id="capViewIndividual" style="display:none;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Stock Item Description</th>
+                <th>Category</th>
+                <th class="center">UOM</th>
+                <th class="num">Stock Qty</th>
+                <th>Mapped To Material</th>
+                <th class="num">Consumption/Module</th>
+                <th class="num">Modules Possible</th>
+                <th class="num">Power Capacity</th>
+              </tr>
+            </thead>
+            <tbody id="capIndividualBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Customer-wise capacity -->
+      <div id="capViewCustomerCap" style="display:none;">
+        <div id="capCustomerContainer"></div>
       </div>
     </div>
   </div>
@@ -3799,6 +3906,7 @@ const savedPlan = JSON.parse(localStorage.getItem("rmPlanOverrides") || "{}");
 const stockMappingOverrides = savedPlan.stockMappingOverrides || {}; // { materialKey: [stockItemDesc1, ...] }
 const stockVariantSelections = savedPlan.stockVariantSelections || {}; // { "materialKey|||stockDesc": ["variant1", ...] }
 const discardedMaterials = new Set(savedPlan.discardedMaterials || []); // Set of materialKey
+const customerStockMappings = savedPlan.customerStockMappings || {}; // { customerName: { materialKey: [stockItemDesc1, ...] } }
 
 // Aggregated analysis results (shared between renders)
 let lastAnalysis = null;
@@ -3848,7 +3956,8 @@ function savePlanOverrides() {
   try { localStorage.setItem("rmPlanOverrides", JSON.stringify({
     stockMappingOverrides,
     stockVariantSelections,
-    discardedMaterials: Array.from(discardedMaterials)
+    discardedMaterials: Array.from(discardedMaterials),
+    customerStockMappings
   })); } catch(e) { console.warn('localStorage quota exceeded', e); }
 }
 
@@ -4054,7 +4163,7 @@ setupDropZone('stockUpload', 'stockFileInput', (file) => {
 // ── VIEW SWITCHING ─────────────────────────────────────────────────
 window.switchPlanView = function(view) {
   activePlanView = view;
-  ['customers','modules','consolidated','detailed'].forEach(v => {
+  ['customers','customerMaterials','modules','consolidated','detailed','capacity'].forEach(v => {
     const el = document.getElementById('planView' + v.charAt(0).toUpperCase() + v.slice(1));
     if (el) el.style.display = v === view ? 'block' : 'none';
   });
@@ -4502,7 +4611,7 @@ function runAnalysisAuto() {
 
   // 2. Aggregate stock data
   aggregatedStock = {};
-  let stockDescCol = 3, stockQtyCol = 8, stockUomCol = 9, stockLocCol = -1, stockVariantCol = -1;
+  let stockDescCol = 3, stockQtyCol = 8, stockUomCol = 9, stockLocCol = -1, stockVariantCol = -1, stockVariantNameCol = -1;
   let rejectedCount = 0;
 
   stockRaw.forEach((row, ri) => {
@@ -4511,12 +4620,14 @@ function runAnalysisAuto() {
       const c2 = row.findIndex(c => String(c).toLowerCase() === 'quantity' || String(c).toLowerCase().includes('qty'));
       const c3 = row.findIndex(c => String(c).toLowerCase().includes('unit') || String(c).toLowerCase().includes('uom'));
       const c4 = row.findIndex(c => String(c).toLowerCase().includes('location'));
-      const c5 = row.findIndex(c => { const h = String(c).toLowerCase(); return h.includes('variant') || h.includes('item variant'); });
+      const c5 = row.findIndex(c => { const h = String(c).toLowerCase(); return (h.includes('variant') || h.includes('item variant')) && !h.includes('variant name') && !h.includes('variant description'); });
+      const c6 = row.findIndex(c => { const h = String(c).toLowerCase(); return h.includes('variant name') || h.includes('variant description'); });
       if (c1 !== -1) stockDescCol = c1;
       if (c2 !== -1) stockQtyCol = c2;
       if (c3 !== -1) stockUomCol = c3;
       if (c4 !== -1) stockLocCol = c4;
       if (c5 !== -1) stockVariantCol = c5;
+      if (c6 !== -1) stockVariantNameCol = c6;
     } else {
       // Skip rejection location items
       if (stockLocCol !== -1) {
@@ -4529,12 +4640,14 @@ function runAnalysisAuto() {
       const cat = String(row[0] || '');
       const subcat = String(row[1] || '');
       const variant = stockVariantCol !== -1 ? String(row[stockVariantCol] || '').trim() : '';
+      const variantName = stockVariantNameCol !== -1 ? String(row[stockVariantNameCol] || '').trim() : '';
       if (desc && qty > 0) {
-        if (!aggregatedStock[desc]) aggregatedStock[desc] = { qty: 0, uom, cat, subcat, variants: {} };
+        if (!aggregatedStock[desc]) aggregatedStock[desc] = { qty: 0, uom, cat, subcat, variants: {}, variantNames: {} };
         aggregatedStock[desc].qty += qty;
         if (variant) {
           if (!aggregatedStock[desc].variants[variant]) aggregatedStock[desc].variants[variant] = 0;
           aggregatedStock[desc].variants[variant] += qty;
+          if (variantName) aggregatedStock[desc].variantNames[variant] = variantName;
         }
       }
     }
@@ -4650,6 +4763,12 @@ function runAnalysisAuto() {
 
   // E) Detailed breakdown
   renderDetailedTable(plannedModules, consolidated);
+
+  // E2) Customer Materials mapping
+  renderCustomerMaterials(customerOrders, consolidated);
+
+  // E3) Stock Capacity
+  renderStockCapacity(customerOrders, plannedModules, consolidated);
 
   // F) KPIs
   const totMods = Object.values(plannedModules).reduce((s, v) => s + v.qty, 0);
@@ -4934,6 +5053,419 @@ function renderDetailedTable(plannedModules, consolidated) {
   refreshFilterOptions('resultBodyPlan');
 }
 
+// ── RENDER: Customer Materials Mapping ───────────────────────────────
+function renderCustomerMaterials(customerOrders, consolidated) {
+  const container = document.getElementById('customerMaterialsContainer');
+  if (!container) return;
+
+  // Group orders by customer
+  const custMap = {};
+  customerOrders.forEach(ord => {
+    if (!custMap[ord.customer]) custMap[ord.customer] = { totalQty: 0, totalMW: 0, orders: [], modKeys: new Set() };
+    custMap[ord.customer].totalQty += ord.qty;
+    custMap[ord.customer].totalMW += ord.qty * ord.wp / 1e6;
+    custMap[ord.customer].orders.push(ord);
+    custMap[ord.customer].modKeys.add(ord.modKey);
+  });
+
+  const sorted = Object.entries(custMap).sort((a, b) => b[1].totalMW - a[1].totalMW);
+  let html = '';
+
+  sorted.forEach(([custName, data]) => {
+    const custMappings = customerStockMappings[custName] || {};
+    // Build material requirements for this customer
+    const custMaterials = {};
+    data.orders.forEach(ord => {
+      const mod = modules.find(m => m.key === ord.modKey);
+      if (!mod) return;
+      mod.rows.forEach(row => {
+        const mk = `${row.group}|||${row.spec}`;
+        if (discardedMaterials.has(mk)) return;
+        const cons = row.qty * (1 + row.wastage / 100);
+        if (!custMaterials[mk]) {
+          custMaterials[mk] = { group: row.group, spec: row.spec, uom: row.uom, perModule: cons, reqQty: 0, modules: 0 };
+        }
+        custMaterials[mk].reqQty += cons * ord.qty;
+        custMaterials[mk].modules += ord.qty;
+      });
+    });
+
+    const custNameEsc = escHtml(custName);
+    const custNameAttr = custName.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    const pwr = fmtPower(data.totalMW * 1e6);
+
+    html += `<div style="background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+        <div style="font-size:15px;font-weight:700;color:var(--ink);flex:1;">${custNameEsc}</div>
+        <span style="font-size:12px;color:var(--muted);">${fmt2.format(data.totalQty)} modules</span>
+        <span style="font-size:12px;font-weight:600;color:var(--solar-1);">${pwr.val} ${pwr.unit}</span>
+      </div>
+      <div class="table-wrap" style="max-height:300px;overflow-y:auto;">
+        <table style="font-size:12px;">
+          <thead>
+            <tr>
+              <th>Material Group</th>
+              <th>Specification</th>
+              <th class="center">UOM</th>
+              <th class="num">Required Qty</th>
+              <th>Stock Mapping</th>
+              <th class="num">Stock Qty</th>
+              <th class="num">Diff</th>
+              <th class="center">Action</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+    Object.keys(custMaterials).sort((a, b) => custMaterials[b].reqQty - custMaterials[a].reqQty).forEach(mk => {
+      const mat = custMaterials[mk];
+      const mkEsc = mk.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+      // Get stock for this customer: customer mapping first, then global
+      let stockResult;
+      if (custMappings[mk] && custMappings[mk].length > 0) {
+        let total = 0; const items = [];
+        custMappings[mk].forEach(desc => {
+          if (aggregatedStock[desc]) {
+            const qty = getStockQtyWithVariants(mk, desc);
+            total += qty;
+            items.push({ desc, qty, uom: aggregatedStock[desc].uom, manual: true });
+          }
+        });
+        stockResult = { total, items, isCustomer: true };
+      } else {
+        stockResult = getStockForMaterial(mk, mat.group, mat.spec, mat.uom);
+        stockResult.isCustomer = false;
+      }
+
+      const diff = stockResult.total - mat.reqQty;
+      const diffColor = diff >= 0 ? '#059669' : '#dc2626';
+      const mappingLabel = stockResult.items.length > 0
+        ? stockResult.items.map(i => `<span class="stock-pill ${stockResult.isCustomer ? 'manual' : 'matched'}" title="${escHtml(i.desc)}" style="font-size:9px;padding:1px 5px;">${escHtml(i.desc.substring(0,30))}${i.desc.length>30?'…':''}</span>`).join(' ')
+        : '<span style="color:var(--muted);font-size:10px;">No match</span>';
+
+      html += `<tr>
+        <td class="group-cell">${escHtml(mat.group)}</td>
+        <td class="spec">${escHtml(mat.spec)}</td>
+        <td class="center" style="color:var(--muted)">${escHtml(mat.uom)}</td>
+        <td class="num" style="font-weight:600">${fmt2.format(mat.reqQty)}</td>
+        <td style="padding:4px 6px">${mappingLabel}</td>
+        <td class="num" style="font-weight:700;color:var(--solar-1)">${fmt2.format(stockResult.total)}</td>
+        <td class="num" style="font-weight:700;color:${diffColor}">${diff >= 0 ? '+' : ''}${fmt2.format(diff)}</td>
+        <td class="center"><button class="map-btn" onclick="openCustomerMapModal('${custNameAttr}','${mkEsc}')" title="Map stock for ${custNameEsc}">🔗</button></td>
+      </tr>`;
+    });
+
+    html += `</tbody></table></div></div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+// ── Customer Stock Mapping Modal ─────────────────────────────────────
+let currentCustMapCustomer = '', currentCustMapKey = '';
+
+window.openCustomerMapModal = function(customer, materialKey) {
+  currentCustMapCustomer = customer;
+  currentCustMapKey = materialKey;
+  const [group, spec] = materialKey.split('|||');
+  const custMappings = customerStockMappings[customer] || {};
+  const currentlyMapped = custMappings[materialKey] || [];
+  const globalMapped = stockMappingOverrides[materialKey] || buildAutoStockMapping(group, spec, '');
+
+  // Use the existing mapping modal
+  document.getElementById('mapModalMaterial').textContent = `${customer}: ${group}`;
+  document.getElementById('mapModalSpec').textContent = `${spec} (customer-specific mapping — leave empty to use global)`;
+  document.getElementById('mapModalSearch').value = '';
+
+  // Render items in the modal
+  const container = document.getElementById('mapModalItems');
+  const allItems = Object.entries(aggregatedStock);
+
+  const scored = allItems.map(([desc, info]) => {
+    let score = 0;
+    if (currentlyMapped.includes(desc)) score = 100;
+    else if (globalMapped.includes(desc)) score = 50;
+    const dl = desc.toLowerCase(), gl = group.toLowerCase(), sl = spec.toLowerCase();
+    gl.split(/\s+/).forEach(w => { if (w.length > 2 && dl.includes(w)) score += 3; });
+    sl.split(/\s+/).forEach(w => { if (w.length > 2 && dl.includes(w)) score += 2; });
+    return { desc, info, score };
+  }).sort((a, b) => b.score - a.score);
+
+  container.innerHTML = scored.slice(0, 100).map(item => {
+    const isSelected = currentlyMapped.includes(item.desc);
+    const isGlobal = globalMapped.includes(item.desc);
+    return `<div class="mapping-item ${isSelected ? 'selected' : ''}" onclick="toggleMappingItem(this)">
+      <input type="checkbox" ${isSelected ? 'checked' : ''} value="${escHtml(item.desc)}">
+      <div style="flex:1">
+        <div class="mapping-item-desc">${escHtml(item.desc)}</div>
+        <div class="mapping-item-uom">${item.info.cat} → ${item.info.subcat} ${isGlobal ? '<span style="color:#818cf8;font-size:9px;">● global match</span>' : ''}</div>
+      </div>
+      <div class="mapping-item-qty">${fmt2.format(item.info.qty)} ${item.info.uom}</div>
+    </div>`;
+  }).join('');
+
+  // Set customer mode flag
+  document.getElementById('stockMapModal')._custMode = true;
+  document.getElementById('stockMapModal').classList.add('open');
+};
+
+window.toggleCustMappingItem = function(el) {
+  const cb = el.querySelector('input[type="checkbox"]');
+  cb.checked = !cb.checked;
+  el.classList.toggle('selected', cb.checked);
+};
+
+// ── Stock Capacity sub-tab switching ─────────────────────────────────
+window.switchCapTab = function(tab) {
+  ['consolidated','detailed','individual','customerCap'].forEach(v => {
+    const el = document.getElementById('capView' + v.charAt(0).toUpperCase() + v.slice(1));
+    if (el) el.style.display = v === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('.cap-sub-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.captab === tab);
+  });
+};
+
+// ── RENDER: Stock Capacity ───────────────────────────────────────────
+function renderStockCapacity(customerOrders, plannedModules, consolidated) {
+  // Get average Wp per module type
+  const modWp = {};
+  Object.keys(plannedModules).forEach(mk => {
+    const wps = plannedModules[mk].wpValues;
+    modWp[mk] = wps.length ? Math.max(...wps) : 0;
+  });
+
+  // Overall avg Wp (weighted)
+  let totalMods = 0, totalWp = 0;
+  customerOrders.forEach(o => { totalMods += o.qty; totalWp += o.qty * o.wp; });
+  const avgWp = totalMods > 0 ? totalWp / totalMods : 580;
+
+  // ═══ CONSOLIDATED VIEW ═══
+  let conHtml = '';
+  let bottleneckModules = Infinity, bottleneckName = '';
+  const capData = [];
+
+  Object.keys(consolidated).sort((a, b) => {
+    const sa = consolidated[a], sb = consolidated[b];
+    const capA = sa.perModule > 0 ? sa.stockResult.total / sa.perModule : Infinity;
+    const capB = sb.perModule > 0 ? sb.stockResult.total / sb.perModule : Infinity;
+    return capA - capB;
+  }).forEach(mk => {
+    const mat = consolidated[mk];
+    if (discardedMaterials.has(mk)) return;
+    const stockQty = mat.stockResult.total;
+    const perMod = mat.perModule;
+    const modulesPossible = perMod > 0 ? Math.floor(stockQty / perMod) : 0;
+    const wattsCapacity = modulesPossible * avgWp;
+    const kw = wattsCapacity / 1000;
+    const pwrFmt = fmtPower(wattsCapacity);
+
+    if (modulesPossible < bottleneckModules && perMod > 0) {
+      bottleneckModules = modulesPossible;
+      bottleneckName = mat.group + ' — ' + mat.spec;
+    }
+
+    capData.push({ mk, mat, modulesPossible, wattsCapacity });
+
+    const stockPills = mat.stockResult.items.length > 0
+      ? mat.stockResult.items.map(i => `<span class="stock-pill ${i.manual?'manual':'matched'}" style="font-size:9px;padding:1px 4px;" title="${escHtml(i.desc)}">${escHtml(i.desc.substring(0,25))}${i.desc.length>25?'…':''}</span>`).join(' ')
+      : '<span style="color:var(--muted);font-size:10px;">—</span>';
+
+    conHtml += `<tr>
+      <td class="group-cell">${escHtml(mat.group)}</td>
+      <td class="spec">${escHtml(mat.spec)}</td>
+      <td class="center" style="color:var(--muted)">${escHtml(mat.uom)}</td>
+      <td class="num" style="font-family:'JetBrains Mono',monospace;font-size:11px">${fmt(perMod)}</td>
+      <td class="num" style="font-weight:700">${fmt2.format(stockQty)}</td>
+      <td style="padding:4px 6px">${stockPills}</td>
+      <td class="num" style="font-weight:700;color:var(--solar-1)">${fmt2.format(modulesPossible)}</td>
+      <td class="num">${fmt2.format(Math.round(wattsCapacity))}</td>
+      <td class="num">${kw.toFixed(2)}</td>
+      <td class="num" style="font-weight:700;color:var(--amber)">${pwrFmt.val} ${pwrFmt.unit}</td>
+    </tr>`;
+  });
+  document.getElementById('capConsolidatedBody').innerHTML = conHtml;
+
+  // KPIs
+  const bottleneckPwr = fmtPower(bottleneckModules * avgWp);
+  const totalStockPwr = fmtPower(capData.reduce((s, d) => Math.min(s, d.wattsCapacity), Infinity));
+  document.getElementById('capacityKpi').innerHTML = `
+    <div class="kpi amber"><div class="kpi-label">⚡ Bottleneck Capacity</div><div class="kpi-val">${fmt2.format(bottleneckModules === Infinity ? 0 : bottleneckModules)}</div><div class="kpi-sub">modules (limited by ${escHtml(bottleneckName || 'N/A')})</div></div>
+    <div class="kpi green"><div class="kpi-label">Bottleneck Power</div><div class="kpi-val">${bottleneckPwr.val} <span style="font-size:12px">${bottleneckPwr.unit}</span></div><div class="kpi-sub">max production capacity</div></div>
+    <div class="kpi blue"><div class="kpi-label">Avg Wp/Module</div><div class="kpi-val">${avgWp.toFixed(0)} <span style="font-size:12px">Wp</span></div><div class="kpi-sub">used for capacity calc</div></div>
+    <div class="kpi purple"><div class="kpi-label">Materials Tracked</div><div class="kpi-val">${capData.length}</div><div class="kpi-sub">non-discarded materials</div></div>
+  `;
+
+  // ═══ DETAILED VIEW (per module type per material) ═══
+  let detHtml = '';
+  Object.keys(plannedModules).forEach(mk => {
+    const mod = modules.find(m => m.key === mk);
+    if (!mod) return;
+    const wp = modWp[mk] || avgWp;
+
+    mod.rows.forEach(row => {
+      const matKey = `${row.group}|||${row.spec}`;
+      if (discardedMaterials.has(matKey)) return;
+      const cons = row.qty * (1 + row.wastage / 100);
+      const cData = consolidated[matKey];
+      const stockQty = cData ? cData.stockResult.total : 0;
+      const modulesPossible = cons > 0 ? Math.floor(stockQty / cons) : 0;
+      const wattsCapacity = modulesPossible * wp;
+      const pwrFmt = fmtPower(wattsCapacity);
+
+      detHtml += `<tr>
+        <td><span class="mod-badge">${escHtml(mod.name)}</span></td>
+        <td class="group-cell">${escHtml(row.group)}</td>
+        <td class="spec">${escHtml(row.spec)}</td>
+        <td class="center" style="color:var(--muted)">${escHtml(row.uom)}</td>
+        <td class="num" style="font-family:'JetBrains Mono',monospace;font-size:11px">${cons.toFixed(6)}</td>
+        <td class="num">${wp} Wp</td>
+        <td class="num" style="font-weight:700">${fmt2.format(stockQty)}</td>
+        <td class="num" style="font-weight:700;color:var(--solar-1)">${fmt2.format(modulesPossible)}</td>
+        <td class="num" style="font-weight:700;color:var(--amber)">${pwrFmt.val} ${pwrFmt.unit}</td>
+      </tr>`;
+    });
+  });
+  document.getElementById('capDetailedBody').innerHTML = detHtml;
+
+  // ═══ INDIVIDUAL VIEW (per stock item) ═══
+  let indHtml = '';
+  // Build reverse map: stock item → material it's mapped to
+  const stockToMaterial = {};
+  Object.keys(consolidated).forEach(mk => {
+    const mat = consolidated[mk];
+    if (discardedMaterials.has(mk) || !mat.stockResult) return;
+    mat.stockResult.items.forEach(item => {
+      if (!stockToMaterial[item.desc]) stockToMaterial[item.desc] = [];
+      stockToMaterial[item.desc].push({ mk, group: mat.group, spec: mat.spec, perModule: mat.perModule });
+    });
+  });
+
+  Object.keys(aggregatedStock).sort((a, b) => {
+    const aMap = stockToMaterial[a], bMap = stockToMaterial[b];
+    if (aMap && !bMap) return -1;
+    if (!aMap && bMap) return 1;
+    return aggregatedStock[b].qty - aggregatedStock[a].qty;
+  }).forEach(desc => {
+    const info = aggregatedStock[desc];
+    const mappedTo = stockToMaterial[desc];
+    if (!mappedTo || mappedTo.length === 0) return; // Only show mapped items
+
+    mappedTo.forEach(m => {
+      const modulesPossible = m.perModule > 0 ? Math.floor(info.qty / m.perModule) : 0;
+      const wattsCapacity = modulesPossible * avgWp;
+      const pwrFmt = fmtPower(wattsCapacity);
+
+      indHtml += `<tr>
+        <td><span style="font-size:11px">${escHtml(desc)}</span></td>
+        <td>${info.cat} → ${info.subcat}</td>
+        <td class="center" style="color:var(--muted)">${info.uom}</td>
+        <td class="num" style="font-weight:700">${fmt2.format(info.qty)}</td>
+        <td class="spec" style="font-size:10px">${escHtml(m.group)} — ${escHtml(m.spec)}</td>
+        <td class="num" style="font-family:'JetBrains Mono',monospace;font-size:11px">${fmt(m.perModule)}</td>
+        <td class="num" style="font-weight:700;color:var(--solar-1)">${fmt2.format(modulesPossible)}</td>
+        <td class="num" style="font-weight:700;color:var(--amber)">${pwrFmt.val} ${pwrFmt.unit}</td>
+      </tr>`;
+    });
+  });
+  document.getElementById('capIndividualBody').innerHTML = indHtml;
+
+  // ═══ CUSTOMER-WISE CAPACITY ═══
+  const custCapContainer = document.getElementById('capCustomerContainer');
+  const custMap = {};
+  customerOrders.forEach(ord => {
+    if (!custMap[ord.customer]) custMap[ord.customer] = { totalQty: 0, totalMW: 0, orders: [], modKeys: new Set() };
+    custMap[ord.customer].totalQty += ord.qty;
+    custMap[ord.customer].totalMW += ord.qty * ord.wp / 1e6;
+    custMap[ord.customer].orders.push(ord);
+    custMap[ord.customer].modKeys.add(ord.modKey);
+  });
+
+  let custCapHtml = '';
+  Object.entries(custMap).sort((a, b) => b[1].totalMW - a[1].totalMW).forEach(([custName, data]) => {
+    const custMappings = customerStockMappings[custName] || {};
+    // Calculate per-customer material capacity
+    const custMaterials = {};
+    data.orders.forEach(ord => {
+      const mod = modules.find(m => m.key === ord.modKey);
+      if (!mod) return;
+      mod.rows.forEach(row => {
+        const mk = `${row.group}|||${row.spec}`;
+        if (discardedMaterials.has(mk)) return;
+        const cons = row.qty * (1 + row.wastage / 100);
+        if (!custMaterials[mk]) custMaterials[mk] = { group: row.group, spec: row.spec, uom: row.uom, perModule: cons, reqQty: 0 };
+        custMaterials[mk].reqQty += cons * ord.qty;
+      });
+    });
+
+    // Find bottleneck for this customer
+    let custBottleneck = Infinity, custBottleneckName = '';
+    const custAvgWp = data.totalQty > 0 ? (data.totalMW * 1e6) / data.totalQty : avgWp;
+
+    let matRows = '';
+    Object.keys(custMaterials).sort((a, b) => {
+      const ca = custMaterials[a], cb = custMaterials[b];
+      const getStock = (mk, mat) => {
+        if (custMappings[mk] && custMappings[mk].length > 0) {
+          let t = 0; custMappings[mk].forEach(d => { if (aggregatedStock[d]) t += getStockQtyWithVariants(mk, d); }); return t;
+        }
+        return consolidated[mk] ? consolidated[mk].stockResult.total : 0;
+      };
+      const capA = ca.perModule > 0 ? getStock(a, ca) / ca.perModule : Infinity;
+      const capB = cb.perModule > 0 ? getStock(b, cb) / cb.perModule : Infinity;
+      return capA - capB;
+    }).forEach(mk => {
+      const mat = custMaterials[mk];
+      let stockQty;
+      if (custMappings[mk] && custMappings[mk].length > 0) {
+        stockQty = 0;
+        custMappings[mk].forEach(d => { if (aggregatedStock[d]) stockQty += getStockQtyWithVariants(mk, d); });
+      } else {
+        stockQty = consolidated[mk] ? consolidated[mk].stockResult.total : 0;
+      }
+      const modulesPossible = mat.perModule > 0 ? Math.floor(stockQty / mat.perModule) : 0;
+      const wattsCapacity = modulesPossible * custAvgWp;
+      const pwrFmt = fmtPower(wattsCapacity);
+
+      if (modulesPossible < custBottleneck && mat.perModule > 0) {
+        custBottleneck = modulesPossible;
+        custBottleneckName = mat.group;
+      }
+
+      matRows += `<tr>
+        <td class="group-cell">${escHtml(mat.group)}</td>
+        <td class="spec" style="font-size:10px">${escHtml(mat.spec)}</td>
+        <td class="num">${fmt2.format(stockQty)}</td>
+        <td class="num">${fmt2.format(mat.reqQty)}</td>
+        <td class="num" style="font-weight:700;color:var(--solar-1)">${fmt2.format(modulesPossible)}</td>
+        <td class="num" style="font-weight:700;color:var(--amber)">${pwrFmt.val} ${pwrFmt.unit}</td>
+      </tr>`;
+    });
+
+    const custBottleneckPwr = fmtPower(custBottleneck === Infinity ? 0 : custBottleneck * custAvgWp);
+    const totalPwr = fmtPower(data.totalMW * 1e6);
+
+    custCapHtml += `<div style="background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
+        <div style="font-size:15px;font-weight:700;flex:1;">${escHtml(custName)}</div>
+        <span style="font-size:11px;color:var(--muted);">Planned: ${fmt2.format(data.totalQty)} modules (${totalPwr.val} ${totalPwr.unit})</span>
+        <span style="font-size:11px;padding:3px 8px;border-radius:4px;background:${custBottleneck >= data.totalQty ? '#d1fae5' : '#fee2e2'};color:${custBottleneck >= data.totalQty ? '#065f46' : '#991b1b'};font-weight:600;">
+          ⚡ Capacity: ${fmt2.format(custBottleneck === Infinity ? 0 : custBottleneck)} modules (${custBottleneckPwr.val} ${custBottleneckPwr.unit}) — ${custBottleneckName}
+        </span>
+      </div>
+      <div class="table-wrap" style="max-height:250px;overflow-y:auto;">
+        <table style="font-size:11px;">
+          <thead><tr>
+            <th>Material</th><th>Specification</th><th class="num">Stock</th><th class="num">Required</th><th class="num">Modules Possible</th><th class="num">Power Capacity</th>
+          </tr></thead>
+          <tbody>${matRows}</tbody>
+        </table>
+      </div>
+    </div>`;
+  });
+  custCapContainer.innerHTML = custCapHtml;
+}
+
 // ── DISCARD / SUBSTITUTE ──────────────────────────────────────────────
 window.toggleDiscard = function(materialKey) {
   const isDiscarded = discardedMaterials.has(materialKey);
@@ -4960,6 +5492,7 @@ window.openStockMapModal = function(materialKey) {
   document.getElementById('mapModalMaterial').textContent = group;
   document.getElementById('mapModalSpec').textContent = spec;
   document.getElementById('mapModalSearch').value = '';
+  document.getElementById('stockMapModal')._custMode = false;
 
   // Get currently mapped items
   const currentlyMapped = stockMappingOverrides[materialKey] || [];
@@ -5005,7 +5538,7 @@ function renderMappingItems(currentlyMapped, autoMapped, searchTerm) {
             background:${isOn ? '#e0e7ff' : '#f3f4f6'};color:${isOn ? '#3730a3' : '#9ca3af'};
             border:1px solid ${isOn ? '#818cf8' : '#d1d5db'};${!isOn ? 'text-decoration:line-through;' : ''}"
             title="Click to ${isOn ? 'exclude' : 'include'} this variant">
-            ${escHtml(v)}: ${fmt2.format(q)}</span>`;
+            ${escHtml(item.info.variantNames && item.info.variantNames[v] ? item.info.variantNames[v] : v)}: ${fmt2.format(q)}</span>`;
         }).join('') + '</div>';
     }
     return `<div class="mapping-item ${isSelected ? 'selected' : ''}" onclick="toggleMappingItem(this)">
@@ -5072,6 +5605,28 @@ window.filterMappingItems = function() {
 };
 
 window.saveStockMapping = function() {
+  const modal = document.getElementById('stockMapModal');
+  // Handle customer-specific mapping mode
+  if (modal._custMode) {
+    const container = document.getElementById('mapModalItems');
+    const checked = Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+    if (!customerStockMappings[currentCustMapCustomer]) customerStockMappings[currentCustMapCustomer] = {};
+    if (checked.length > 0) {
+      customerStockMappings[currentCustMapCustomer][currentCustMapKey] = checked;
+    } else {
+      delete customerStockMappings[currentCustMapCustomer][currentCustMapKey];
+      if (Object.keys(customerStockMappings[currentCustMapCustomer]).length === 0) delete customerStockMappings[currentCustMapCustomer];
+    }
+    savePlanOverrides();
+    modal._custMode = false;
+    closeModal('stockMapModal');
+    if (lastAnalysis) {
+      renderCustomerMaterials(lastAnalysis.customerOrders, lastAnalysis.consolidated);
+      renderStockCapacity(lastAnalysis.customerOrders, lastAnalysis.plannedModules, lastAnalysis.consolidated);
+    }
+    return;
+  }
+  // Global mapping mode
   if (!currentMappingKey) return;
   const container = document.getElementById('mapModalItems');
   const checked = Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
@@ -5622,6 +6177,8 @@ window.applyPlanFilters = function() {
   renderModuleSummary(plannedModules);
   renderConsolidatedTable(consolidated);
   renderDetailedTable(plannedModules, consolidated);
+  renderCustomerMaterials(filtered, consolidated);
+  renderStockCapacity(filtered, plannedModules, consolidated);
 
   // Update KPIs
   const totMods = Object.values(plannedModules).reduce((s, v) => s + v.qty, 0);
