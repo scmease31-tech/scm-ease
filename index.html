@@ -4697,14 +4697,21 @@ function runAnalysisAuto() {
     return null;
   }
 
+  // Normalize cell text: handle non-breaking spaces, collapse whitespace, lowercase
+  const _norm = s => String(s || '').replace(/[\u00A0\u2007\u202F\u200B\uFEFF]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+  function _isHeaderRow(row) {
+    const n = _norm(row[0]);
+    return n === 'customer name' || n === 'customer' || (n.includes('customer') && n.includes('name'));
+  }
+
   // Step 0: Scan ALL date columns across all header rows to build allSheetDates
   allSheetDates = [];
   let headerRows = [];
   planRaw.forEach((row) => {
-    if (String(row[0] || '').trim() === 'Customer Name') headerRows.push(row);
+    if (_isHeaderRow(row)) headerRows.push(row);
   });
   headerRows.forEach(headerRow => {
-    for (let i = 5; i < headerRow.length; i++) {
+    for (let i = 3; i < headerRow.length; i++) {
       const d = parseRawDate(headerRow[i]);
       if (d) {
         d.setHours(0,0,0,0);
@@ -4749,29 +4756,43 @@ function runAnalysisAuto() {
   let currentDateHeadersRaw = [];
   let planStartDate = null;
   let planEndDate = null;
+  let currentWpCol = 2;  // Module Wp column index (default C)
+  let currentOaCol = 1;  // OA No column index (default B)
+  let currentDateStartCol = 5; // first date column index
 
   planRaw.forEach((row, ri) => {
     const col0 = String(row[0] || '').trim();
     const col1 = String(row[1] || '').trim();
 
-    // Detect header rows — "Customer Name" in col0
-    if (col0 === 'Customer Name') {
+    // Detect header rows — "Customer Name" in col0 (case-insensitive)
+    if (_isHeaderRow(row)) {
       currentDateHeadersRaw = row;
-      // Detect production line from col1 (e.g., "OA No, Line-A", "OA No, Line-B")
-      const lineMatch = col1.match(/Line[\s-]*([A-Z])/i);
-      const oemMatch = col1.toLowerCase().includes('oem');
+      // Auto-detect column positions from header text
+      for (let c = 0; c < Math.min(row.length, 20); c++) {
+        const h = _norm(row[c]);
+        if ((h.includes('module') && h.includes('wp')) || h === 'wp' || h.includes('wattage')) currentWpCol = c;
+        else if (h.includes('oa') || (h.includes('order') && h.includes('no'))) currentOaCol = c;
+      }
+      // Find first date column
+      for (let c = 3; c < row.length; c++) {
+        if (parseRawDate(row[c])) { currentDateStartCol = c; break; }
+      }
+      // Detect production line from OA column (e.g., "OA No, Line-A", "OA No, Line-B")
+      const oaHeader = String(row[currentOaCol] || '').trim();
+      const lineMatch = oaHeader.match(/Line[\s-]*([A-Z])/i);
+      const oemMatch = oaHeader.toLowerCase().includes('oem');
       if (lineMatch) currentLine = lineMatch[1].toUpperCase();
       else if (oemMatch) currentLine = 'OEM';
       else currentLine = '';
     }
-    // Data rows: col0 has customer name, col2 has Wp > 0
-    else if (col0 && col0 !== '' && !col0.startsWith('Pending') && Number(row[2]) > 0 && currentDateHeadersRaw.length > 0) {
-      const oaDesc = col1;
-      const wp = Number(row[2]) || 0;
+    // Data rows: col0 has customer name, Wp col has value > 0
+    else if (col0 && col0 !== '' && !col0.startsWith('Pending') && !_norm(col0).includes('total') && Number(row[currentWpCol]) > 0 && currentDateHeadersRaw.length > 0) {
+      const oaDesc = String(row[currentOaCol] || '').trim();
+      const wp = Number(row[currentWpCol]) || 0;
 
       // Sum quantities within user-selected date range
       let futureQty = 0;
-      for (let i = 5; i < row.length; i++) {
+      for (let i = currentDateStartCol; i < row.length; i++) {
         if (currentDateHeadersRaw[i] && isDateInRange(currentDateHeadersRaw[i])) {
           futureQty += Number(row[i]) || 0;
           const dObj = parseRawDate(currentDateHeadersRaw[i]);
@@ -4802,6 +4823,19 @@ function runAnalysisAuto() {
         }
       }
     }
+  });
+
+  // Debug: log parsing results
+  console.log('[Planning Parse]', {
+    totalRows: planRaw.length,
+    headerRowsFound: headerRows.length,
+    datesFound: allSheetDates.length,
+    dateRange: allSheetDates.length ? allSheetDates[0].toLocaleDateString() + ' - ' + allSheetDates[allSheetDates.length-1].toLocaleDateString() : 'none',
+    customerOrders: customerOrders.length,
+    userDateFrom: userDateFrom ? userDateFrom.toLocaleDateString() : 'none',
+    userDateTo: userDateTo ? userDateTo.toLocaleDateString() : 'none',
+    sampleRow0: planRaw[0] ? String(planRaw[0][0]).substring(0, 30) : 'empty',
+    firstHeaderCol0: headerRows.length ? String(headerRows[0][0]) : 'NO HEADER FOUND'
   });
 
   // 2. Aggregate stock data
