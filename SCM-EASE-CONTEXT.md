@@ -1,15 +1,21 @@
 # SCM Ease — Complete Project Context for AI
 
-> **Single source of truth** for any AI assistant working on this codebase.
+> **Read this file first** before making any code changes. It tells you everything about the project.
+> For detailed flowcharts with column-by-column data mappings, see `SCM-EASE-FLOWCHART.md`.
 > Last updated: 2026-06-22
 
 ---
 
-## 1. What Is SCM Ease?
+## 1. What Is SCM Ease? (Plain English)
 
-A **solar module manufacturing supply chain management tool** used by SEL (Solex Energy Ltd). It helps plan production, calculate raw material requirements from consumption specs, map materials to store stock, identify shortages, and manage vendor pricing — all in one single-page HTML app.
+A **solar panel factory supply chain tool**. It answers: "Do we have enough raw materials in our warehouse to build all the solar panels our customers ordered?"
 
-**Live URL**: Hosted on GitHub Pages from repo `sohildobariya31-blip/scm-ease`
+It works in 3 steps:
+1. Define what materials each panel type needs (Calc tab — the "recipe")
+2. Upload customer orders from Excel + upload warehouse stock from Excel (Planning tab)
+3. The app does the math and shows shortages (Planning tab results)
+
+**Live URL**: GitHub Pages from repo `sohildobariya31-blip/scm-ease`
 **Backend API**: Cloudflare Worker at `https://scm-ease-admin.scm-ease.workers.dev`
 
 ---

@@ -1,162 +1,431 @@
-# SCM Ease — Data Flow Diagram
+# SCM Ease — How Everything Works (Simple Explanation)
 
-## Master Data Flow
+> Read this file to understand what each tab does, how data flows between tabs, and exactly which Excel columns map to what.
 
-```mermaid
-flowchart TB
-    subgraph USER_INPUT["User Input"]
-        GATE["Gate Login<br/>(name + password)"]
-        ADMIN["Admin Login<br/>(ID + password)"]
-    end
+---
 
-    subgraph AUTH["Authentication"]
-        VERIFY["POST /api/verify-user"]
-        LOGIN["POST /api/login → JWT"]
-        PERMS["POST /api/user-permissions"]
-    end
+## THE BIG PICTURE — What Is This App?
 
-    GATE --> VERIFY --> |"sessionStorage: siteUser"| PERMS
-    ADMIN --> LOGIN --> |"sessionStorage: adminToken"| SHOW_ADMIN
-    PERMS --> |"sessionStorage: userPermissions,<br/>planEditPerm, vendorEditPerm"| TAB_VIS
+SCM Ease helps a solar panel factory answer one question: **"Do we have enough raw materials to build the panels our customers ordered?"**
 
-    subgraph TAB_VIS["Tab Visibility (applyUserPermissions)"]
-        T_CALC["Calc Tab"]
-        T_PLAN["Plan Tab"]
-        T_CELL["Cell Tab"]
-        T_VENDOR["Vendor Tab"]
-        T_EXPLORER["Explorer Tab"]
-        SHOW_ADMIN["Log + Users Tabs<br/>(admin only)"]
-    end
+To answer that, it needs 3 things:
+1. **What materials does each panel type need?** → Consumption (Calc) Tab
+2. **How many panels did customers order?** → Planning Tab (from Excel upload)
+3. **What materials do we have in the warehouse?** → Planning Tab (from Stock Excel upload)
 
-    subgraph CALC_TAB["Calculator (Consumption) Tab"]
-        direction TB
-        BASE["baseModules[]<br/>(3 module types × 20+ BOM rows)"]
-        EDIT_BOM["Edit BOM rows<br/>(qty, wastage, spec)"]
-        MOD_QTY["Set module qty<br/>& generation (MW/kW)"]
-        RENDER["render() → consumption calc<br/>consumption = qty × (1 + wastage/100)"]
-        SAVE_STATE["saveState() → localStorage 'rmConsv2'"]
-        DEPLOY["Deploy Changes<br/>POST /api/save → GitHub commit"]
-        SAVE_DEFAULTS["Save Defaults<br/>POST /api/consumption-defaults → KV"]
-        RESET_DEFAULTS["Reset Defaults<br/>GET /api/consumption-defaults"]
+Then it does the math: `Materials Needed = BOM per panel × Number of panels ordered`
+And compares with stock: `Shortage = Materials Needed − Materials Available`
 
-        BASE --> EDIT_BOM --> RENDER
-        MOD_QTY --> RENDER
-        RENDER --> SAVE_STATE
-        RENDER --> DEPLOY
-        RENDER --> SAVE_DEFAULTS
-        RESET_DEFAULTS --> BASE
-    end
+---
 
-    subgraph PLAN_TAB["Planning Tab"]
-        direction TB
-        UPLOAD_PLAN["Upload Planning Sheet<br/>(.xlsx, 42 sheets)"]
-        UPLOAD_STOCK["Upload Stock Report<br/>(.xlsx)"]
-        PARSE_PLAN["Parse Planning:<br/>- Find headers<br/>- Extract customer, OA, Wp, dates<br/>- detectModuleType(oaDesc, wp)"]
-        PARSE_STOCK["Parse Stock:<br/>- Auto-detect columns<br/>- Aggregate by description<br/>- Track variants"]
-        AGG_MODULES["Aggregate planned modules:<br/>plannedModules = { m10r: {qty, wpValues} }"]
-        CONSOLIDATE["Build consolidated materials:<br/>For each module type → expand BOM rows<br/>materialKey = group|||spec<br/>requiredQty = consumption × plannedQty"]
-        MAP_STOCK["Map stock to materials:<br/>- Auto keyword/dimension match<br/>- Apply user overrides<br/>- Calc diff = available - required<br/>- Status: ok/low/short"]
-        
-        UPLOAD_PLAN --> PARSE_PLAN
-        UPLOAD_STOCK --> PARSE_STOCK
-        PARSE_PLAN --> AGG_MODULES
-        AGG_MODULES --> CONSOLIDATE
-        CONSOLIDATE --> MAP_STOCK
-        PARSE_STOCK --> MAP_STOCK
-    end
+## HOW TABS ARE CONNECTED
 
-    subgraph PLAN_VIEWS["Planning Views"]
-        V_CUST["Customer Orders Table"]
-        V_CUSTMAT["Customer Materials Mapping"]
-        V_MODSUMM["Module Summary"]
-        V_CONSOL["Consolidated Materials<br/>(+ stock mapping dropdowns)"]
-        V_DETAIL["Detailed Breakdown"]
-        V_CAPACITY["Stock Capacity Analysis"]
-    end
-
-    MAP_STOCK --> V_CUST
-    MAP_STOCK --> V_CUSTMAT
-    MAP_STOCK --> V_MODSUMM
-    MAP_STOCK --> V_CONSOL
-    MAP_STOCK --> V_DETAIL
-    MAP_STOCK --> V_CAPACITY
-
-    subgraph PLAN_STORAGE["Planning Data Storage"]
-        LS_PLAN["localStorage: rmPlanOverrides<br/>(stockMappingOverrides, discardedMaterials,<br/>customerStockMappings, customerVariantSelections)"]
-        IDB_STATE["IndexedDB: rmAnalysisState<br/>(lastAnalysis, aggregatedStock, dates)"]
-        IDB_RAW["IndexedDB: rmRawData<br/>(planRaw, stockRaw, planFmt)"]
-        KV_CUST["Cloudflare KV: customer_mappings_data<br/>(shared across all users)"]
-        KV_PLANCONF["Cloudflare KV: planning_config<br/>(customer module type overrides, shared)"]
-    end
-
-    MAP_STOCK --> LS_PLAN
-    MAP_STOCK --> IDB_STATE
-    UPLOAD_PLAN --> IDB_RAW
-    LS_PLAN --> KV_CUST
-    KV_PLANCONF --> PARSE_PLAN
-
-    subgraph CELL_TAB["Cell INV Tab"]
-        CELL_TBL["Editable pricing table<br/>USD/INR conversion"]
-        CELL_LS["localStorage: cellInvData"]
-        CELL_TBL --> CELL_LS
-    end
-
-    subgraph VENDOR_TAB["Vendor Tab"]
-        VEND_LOGIN["Vendor auth check"]
-        VEND_TABLE["Editable spreadsheet table"]
-        VEND_KV["Cloudflare KV: vendor data"]
-        VEND_LOGIN --> VEND_TABLE --> VEND_KV
-    end
-
-    subgraph EXPLORER_TAB["3D Explorer Tab"]
-        IFRAME["3d-explorer.html (iframe)<br/>Loads on tab enter, unloads on leave"]
-    end
-
-    subgraph ADMIN_TABS["Admin Tabs"]
-        LOG_TAB["Log Tab<br/>GET /api/logs"]
-        USERS_TAB["Users Tab"]
-        USERS_LIST["Sub: User List<br/>Add/Edit/Delete users"]
-        PERMS_TAB["Sub: Permissions<br/>8-column toggle matrix"]
-        USERS_TAB --> USERS_LIST
-        USERS_TAB --> PERMS_TAB
-    end
-
-    %% Cross-tab data dependencies
-    SAVE_STATE -.-> |"modules[] BOM data<br/>used by planning"| CONSOLIDATE
-    PERMS --> TAB_VIS
-
-    style USER_INPUT fill:#f0f0f0,stroke:#333
-    style CALC_TAB fill:#e8f5e9,stroke:#2e7d32
-    style PLAN_TAB fill:#e3f2fd,stroke:#1565c0
-    style PLAN_VIEWS fill:#e1f5fe,stroke:#0277bd
-    style PLAN_STORAGE fill:#fff3e0,stroke:#e65100
-    style ADMIN_TABS fill:#fce4ec,stroke:#c62828
-    style AUTH fill:#f3e5f5,stroke:#6a1b9a
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         SCM Ease — Tab Connection Map                          │
+│                                                                                 │
+│  ┌──────────────┐         ┌──────────────┐                                      │
+│  │  CALC TAB    │────────▶│  PLAN TAB    │    Calc tab tells Plan tab:          │
+│  │ (Consumption)│  BOM    │ (Planning)   │    "Each M10R panel needs 72 cells,  │
+│  │              │  data   │              │     1.5% wastage, etc."              │
+│  └──────────────┘         └──────┬───────┘                                      │
+│                                  │                                               │
+│              Plan tab uses BOM + uploaded Excel files to calculate               │
+│              material requirements and compare with warehouse stock              │
+│                                  │                                               │
+│  ┌──────────────┐                │         ┌──────────────┐                      │
+│  │  CELL TAB    │  (standalone)  │         │  VENDOR TAB  │  (standalone)        │
+│  │ Cell pricing │                │         │ Vendor prices│                      │
+│  └──────────────┘                │         └──────────────┘                      │
+│                                  │                                               │
+│  ┌──────────────┐         ┌──────┴───────┐                                      │
+│  │  3D EXPLORER │         │  ADMIN TABS  │                                      │
+│  │ 3D module viz│         │ Log + Users  │                                      │
+│  └──────────────┘         └──────────────┘                                      │
+│                                                                                 │
+│  IMPORTANT: Only Calc → Plan have a data link.                                  │
+│  Cell, Vendor, 3D, Admin are all independent — no data flows between them.      │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Data Dependency Summary
+---
 
-| Source | → | Destination | Data |
-|--------|---|-------------|------|
-| Consumption Tab | → | Planning Tab | `modules[]` BOM rows (qty, wastage, consumption per material) |
-| Planning Excel Upload | → | Analysis Engine | Customer orders (customer, OA, Wp, qty by date) |
-| Stock Excel Upload | → | Analysis Engine | Available stock (description, qty, variants) |
-| Analysis Engine | → | Views | customerOrders, plannedModules, consolidated, stock mapping |
-| User overrides (UI) | → | localStorage | stockMappingOverrides, discardedMaterials |
-| localStorage | → | Cloudflare KV | Customer mappings (shared with all users) |
-| Cloudflare KV | → | Planning Analysis | Customer module type overrides, customer material mappings |
-| Admin permissions | → | Tab visibility | Per-user tab access + edit permissions |
-| Admin consumption defaults | → | Consumption Tab | Reset BOM to saved defaults |
+## TAB 1: CALCULATOR (CONSUMPTION) TAB
 
-## Key: What Changes When
+### What it does
+Defines the **Bill of Materials (BOM)** — a recipe for each panel type. Like a recipe card that says "to make 1 panel, you need 72 solar cells, 2 sheets of glass, 15m of ribbon..." etc.
 
-| When This Changes... | These Update... |
-|---------------------|-----------------|
-| User uploads new Planning sheet | All analysis re-runs, new customerOrders, new consolidated materials |
-| User uploads new Stock sheet | Stock mapping re-evaluated, shortages recalculated |
-| Admin edits BOM in Consumption tab | requiredQty changes in planning (on next analysis run) |
-| Admin saves consumption defaults | Defaults available for all users to reset to |
-| Admin changes module qty | Only affects consumption tab summary, NOT planning |
-| User changes stock mapping | Shortage status updates, saved to localStorage + KV |
-| User changes date range filter | Only date-range filtered quantities change, materials recalculate |
-| Admin changes module type for customer | Customer's orders re-mapped, consolidated totals change |
+### The 3 panel (module) types
+
+| Key | Name | Cell Size | Wattage Range | Technology |
+|-----|------|-----------|--------------|------------|
+| `m10r` | M10R Topcon | 182mm | 580-600 Wp | TopCon (newer) |
+| `g12r` | G12R Topcon | 210mm | 600+ Wp | TopCon (newer) |
+| `m10` | M10 Mono PERC | 182mm | 400-579 Wp | Mono PERC (older) |
+
+### BOM table — what each row means
+
+Each module type has ~20-30 rows. Each row is one material:
+
+| Column | What It Means | Example |
+|--------|---------------|---------|
+| Sr No | Row number | 1 |
+| Material Group | Category of material | "Solar Cell" |
+| Specification | Exact material description | "TopCon Crystalline 182.2×183.75mm M10R 16BB" |
+| UOM | Unit of measurement | "Nos" (numbers), "Mtr" (meters), "Kg" |
+| Qty per Module | How many of this material for 1 panel | 72 |
+| Wastage % | How much extra to account for breakage/waste | 1.5% |
+| Consumption | Auto-calculated: `Qty × (1 + Wastage/100)` | 72 × 1.015 = 73.08 |
+
+### What you can edit
+- **Qty per Module** — change how many of each material per panel
+- **Wastage %** — change waste percentage
+- **Module Qty** — "I want to build 5000 of these" (just for this tab's summary, does NOT affect Planning)
+- **Pricing** — add price per material for costing
+
+### How data is saved
+- Every edit → saved to your browser (`localStorage` key: `rmConsv2`)
+- **"Deploy Changes" button** → pushes updated BOM to GitHub so everyone gets it
+- **"Save as Default" button** → saves to cloud (Cloudflare KV) so any user can "Reset to Default"
+
+### THE KEY LINK TO PLANNING TAB
+The BOM data (all rows with group, spec, qty, wastage, consumption) is stored in a variable called `modules[]`. When the Planning tab runs its analysis, it reads from this same `modules[]` to know what materials each panel type needs.
+
+```
+CALC TAB creates/edits:                    PLAN TAB reads:
+┌──────────────────────┐                   ┌──────────────────────┐
+│ modules[0] = M10R    │                   │ "M10R needs 72 cells │
+│   row[0]: Solar Cell │──────────────────▶│  with 1.5% wastage   │
+│     qty: 72          │                   │  = 73.08 consumption" │
+│     wastage: 1.5     │                   │                      │
+│     consumption: 73  │                   │ So for 5000 M10R:    │
+│   row[1]: Glass      │                   │ 73.08 × 5000 = 365K  │
+│     qty: 2           │                   │ solar cells needed"   │
+│     ...20 more rows  │                   └──────────────────────┘
+└──────────────────────┘
+```
+
+---
+
+## TAB 2: PLANNING TAB (The Main Engine)
+
+### What it does
+You upload 2 Excel files, it crunches the numbers, and tells you what materials you need and what you're short on.
+
+### STEP-BY-STEP: What happens when you upload files
+
+---
+
+### UPLOAD 1: Production Planning Sheet (.xlsx)
+
+This Excel file has 42+ sheets (one per month: March'23, April'23... July'26).
+
+**What each sheet looks like:**
+
+```
+Row 0 (Header): Customer Name | OA No, Line-A | Module Wp | Order Qty | Total Order | 15-Jun | 16-Jun | 17-Jun | ...
+Row 1 (Data):   DD DISTRIB    | Topcon G to G | 585       | 10000     | 5.85        | 200    | 300    | 250    | ...
+Row 2 (Data):   UNISOL        | Mono Bifacial | 545       | 5000      | 2.725       | 100    | 150    | 0      | ...
+```
+
+**Column-by-column mapping — what the code reads:**
+
+| Excel Column | Index | What The Code Does With It |
+|--------------|-------|---------------------------|
+| **Column A** (col 0) | Customer Name | → `ord.customer` — who ordered it |
+| **Column B** (col 1) | OA No + Line info | → `ord.oa` — order description. Also detects **production line** (Line-A/B/C/D/OEM) from the header row. Also fed to `detectModuleType()` to figure out panel type |
+| **Column C** (col 2) | Module Wp (wattage) | → `ord.wp` — used by `detectModuleType()` + power calculation |
+| **Column D** (col 3) | Order Qty | (not directly used — daily quantities are summed instead) |
+| **Column E** (col 4) | Total Order MW | (not directly used) |
+| **Column F onward** (col 5, 6, 7...) | Daily quantities by date | → These are the actual production numbers. Code **sums up all quantities in user's selected date range** → `ord.qty` |
+
+**How the header row is detected:**
+- Code scans every row. When `Column A = "Customer Name"`, that row is a header.
+- Column B of the header tells which production line (e.g., "OA No, Line-A" → Line A)
+- Columns F onward in the header contain dates (as Excel serial numbers like 46192 = Jun 15, 2026)
+
+**How module type is detected** (`detectModuleType` function):
+
+```
+OA Description (col B)          + Wattage (col C)  →  Module Type
+─────────────────────────────────────────────────────────────────
+Contains "topcon" + "g to g"    + any Wp            →  m10r (if Wp<600) or g12r (if Wp≥600)
+Contains "topcon" only          + any Wp            →  m10r (if Wp<600) or g12r (if Wp≥600)
+Contains "mono bifacial"        + any Wp            →  m10 (Mono PERC)
+Contains "monofacial"           + any Wp            →  m10 (Mono PERC)
+Contains "bifacial"             + any Wp            →  m10 (Mono PERC)
+No keyword match                + 580-599 Wp        →  m10r
+No keyword match                + 400-579 Wp        →  m10
+No keyword match                + 600+ Wp           →  g12r
+
+OVERRIDE: If admin set a customer override (e.g., "DD DISTRIB → always m10r"),
+          that overrides all auto-detection above.
+```
+
+**What comes out — `customerOrders[]`:**
+```
+[
+  { customer: "DD DISTRIB", oa: "Topcon G to G-OA/26", line: "A", modKey: "m10r", qty: 5000, wp: 585 },
+  { customer: "UNISOL", oa: "Mono Bifacial 545", line: "B", modKey: "m10", qty: 3000, wp: 545 },
+  ...
+]
+```
+
+---
+
+### UPLOAD 2: Store Stock Report (.xlsx)
+
+This is your warehouse inventory report.
+
+**What the code reads (auto-detects columns from header row):**
+
+| Column Header It Looks For | What It Stores | Example |
+|---------------------------|----------------|---------|
+| "Description" | Material description → key for matching | "TopCon Crystalline Silicon Cell 182.2×183.75mm" |
+| "Quantity" or "Qty" | How much is in stock | 500000 |
+| "Unit" or "UOM" | Unit of measurement | "Nos" |
+| "Location" | Warehouse location → **skips "rej" (rejection) locations** | "Main Store" |
+| "Variant" / "Item Variant" | Variant code (e.g., lot/batch) | "V001" |
+| "Variant Name" | Variant description | "Lot March 2026" |
+| "Item Code" / "Material Code" | Material code for reference | "RM-001" |
+
+**Stock data is aggregated:** All rows with the same Description are summed up (ignoring rejection locations).
+
+**What comes out — `aggregatedStock{}`:**
+```
+{
+  "TopCon Crystalline Silicon Cell 182mm": { qty: 500000, uom: "Nos", cat: "Raw Material", variants: { "V001": 200000, "V002": 300000 } },
+  "3.2mm Tempered Solar Glass": { qty: 25000, uom: "Nos", cat: "Raw Material", variants: {} },
+  ...
+}
+```
+
+---
+
+### STEP 3: THE MATH — How Requirements Are Calculated
+
+```
+Planning says:           BOM says:                      Result:
+"Build 5000 M10R"   ×   "Each M10R needs 73.08 cells"  =  365,400 cells needed
+"Build 3000 G12R"   ×   "Each G12R needs 73.08 cells"  =  219,240 cells needed
+                                                        ─────────────────────────
+                                           TOTAL CELLS:   584,640 cells needed
+
+Stock says: 500,000 cells available
+SHORTAGE: 584,640 − 500,000 = 84,640 cells SHORT ❌
+```
+
+**In code terms:**
+
+```
+For each planned module type (m10r, g12r, m10):
+  For each BOM row (Solar Cell, Glass, Ribbon...):
+    materialKey = "Material Group|||Specification"     (e.g., "Solar Cell|||TopCon 182mm")
+    consumption = qty_per_module × (1 + wastage/100)   (e.g., 72 × 1.015 = 73.08)
+    requiredQty = consumption × total_planned_modules   (e.g., 73.08 × 5000 = 365,400)
+    
+    → Same material from different module types gets MERGED
+    → e.g., if both M10R and G12R use same glass, their needs add up
+```
+
+**What comes out — `consolidated{}`:**
+```
+{
+  "Solar Cell|||TopCon 182mm": {
+    group: "Solar Cell",
+    spec: "TopCon Crystalline 182mm",
+    requiredQty: 584640,     // total needed across all module types
+    usedBy: ["M10R Topcon", "G12R Topcon"],
+    items: [                 // breakdown by module type
+      { modKey: "m10r", qty: 5000, consumption: 73.08 },   // 5000 × 73.08 = 365,400
+      { modKey: "g12r", qty: 3000, consumption: 73.08 }    // 3000 × 73.08 = 219,240
+    ]
+  }
+}
+```
+
+---
+
+### STEP 4: STOCK MAPPING — Matching Warehouse Items to BOM Materials
+
+The BOM says "Solar Cell TopCon 182mm" but the warehouse says "TopCon Crystalline Silicon Cell 182.2×183.75mm". These are the same item with different names.
+
+**How matching works:**
+1. **Auto-match:** The code breaks the BOM spec into keywords and looks for stock items that share those keywords + dimensions
+2. **Manual override:** User can click the 🔗 button to manually map any stock item to any material
+3. **Customer-specific mapping:** Each customer can have their own stock mappings (e.g., customer A's solar cells come from a different lot)
+
+**Stock mapping result:**
+```
+Material: "Solar Cell|||TopCon 182mm"
+  → Mapped to stock: "TopCon Crystalline Silicon Cell 182.2×183.75mm" (500,000 Nos)
+  → Required: 584,640
+  → Available: 500,000  
+  → Diff: -84,640 (SHORT ❌)
+```
+
+**Status badges:**
+- ✅ OK = stock ≥ required
+- ⚠️ Low = stock ≥ 50% of required but < 100%
+- ❌ Short = stock < 50% of required
+- 🚫 Discarded = user chose to ignore this material
+
+---
+
+### PLANNING TAB VIEWS — What Each View Shows
+
+| View | What You See | Data Source |
+|------|-------------|-------------|
+| **Customer Summary** | Cards showing each customer + their total modules + MW + module type override dropdown | `customerOrders[]` grouped by customer |
+| **Orders Table** | Full table of every order line: customer, OA, line, module type, Wp, qty, power | `customerOrders[]` flat list |
+| **Module Summary** | Cards per module type: total qty, Wp values, total power | `plannedModules{}` |
+| **Consolidated Materials** | THE MAIN TABLE — every material needed, required qty, mapped stock, shortage, with module-wise breakdown in "Used By" | `consolidated{}` + `aggregatedStock{}` |
+| **Detailed Breakdown** | Same as consolidated but split by module type — shows waterfall: M10R eats from stock pool first, then G12R sees what's left | `plannedModules{}` × `modules[]` BOM |
+| **Customer Materials** | Collapsible per-customer sections — each customer's required materials + their own stock mappings + module-type breakdown | `customerOrders[]` × `modules[]` BOM |
+| **Stock Capacity** | How many days/modules can current stock support | Reverse calc from `consolidated{}` |
+
+---
+
+## TAB 3: CELL INV TAB (Standalone)
+
+Simple pricing calculator for solar cells. No connection to other tabs.
+
+| Column | Purpose |
+|--------|---------|
+| Sr No | Row number |
+| Description | Cell type description |
+| Size | Cell dimensions |
+| Qty | How many cells |
+| Price (USD) | Unit price in dollars |
+| INR Rate | USD to INR conversion rate |
+| Total (INR) | Auto-calculated: Qty × Price × INR Rate |
+
+Saved to: `localStorage` key `cellInvData`
+
+---
+
+## TAB 4: VENDOR TAB (Standalone)
+
+Editable spreadsheet for vendor price comparisons. No connection to other tabs.
+
+- Requires vendor login (name + password)
+- Edit mode controlled by admin permission (`vendor_edit`)
+- Data saved to Cloudflare KV (shared across all users)
+- Users with only "view" permission see it read-only
+
+---
+
+## TAB 5: 3D EXPLORER (Standalone)
+
+Loads a 3D solar module visualization in an iframe (`3d-explorer.html`). No data connection to anything. Unloads when you leave the tab to save CPU/GPU.
+
+---
+
+## TAB 6-7: ADMIN TABS (Log + Users)
+
+Only visible when admin is logged in.
+
+**Log Tab:** Shows activity history — who logged in, what was deployed, when.
+**Users Tab:**
+- **Users sub-tab:** Add/delete users, change passwords
+- **Permissions sub-tab:** Toggle matrix — for each user, turn on/off access to: Calc, Plan (view), Plan (edit), Cell, Vendor (view), Vendor (edit), Explorer
+
+---
+
+## WHERE DATA IS STORED
+
+```
+YOUR BROWSER ONLY (localStorage):
+├── rmConsv2           → Calc tab BOM data, module quantities, pricing
+├── rmPlanOverrides    → Planning stock mappings, discarded materials, customer mappings
+└── cellInvData        → Cell INV tab rows
+
+YOUR BROWSER ONLY (sessionStorage — cleared when tab closes):
+├── siteUser           → Logged-in username
+├── adminToken         → Admin JWT token
+├── vendorUser         → Vendor tab username
+├── userPermissions    → Cached permissions JSON
+├── planEditPerm       → "1" or "0"
+└── vendorEditPerm     → "1" or "0"
+
+YOUR BROWSER ONLY (IndexedDB — large data, no size limit):
+├── rmAnalysisState    → Full analysis results (customerOrders, consolidated, stock data)
+└── rmRawData          → Raw Excel data (so you can re-run analysis without re-uploading)
+
+CLOUD (Cloudflare KV — shared across ALL users):
+├── app_users              → User list (name + password)
+├── user_permissions       → Per-user tab permissions
+├── consumption_defaults   → Admin-saved default BOM
+├── customer_mappings_data → Customer stock mappings (from Planning tab)
+├── planning_config        → Customer module type overrides
+└── activity_log           → Activity history (last 500 entries)
+```
+
+---
+
+## THE COMPLETE DATA FLOW — From Upload to Shortage Report
+
+```mermaid
+flowchart TD
+    A["Admin edits BOM in Calc Tab"] --> B["modules[] stored in browser<br/>(3 module types × 20+ material rows each)"]
+    
+    C["User uploads Planning Excel"] --> D["Parse all 42 sheets<br/>Find header rows where Col A = 'Customer Name'<br/>Read data rows: Col A=customer, Col B=OA desc, Col C=Wp<br/>Sum quantities from Col F onward within date range"]
+    
+    D --> E["detectModuleType(Col B text, Col C wattage)<br/>+ check customer override from KV"]
+    
+    E --> F["customerOrders[] =<br/>array of {customer, oa, line, modKey, qty, wp}"]
+    
+    F --> G["Aggregate by module type<br/>plannedModules = {m10r: 5000, g12r: 3000, m10: 0}"]
+    
+    H["User uploads Stock Excel"] --> I["Auto-detect columns from header:<br/>Description col, Qty col, UOM col, Location col, Variant col<br/>Skip rejection locations<br/>Sum quantities by description"]
+    
+    I --> J["aggregatedStock{} =<br/>{description: {qty, uom, variants}}"]
+    
+    G --> K["For each module type in plannedModules:<br/>  For each BOM row in modules[]:<br/>    requiredQty = consumption × plannedQty<br/>    Merge same materials across module types"]
+    
+    B --> K
+    
+    K --> L["consolidated{} =<br/>{materialKey: {requiredQty, usedBy, items per module}}"]
+    
+    L --> M["Map stock to materials:<br/>Auto keyword match OR manual override<br/>For each material: diff = available - required<br/>Status: OK / Low / Short"]
+    
+    J --> M
+    
+    M --> N["RENDER ALL VIEWS:<br/>Customer Summary cards<br/>Orders table<br/>Module Summary<br/>Consolidated table (with module breakdown)<br/>Detailed table (waterfall stock deduction)<br/>Customer Materials (collapsible per customer)<br/>Stock Capacity analysis<br/>KPIs + Shortage bar"]
+```
+
+---
+
+## WHAT CHANGES WHAT — Quick Reference
+
+| If you change THIS... | THESE things update... |
+|----------------------|----------------------|
+| BOM qty/wastage in Calc tab | Next time Planning runs analysis, required quantities change |
+| Upload new Planning Excel | All orders re-parsed, all quantities recalculated |
+| Upload new Stock Excel | Stock mapping re-evaluated, all shortage statuses update |
+| Date range filter | Only quantities within that date range are summed |
+| Customer module type override | That customer's orders remapped to new module type, consolidated totals change |
+| Stock mapping (🔗 button) | Shortage status for that material updates |
+| Discard a material | That material is ignored in all calculations |
+| Admin changes user permissions | That user sees/hides tabs on next login |
+| Admin deploys BOM changes | All users get updated BOM (module recipes) |
+
+---
+
+## API ENDPOINTS — What The Backend Does
+
+| URL | When It's Called | What It Does |
+|-----|-----------------|-------------|
+| POST `/api/login` | Admin login form | Checks ID+password, returns JWT token |
+| POST `/api/verify-user` | Gate login (normal users) | Checks name+password against user list |
+| POST `/api/user-permissions` | After gate login | Returns that user's tab permissions |
+| POST `/api/save` | Admin clicks "Deploy Changes" | Commits updated BOM to GitHub repo |
+| GET `/api/consumption-defaults` | User clicks "Reset to Default" | Returns admin-saved default BOM |
+| POST `/api/consumption-defaults` | Admin clicks "Save as Default" | Saves current BOM as default |
+| GET `/api/planning-config` | Page loads | Returns customer module type overrides |
+| POST `/api/planning-config` | User saves module type overrides | Stores overrides for all users |
+| GET `/api/customer-data` | Planning analysis loads | Returns customer stock mappings |
+| POST `/api/customer-data` | User changes customer mapping | Saves customer stock mappings |
+| GET `/api/users` | Admin opens Users tab | Returns all usernames + passwords |
+| GET `/api/permissions` | Admin opens Permissions sub-tab | Returns all user permission settings |
+| GET `/api/logs` | Admin opens Log tab | Returns activity log entries |
