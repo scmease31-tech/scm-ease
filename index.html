@@ -4612,24 +4612,35 @@ function getStockForMaterial(materialKey, materialGroup, materialSpec, materialU
 // ── MODULE TYPE DETECTION ─────────────────────────────────────────────────
 function detectModuleType(oaDesc, wp) {
   const desc = oaDesc.toLowerCase();
-  // M10 Mono PERC / Mono Bifacial
+  // Topcon G-to-G modules (check first — more specific)
+  if (desc.includes('topcon') && (desc.includes('g to g') || desc.includes('g-to-g') || desc.includes('gtg'))) {
+    return Number(wp) >= 600 ? 'g12r' : 'm10r';
+  }
+  // Fallback: if it has "topcon", guess based on Wp
+  if (desc.includes('topcon')) {
+    return Number(wp) >= 600 ? 'g12r' : 'm10r';
+  }
+  // M10 Mono PERC / Mono Bifacial / Monofacial / Bifacial variants
   if (desc.includes('mono bifacial') || desc.includes('mono perc') || desc.includes('mono-perc')) {
     return 'm10';
   }
-  // Topcon G-to-G modules
-  if (desc.includes('topcon') && (desc.includes('g to g') || desc.includes('g-to-g') || desc.includes('gtg'))) {
-    // M10R for lower Wp (typically <600), G12R for higher
-    return Number(wp) >= 600 ? 'g12r' : 'm10r';
+  // Match "monofacial", "mono facial", "mono-facial"
+  if (/mono[\s-]?facial/i.test(desc)) {
+    return 'm10';
+  }
+  // Match "bifacial", "bi facial", "bi-facial"
+  if (/bi[\s-]?facial/i.test(desc)) {
+    return 'm10';
   }
   // Try matching by module key names
   for (const mod of modules) {
     if (desc.includes(mod.key.toLowerCase())) return mod.key;
     if (desc.includes(mod.name.toLowerCase().split(' ')[0].toLowerCase())) return mod.key;
   }
-  // Fallback: if it has "topcon", guess based on Wp
-  if (desc.includes('topcon')) {
-    return Number(wp) >= 600 ? 'g12r' : 'm10r';
-  }
+  // Last resort: if Wp is a plausible module wattage, guess by Wp range
+  const wpNum = Number(wp);
+  if (wpNum >= 400 && wpNum < 600) return 'm10';
+  if (wpNum >= 600) return 'g12r';
   return null;
 }
 
@@ -8833,7 +8844,7 @@ window.umSwitchTab = function(tab) {
   // Planning tab: hide/show upload zones based on edit permission
   window.applyPlanEditPerm = function(canEdit) {
     const uploadContainer = document.getElementById('uploadContainer');
-    if (uploadContainer) uploadContainer.style.display = canEdit ? '' : 'none';
+    if (uploadContainer) uploadContainer.style.display = canEdit ? 'flex' : 'none';
     // Hide clear saved data button
     const banner = document.getElementById('savedDataBanner');
     if (banner) {
