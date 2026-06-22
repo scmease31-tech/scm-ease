@@ -3903,11 +3903,18 @@ function processExcelPlan(file, callback) {
     try {
       const data = new Uint8Array(e.target.result);
       const workbook = XLSX.read(data, {type: 'array', cellDates: false});
-      const lastSheetName = workbook.SheetNames[workbook.SheetNames.length - 1];
-      const ws = workbook.Sheets[lastSheetName];
-      const raw2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: true, defval: ''});
-      const fmt2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: false, defval: ''});
-      callback(raw2d, fmt2d, lastSheetName);
+      // Load ALL sheets and concatenate so date range filter covers any period
+      let allRaw = [];
+      let allFmt = [];
+      workbook.SheetNames.forEach(name => {
+        const ws = workbook.Sheets[name];
+        if (!ws) return;
+        const raw2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: true, defval: ''});
+        const fmt2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: false, defval: ''});
+        allRaw = allRaw.concat(raw2d);
+        allFmt = allFmt.concat(fmt2d);
+      });
+      callback(allRaw, allFmt, workbook.SheetNames.join(', '));
     } catch(err) {
       alert('Error reading Planning file: ' + (err.message || 'Invalid Excel file'));
     }
