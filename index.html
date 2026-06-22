@@ -3998,6 +3998,7 @@ function render() {
 }
 
 // ── PLANNING & STOCK MODE LOGIC ───────────────────────────────────────────
+const PARSE_VERSION = 2; // Increment to auto-clear stale IndexedDB cache
 let planRaw = [];
 let planFmt = [];
 let planSheetName = '';
@@ -5110,7 +5111,8 @@ function runAnalysisAuto() {
     aggregatedStock,
     planStartDate: planStartDate ? planStartDate.toISOString() : null,
     planEndDate: planEndDate ? planEndDate.toISOString() : null,
-    planSheetName
+    planSheetName,
+    parseVersion: PARSE_VERSION
   };
   analysisDB.save('rmAnalysisState', stateToSave).then(() => {
     console.log('Analysis state saved to IndexedDB');
@@ -6847,6 +6849,14 @@ async function loadAnalysisState() {
     } catch(e) {}
   }
   if (!data || !data.lastAnalysis || !data.aggregatedStock) return;
+  // Auto-clear stale cache from older code versions
+  if ((data.parseVersion || 0) < PARSE_VERSION) {
+    console.warn('[Cache] Stale parse data (v' + (data.parseVersion||0) + ' < v' + PARSE_VERSION + ') — clearing');
+    analysisDB.remove('rmAnalysisState').catch(() => {});
+    analysisDB.remove('rmRawData').catch(() => {});
+    localStorage.removeItem('rmAnalysisState');
+    return;
+  }
 
   try {
     lastAnalysis = data.lastAnalysis;
