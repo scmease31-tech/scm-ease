@@ -1020,6 +1020,10 @@
   .cust-card-mw span { font-size: 11px; font-weight: 600; color: var(--muted); }
   .cust-order-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--blue-bg); color: var(--blue); font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; margin: 2px 2px 0 0; }
 
+  /* Collapsible customer material sections */
+  .cust-mat-open .cust-mat-arrow { transform: rotate(90deg); }
+  .cust-mat-open .cust-mat-body { max-height: 2000px !important; }
+
   /* Consolidated material table */
   .consolidated-wrap { margin-bottom: 20px; }
   .consolidated-wrap .table-wrap { max-height: 70vh; overflow-y: auto; }
@@ -4010,6 +4014,20 @@ const discardedMaterials = new Set(savedPlan.discardedMaterials || []); // Set o
 const customerStockMappings = savedPlan.customerStockMappings || {}; // { customerName: { materialKey: [stockItemDesc1, ...] } }
 const customerVariantSelections = savedPlan.customerVariantSelections || {}; // { "customer|||materialKey|||stockDesc": ["variant1", ...] }
 
+// Customer module type overrides (loaded from KV, shared across all users)
+let customerModuleOverrides = {}; // { customerName: { modKey: "m10r", wp: 595 } }
+
+// Fetch customer module overrides from KV on load
+(async function loadPlanningConfig() {
+  try {
+    const r = await fetch('https://scm-ease-admin.scm-ease.workers.dev/api/planning-config');
+    if (r.ok) {
+      const data = await r.json();
+      customerModuleOverrides = data.customerModuleOverrides || {};
+    }
+  } catch(e) { console.warn('Failed to load planning config:', e); }
+})();
+
 // Aggregated analysis results (shared between renders)
 let lastAnalysis = null;
 let aggregatedStock = {}; // { itemDesc: { qty, uom, cat, subcat } }
@@ -4639,7 +4657,8 @@ function detectModuleType(oaDesc, wp) {
   }
   // Last resort: if Wp is a plausible module wattage, guess by Wp range
   const wpNum = Number(wp);
-  if (wpNum >= 400 && wpNum < 600) return 'm10';
+  if (wpNum >= 580 && wpNum < 600) return 'm10r';
+  if (wpNum >= 400 && wpNum < 580) return 'm10';
   if (wpNum >= 600) return 'g12r';
   return null;
 }
@@ -4754,7 +4773,12 @@ function runAnalysisAuto() {
       }
 
       if (futureQty > 0) {
-        const matchedKey = detectModuleType(oaDesc, wp);
+        let matchedKey = detectModuleType(oaDesc, wp);
+        // Apply customer module type override if set
+        const custOverride = customerModuleOverrides[col0];
+        if (custOverride && custOverride.modKey) {
+          matchedKey = custOverride.modKey;
+        }
         if (matchedKey) {
           customerOrders.push({
             customer: col0,
@@ -4993,10 +5017,11 @@ function runAnalysisAuto() {
 function renderCustomerSummary(orders) {
   const custMap = {};
   orders.forEach(ord => {
-    if (!custMap[ord.customer]) custMap[ord.customer] = { totalQty: 0, totalMW: 0, orders: [] };
+    if (!custMap[ord.customer]) custMap[ord.customer] = { totalQty: 0, totalMW: 0, orders: [], autoModKeys: new Set() };
     custMap[ord.customer].totalQty += ord.qty;
     custMap[ord.customer].totalMW += ord.qty * ord.wp / 1e6;
     custMap[ord.customer].orders.push(ord);
+    custMap[ord.customer].autoModKeys.add(ord.modKey);
   });
 
   const sorted = Object.entries(custMap).sort((a, b) => b[1].totalMW - a[1].totalMW);
@@ -5007,17 +5032,81 @@ function renderCustomerSummary(orders) {
       return `<span class="cust-order-chip">${mod ? mod.name.split(' ')[0] : o.modKey} ${o.wp}Wp × ${fmt2.format(o.qty)}</span>`;
     }).join('');
 
+    const nameAttr = name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    const override = customerModuleOverrides[name];
+    const overrideKey = override ? override.modKey : '';
+    const modOptions = modules.map(m =>
+      `<option value="${m.key}" ${overrideKey === m.key ? 'selected' : ''}>${m.name}</option>`
+    ).join('');
+
     html += `<div class="cust-card">
       <div class="cust-card-name" title="${escHtml(name)}">${escHtml(name)}</div>
       <div class="cust-card-detail">
         <strong>${fmt2.format(data.totalQty)}</strong> modules total<br>
         ${modChips}
       </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap;">
+        <label style="font-size:10px;color:var(--muted);white-space:nowrap;">Override Type:</label>
+        <select class="cust-mod-override-sel" data-cust="${nameAttr}" onchange="setCustModOverride(this)"
+          style="font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid var(--line);background:var(--bg);color:var(--ink);max-width:140px;">
+          <option value="">Auto</option>
+          ${modOptions}
+        </select>
+        ${override ? '<span style="font-size:9px;color:#818cf8;">● override</span>' : ''}
+      </div>
       <div class="cust-card-mw">${data.totalMW.toFixed(3)} <span>MW</span></div>
     </div>`;
   });
+
+  // Save overrides button
+  html += `<div style="grid-column:1/-1;text-align:right;padding-top:8px;">
+    <button class="btn" id="saveModOverridesBtn" onclick="saveCustomerModuleOverrides()"
+      style="background:var(--solar-1);color:#fff;padding:6px 18px;border-radius:6px;font-size:12px;font-weight:600;">
+      💾 Save Module Type Overrides (for all users)
+    </button>
+  </div>`;
+
   document.getElementById('custSummaryGrid').innerHTML = html;
 }
+
+// ── Customer Module Type Override Functions ─────────────────────────
+window.setCustModOverride = function(sel) {
+  const cust = sel.dataset.cust;
+  const val = sel.value;
+  if (val) {
+    customerModuleOverrides[cust] = { modKey: val };
+  } else {
+    delete customerModuleOverrides[cust];
+  }
+};
+
+window.saveCustomerModuleOverrides = async function() {
+  const btn = document.getElementById('saveModOverridesBtn');
+  btn.textContent = 'Saving…';
+  btn.disabled = true;
+  try {
+    const r = await fetch('https://scm-ease-admin.scm-ease.workers.dev/api/planning-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customerModuleOverrides })
+    });
+    if (r.ok) {
+      btn.textContent = '✅ Saved!';
+      // Re-run analysis with updated overrides
+      setTimeout(() => {
+        btn.textContent = '💾 Save Module Type Overrides (for all users)';
+        btn.disabled = false;
+        if (planRaw.length > 0) runAnalysisAuto();
+      }, 1000);
+    } else {
+      btn.textContent = '❌ Failed';
+      setTimeout(() => { btn.textContent = '💾 Save Module Type Overrides (for all users)'; btn.disabled = false; }, 2000);
+    }
+  } catch(e) {
+    btn.textContent = '❌ Error';
+    setTimeout(() => { btn.textContent = '💾 Save Module Type Overrides (for all users)'; btn.disabled = false; }, 2000);
+  }
+};
 
 // ── RENDER: Orders Table ──────────────────────────────────────────────
 function renderOrdersTable(orders) {
@@ -5118,8 +5207,14 @@ function renderConsolidatedTable(consolidated) {
     }
     stockPillsHtml += '</div>';
 
-    // Used by
-    const usedByHtml = mat.usedBy.map(name => `<span class="mod-badge" style="font-size:9px;padding:1px 5px;">${escHtml(name.split(' ')[0])}</span>`).join(' ');
+    // Used by — with module-wise qty breakdown
+    let usedByHtml = '';
+    if (mat.items && mat.items.length > 0) {
+      usedByHtml = mat.items.map(item => {
+        const reqForThisMod = item.consumption * item.qty;
+        return `<span class="mod-badge" style="font-size:9px;padding:1px 5px;" title="${item.modName}: ${fmt2.format(item.qty)} modules × ${item.consumption.toFixed(4)} = ${fmt2.format(reqForThisMod)}">${escHtml(item.modName.split(' ')[0])}<br><span style="font-size:8px;color:var(--muted);">${fmt2.format(reqForThisMod)}</span></span>`;
+      }).join(' ');
+    }
 
     // Material codes from mapped stock items
     const matCodes = [];
@@ -5180,6 +5275,15 @@ function renderDetailedTable(plannedModules, consolidated) {
     const mod = modules.find(m => m.key === mk);
     if (!mod) return;
     const mQty = plannedModules[mk].qty;
+    const wpVals = plannedModules[mk].wpValues;
+    const pwr = fmtPower(mQty * Math.max(...wpVals, 0));
+
+    // Module type header row
+    html += `<tr style="background:linear-gradient(90deg,#1a9e76 0%,#0f6e52 100%);">
+      <td colspan="13" style="color:#fff;font-weight:700;font-size:13px;padding:8px 12px;letter-spacing:0.5px;">
+        📦 ${escHtml(mod.name)} — ${fmt2.format(mQty)} modules × ${wpVals.join('/')}Wp = ${pwr.val} ${pwr.unit}
+      </td>
+    </tr>`;
 
     mod.rows.forEach((row, ri) => {
       const cons = row.qty * (1 + row.wastage / 100);
@@ -5263,8 +5367,9 @@ function renderCustomerMaterials(customerOrders, consolidated) {
 
   sorted.forEach(([custName, data]) => {
     const custMappings = customerStockMappings[custName] || {};
-    // Build material requirements for this customer
+    // Build material requirements for this customer, grouped by module type
     const custMaterials = {};
+    const custModBreakdown = {}; // { materialKey: { modKey: { qty, reqQty } } }
     data.orders.forEach(ord => {
       const mod = modules.find(m => m.key === ord.modKey);
       if (!mod) return;
@@ -5277,26 +5382,40 @@ function renderCustomerMaterials(customerOrders, consolidated) {
         }
         custMaterials[mk].reqQty += cons * ord.qty;
         custMaterials[mk].modules += ord.qty;
+        // Track per-module breakdown
+        if (!custModBreakdown[mk]) custModBreakdown[mk] = {};
+        if (!custModBreakdown[mk][ord.modKey]) custModBreakdown[mk][ord.modKey] = { qty: 0, reqQty: 0, name: mod.name };
+        custModBreakdown[mk][ord.modKey].qty += ord.qty;
+        custModBreakdown[mk][ord.modKey].reqQty += cons * ord.qty;
       });
     });
 
     const custNameEsc = escHtml(custName);
     const custNameAttr = custName.replace(/'/g, "\\'").replace(/"/g, '&quot;');
     const pwr = fmtPower(data.totalMW * 1e6);
+    const modChips = data.orders.map(o => {
+      const mod = modules.find(m => m.key === o.modKey);
+      return mod ? mod.name.split(' ')[0] : o.modKey;
+    }).filter((v, i, a) => a.indexOf(v) === i).join(', ');
 
-    html += `<div style="background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px;">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
-        <div style="font-size:15px;font-weight:700;color:var(--ink);flex:1;">${custNameEsc}</div>
+    html += `<div style="background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:10px;overflow:hidden;">
+      <div onclick="this.parentElement.classList.toggle('cust-mat-open')" style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;user-select:none;">
+        <span class="cust-mat-arrow" style="transition:transform .2s;font-size:12px;">▶</span>
+        <div style="font-size:14px;font-weight:700;color:var(--ink);flex:1;">${custNameEsc}</div>
+        <span style="font-size:11px;color:var(--muted);">${modChips}</span>
         <span style="font-size:12px;color:var(--muted);">${fmt2.format(data.totalQty)} modules</span>
         <span style="font-size:12px;font-weight:600;color:var(--solar-1);">${pwr.val} ${pwr.unit}</span>
       </div>
-      <div class="table-wrap" style="max-height:300px;overflow-y:auto;">
+      <div class="cust-mat-body" style="max-height:0;overflow:hidden;transition:max-height .3s ease;">
+      <div style="padding:0 14px 14px;">
+      <div class="table-wrap" style="max-height:400px;overflow-y:auto;">
         <table style="font-size:12px;">
           <thead>
             <tr>
               <th>Material Group</th>
               <th>Specification</th>
               <th class="center">UOM</th>
+              <th>Module Breakdown</th>
               <th>Material Code</th>
               <th class="num">Required Qty</th>
               <th>Stock Mapping</th>
@@ -5344,10 +5463,18 @@ function renderCustomerMaterials(customerOrders, consolidated) {
         ? custMatCodes.map(c => `<span style="font-size:9px;padding:1px 5px;background:#f0f4f8;border:1px solid #e2eaf0;border-radius:3px;color:#3a4a56;font-family:'JetBrains Mono',monospace;display:inline-block;margin:1px 2px;">${escHtml(c)}</span>`).join('')
         : '<span style="color:var(--muted);font-size:9px;">—</span>';
 
+      // Module breakdown chips for this customer's material
+      const modBreakdownHtml = custModBreakdown[mk]
+        ? Object.entries(custModBreakdown[mk]).map(([mKey, mData]) =>
+          `<span class="mod-badge" style="font-size:9px;padding:1px 5px;" title="${mData.name}: ${fmt2.format(mData.qty)} modules = ${fmt2.format(mData.reqQty)}">${escHtml(mData.name.split(' ')[0])}<br><span style="font-size:8px;color:var(--muted);">${fmt2.format(mData.reqQty)}</span></span>`
+        ).join(' ')
+        : '';
+
       html += `<tr>
         <td class="group-cell">${escHtml(mat.group)}</td>
         <td class="spec">${escHtml(mat.spec)}</td>
         <td class="center" style="color:var(--muted)">${escHtml(mat.uom)}</td>
+        <td style="padding:4px 6px">${modBreakdownHtml}</td>
         <td style="padding:4px 6px">${custMatCodeHtml}</td>
         <td class="num" style="font-weight:600">${fmt2.format(mat.reqQty)}</td>
         <td style="padding:4px 6px">${mappingLabel}</td>
@@ -5357,7 +5484,7 @@ function renderCustomerMaterials(customerOrders, consolidated) {
       </tr>`;
     });
 
-    html += `</tbody></table></div></div>`;
+    html += `</tbody></table></div></div></div></div>`;
   });
 
   container.innerHTML = html;

@@ -172,6 +172,7 @@ const DEFAULT_USERS = [
 const DEFAULT_PERMS = { calc: true, plan: true, plan_edit: true, cell: true, vendor: true, vendor_edit: true, explorer: true };
 const ALLOWED_PERM_KEYS = ['calc', 'plan', 'plan_edit', 'cell', 'vendor', 'vendor_edit', 'explorer'];
 const CONSUMPTION_DEFAULTS_KEY = 'consumption_defaults';
+const PLANNING_CONFIG_KEY = 'planning_config';
 
 async function getUsers(env) {
   const raw = await env.LOGS.get(USERS_KEY);
@@ -314,6 +315,24 @@ async function handleGetConsumptionDefaults(env) {
   catch { return jsonResp({ defaults: null }); }
 }
 
+// ── Planning Config (customer module overrides, shared across all users) ──
+async function handleSavePlanningConfig(body, env) {
+  const { customerModuleOverrides } = body;
+  if (!customerModuleOverrides || typeof customerModuleOverrides !== 'object')
+    return jsonResp({ error: 'customerModuleOverrides object required' }, 400);
+  const data = JSON.stringify({ customerModuleOverrides, _ts: Date.now() });
+  if (data.length > 2 * 1024 * 1024) return jsonResp({ error: 'Data too large' }, 413);
+  await env.LOGS.put(PLANNING_CONFIG_KEY, data);
+  return jsonResp({ ok: true });
+}
+
+async function handleGetPlanningConfig(env) {
+  const raw = await env.LOGS.get(PLANNING_CONFIG_KEY);
+  if (!raw) return jsonResp({ customerModuleOverrides: {} });
+  try { return jsonResp(JSON.parse(raw)); }
+  catch { return jsonResp({ customerModuleOverrides: {} }); }
+}
+
 async function appendLog(env, entry) {
   try {
     const raw = await env.LOGS.get(LOG_KEY);
@@ -398,6 +417,9 @@ export default {
     if (request.method === 'GET' && path === '/api/consumption-defaults') {
       return handleGetConsumptionDefaults(env);
     }
+    if (request.method === 'GET' && path === '/api/planning-config') {
+      return handleGetPlanningConfig(env);
+    }
 
     if (request.method !== 'POST') return jsonResp({ error: 'Method not allowed' }, 405);
 
@@ -417,6 +439,7 @@ export default {
       if (path === '/api/user-permissions') return handleGetUserPermissions(body, env);
       if (path === '/api/consumption-defaults') return handleSaveConsumptionDefaults(body, env, request.headers.get('Authorization'));
       if (path === '/api/customer-data') return handleSaveCustomerData(body, env);
+      if (path === '/api/planning-config') return handleSavePlanningConfig(body, env);
       return jsonResp({ error: 'Not found' }, 404);
     } catch (e) {
       return jsonResp({ error: e.message || 'Internal error' }, 500);
