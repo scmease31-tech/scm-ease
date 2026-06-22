@@ -283,6 +283,26 @@ async function handleAddLog(body, env, authHeader) {
   return jsonResp({ ok: true });
 }
 
+// ── Customer Data persistence (KV) ────────────────────────────────────
+const CUSTOMER_DATA_KEY = 'customer_mappings_data';
+
+async function handleSaveCustomerData(body, env) {
+  const { customerStockMappings, customerVariantSelections, _ts } = body;
+  if (!customerStockMappings && !customerVariantSelections) return jsonResp({ error: 'No data provided' }, 400);
+  const data = JSON.stringify({ customerStockMappings: customerStockMappings || {}, customerVariantSelections: customerVariantSelections || {}, _ts: _ts || Date.now() });
+  if (data.length > 5 * 1024 * 1024) return jsonResp({ error: 'Data too large' }, 413);
+  await env.LOGS.put(CUSTOMER_DATA_KEY, data);
+  return jsonResp({ ok: true });
+}
+
+async function handleGetCustomerData(env) {
+  const raw = await env.LOGS.get(CUSTOMER_DATA_KEY);
+  if (!raw) return jsonResp({ customerStockMappings: {}, customerVariantSelections: {} });
+  try {
+    return jsonResp(JSON.parse(raw));
+  } catch { return jsonResp({ customerStockMappings: {}, customerVariantSelections: {} }); }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────
 export default {
   async fetch(request, env) {
@@ -291,12 +311,15 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    // Allow GET for logs and users
+    // Allow GET for logs, users, and customer data
     if (request.method === 'GET' && path === '/api/logs') {
       return handleGetLogs(env, request.headers.get('Authorization'));
     }
     if (request.method === 'GET' && path === '/api/users') {
       return handleListUsers(env, request.headers.get('Authorization'));
+    }
+    if (request.method === 'GET' && path === '/api/customer-data') {
+      return handleGetCustomerData(env);
     }
 
     if (request.method !== 'POST') return jsonResp({ error: 'Method not allowed' }, 405);
@@ -313,6 +336,7 @@ export default {
       if (path === '/api/users/add') return handleAddUser(body, env, request.headers.get('Authorization'));
       if (path === '/api/users/update') return handleUpdateUser(body, env, request.headers.get('Authorization'));
       if (path === '/api/users/delete') return handleDeleteUser(body, env, request.headers.get('Authorization'));
+      if (path === '/api/customer-data') return handleSaveCustomerData(body, env);
       return jsonResp({ error: 'Not found' }, 404);
     } catch (e) {
       return jsonResp({ error: e.message || 'Internal error' }, 500);

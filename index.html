@@ -3907,6 +3907,7 @@ const stockMappingOverrides = savedPlan.stockMappingOverrides || {}; // { materi
 const stockVariantSelections = savedPlan.stockVariantSelections || {}; // { "materialKey|||stockDesc": ["variant1", ...] }
 const discardedMaterials = new Set(savedPlan.discardedMaterials || []); // Set of materialKey
 const customerStockMappings = savedPlan.customerStockMappings || {}; // { customerName: { materialKey: [stockItemDesc1, ...] } }
+const customerVariantSelections = savedPlan.customerVariantSelections || {}; // { "customer|||materialKey|||stockDesc": ["variant1", ...] }
 
 // Aggregated analysis results (shared between renders)
 let lastAnalysis = null;
@@ -3957,9 +3958,48 @@ function savePlanOverrides() {
     stockMappingOverrides,
     stockVariantSelections,
     discardedMaterials: Array.from(discardedMaterials),
-    customerStockMappings
+    customerStockMappings,
+    customerVariantSelections
   })); } catch(e) { console.warn('localStorage quota exceeded', e); }
 }
+
+// ── Cloud persistence for customer mappings via Cloudflare KV ─────────
+const _KV_URL = 'https://scm-ease-admin.scm-ease.workers.dev';
+
+function syncCustomerDataToCloud() {
+  const data = { customerStockMappings, customerVariantSelections, _ts: Date.now() };
+  fetch(_KV_URL + '/api/customer-data', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  }).catch(e => console.warn('Cloud sync failed:', e));
+}
+
+async function loadCustomerDataFromCloud() {
+  try {
+    const r = await fetch(_KV_URL + '/api/customer-data');
+    if (!r.ok) return;
+    const data = await r.json();
+    if (data.customerStockMappings) {
+      // Merge cloud data — cloud wins for keys not in local, local wins for keys that exist
+      Object.entries(data.customerStockMappings).forEach(([cust, mappings]) => {
+        if (!customerStockMappings[cust]) customerStockMappings[cust] = {};
+        Object.entries(mappings).forEach(([mk, items]) => {
+          if (!customerStockMappings[cust][mk]) customerStockMappings[cust][mk] = items;
+        });
+      });
+    }
+    if (data.customerVariantSelections) {
+      Object.entries(data.customerVariantSelections).forEach(([key, variants]) => {
+        if (!customerVariantSelections[key]) customerVariantSelections[key] = variants;
+      });
+    }
+    savePlanOverrides(); // persist merged data locally
+  } catch(e) { console.warn('Cloud load failed:', e); }
+}
+
+// Load cloud data on startup
+loadCustomerDataFromCloud();
 
 const planFileInput = document.getElementById('planFileInput');
 const stockFileInput = document.getElementById('stockFileInput');
@@ -4418,11 +4458,19 @@ function buildAutoStockMapping(materialGroup, materialSpec, materialUom) {
   return [...new Set(matchedKeys)];
 }
 
-function getStockQtyWithVariants(materialKey, desc) {
+function getStockQtyWithVariants(materialKey, desc, customer) {
   const info = aggregatedStock[desc];
   if (!info) return 0;
-  const vKey = materialKey + '|||' + desc;
-  const selVariants = stockVariantSelections[vKey];
+  // Check customer-specific variant selection first, then global
+  let selVariants;
+  if (customer) {
+    const cvKey = customer + '|||' + materialKey + '|||' + desc;
+    selVariants = customerVariantSelections[cvKey];
+  }
+  if (!selVariants) {
+    const vKey = materialKey + '|||' + desc;
+    selVariants = stockVariantSelections[vKey];
+  }
   // If no variant selection saved or item has no variants, use full qty
   if (!selVariants || !info.variants || Object.keys(info.variants).length === 0) return info.qty;
   // Sum only selected variant quantities
@@ -5130,7 +5178,7 @@ function renderCustomerMaterials(customerOrders, consolidated) {
         let total = 0; const items = [];
         custMappings[mk].forEach(desc => {
           if (aggregatedStock[desc]) {
-            const qty = getStockQtyWithVariants(mk, desc);
+            const qty = getStockQtyWithVariants(mk, desc, custName);
             total += qty;
             items.push({ desc, qty, uom: aggregatedStock[desc].uom, manual: true });
           }
@@ -5212,14 +5260,25 @@ window.openCustomerMapModal = function(customer, materialKey, isRefilter) {
     const isSelected = currentlyMapped.includes(item.desc);
     const isGlobal = globalMapped.includes(item.desc);
     const codeTag = item.info.code ? `<span style="font-size:9px;padding:1px 5px;background:#f0f4f8;border:1px solid #e2eaf0;border-radius:3px;color:#3a4a56;font-family:'JetBrains Mono',monospace;">${escHtml(item.info.code)}</span> ` : '';
-    // Build variant pills for customer modal too
+    // Build variant pills for customer modal — interactive like global
     let variantHtml = '';
     if (item.info.variants && Object.keys(item.info.variants).length > 0) {
-      variantHtml = '<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px;">' +
-        Object.keys(item.info.variants).map(v => {
+      const allVNames = Object.keys(item.info.variants);
+      const cvKey = customer + '|||' + materialKey + '|||' + item.desc;
+      const savedCustVariants = customerVariantSelections[cvKey] || [];
+      const hasSelection = savedCustVariants.length > 0;
+      variantHtml = '<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px;" onclick="event.stopPropagation()">' +
+        allVNames.map(v => {
           const q = item.info.variants[v];
           const vLabel = item.info.variantNames && item.info.variantNames[v] ? item.info.variantNames[v] : v;
-          return `<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:#e0e7ff;color:#3730a3;border:1px solid #818cf8;">${escHtml(vLabel)}: ${fmt2.format(q)}</span>`;
+          const isOn = !hasSelection || savedCustVariants.includes(v);
+          return `<span class="variant-pill" data-variant="${escHtml(v)}" data-stock="${escHtml(item.desc)}"
+            onclick="toggleVariantPill(this)"
+            style="font-size:9px;padding:2px 6px;border-radius:4px;cursor:pointer;user-select:none;
+            background:${isOn ? '#e0e7ff' : '#f3f4f6'};color:${isOn ? '#3730a3' : '#9ca3af'};
+            border:1px solid ${isOn ? '#818cf8' : '#d1d5db'};${!isOn ? 'text-decoration:line-through;' : ''}"
+            title="Click to ${isOn ? 'exclude' : 'include'} this variant">
+            ${escHtml(vLabel)}: ${fmt2.format(q)}</span>`;
         }).join('') + '</div>';
     }
     return `<div class="mapping-item ${isSelected ? 'selected' : ''}" onclick="toggleMappingItem(this)">
@@ -5604,34 +5663,55 @@ function renderMappingItems(currentlyMapped, autoMapped, searchTerm) {
 window.toggleVariantPill = function(pill) {
   const variant = pill.dataset.variant;
   const stockDesc = pill.dataset.stock;
-  const vKey = currentMappingKey + '|||' + stockDesc;
+  const modal = document.getElementById('stockMapModal');
+  const isCust = modal._custMode;
   const info = aggregatedStock[stockDesc];
   if (!info || !info.variants) return;
-
   const allVNames = Object.keys(info.variants);
-  let selected = stockVariantSelections[vKey] ? [...stockVariantSelections[vKey]] : [...allVNames];
 
-  if (selected.includes(variant)) {
-    selected = selected.filter(v => v !== variant);
-    if (selected.length === 0) selected = [...allVNames]; // can't deselect all, reset to all
+  if (isCust) {
+    // Customer-specific variant selection
+    const cvKey = currentCustMapCustomer + '|||' + currentCustMapKey + '|||' + stockDesc;
+    let selected = customerVariantSelections[cvKey] ? [...customerVariantSelections[cvKey]] : [...allVNames];
+    if (selected.includes(variant)) {
+      selected = selected.filter(v => v !== variant);
+      if (selected.length === 0) selected = [...allVNames];
+    } else {
+      selected.push(variant);
+    }
+    if (selected.length === allVNames.length) {
+      delete customerVariantSelections[cvKey];
+    } else {
+      customerVariantSelections[cvKey] = selected;
+    }
+    const isOn = !customerVariantSelections[cvKey] || (customerVariantSelections[cvKey] && customerVariantSelections[cvKey].includes(variant));
+    pill.style.background = isOn ? '#e0e7ff' : '#f3f4f6';
+    pill.style.color = isOn ? '#3730a3' : '#9ca3af';
+    pill.style.borderColor = isOn ? '#818cf8' : '#d1d5db';
+    pill.style.textDecoration = isOn ? 'none' : 'line-through';
+    pill.title = 'Click to ' + (isOn ? 'exclude' : 'include') + ' this variant';
   } else {
-    selected.push(variant);
+    // Global variant selection
+    const vKey = currentMappingKey + '|||' + stockDesc;
+    let selected = stockVariantSelections[vKey] ? [...stockVariantSelections[vKey]] : [...allVNames];
+    if (selected.includes(variant)) {
+      selected = selected.filter(v => v !== variant);
+      if (selected.length === 0) selected = [...allVNames];
+    } else {
+      selected.push(variant);
+    }
+    if (selected.length === allVNames.length) {
+      delete stockVariantSelections[vKey];
+    } else {
+      stockVariantSelections[vKey] = selected;
+    }
+    const isOn = !stockVariantSelections[vKey] || (stockVariantSelections[vKey] && stockVariantSelections[vKey].includes(variant));
+    pill.style.background = isOn ? '#e0e7ff' : '#f3f4f6';
+    pill.style.color = isOn ? '#3730a3' : '#9ca3af';
+    pill.style.borderColor = isOn ? '#818cf8' : '#d1d5db';
+    pill.style.textDecoration = isOn ? 'none' : 'line-through';
+    pill.title = 'Click to ' + (isOn ? 'exclude' : 'include') + ' this variant';
   }
-
-  // If all are selected, remove the override (means "use all")
-  if (selected.length === allVNames.length) {
-    delete stockVariantSelections[vKey];
-  } else {
-    stockVariantSelections[vKey] = selected;
-  }
-
-  // Update pill visuals
-  const isOn = !stockVariantSelections[vKey] || (stockVariantSelections[vKey] && stockVariantSelections[vKey].includes(variant));
-  pill.style.background = isOn ? '#e0e7ff' : '#f3f4f6';
-  pill.style.color = isOn ? '#3730a3' : '#9ca3af';
-  pill.style.borderColor = isOn ? '#818cf8' : '#d1d5db';
-  pill.style.textDecoration = isOn ? 'none' : 'line-through';
-  pill.title = 'Click to ' + (isOn ? 'exclude' : 'include') + ' this variant';
 };
 
 window.toggleMappingItem = function(div) {
@@ -5666,7 +5746,15 @@ window.saveStockMapping = function() {
       delete customerStockMappings[currentCustMapCustomer][currentCustMapKey];
       if (Object.keys(customerStockMappings[currentCustMapCustomer]).length === 0) delete customerStockMappings[currentCustMapCustomer];
     }
+    // Clean up customer variant selections for unchecked items
+    Object.keys(customerVariantSelections).forEach(cvk => {
+      if (cvk.startsWith(currentCustMapCustomer + '|||' + currentCustMapKey + '|||')) {
+        const desc = cvk.split('|||').slice(3).join('|||');
+        if (!checked.includes(desc)) delete customerVariantSelections[cvk];
+      }
+    });
     savePlanOverrides();
+    syncCustomerDataToCloud();
     modal._custMode = false;
     closeModal('stockMapModal');
     if (lastAnalysis) {
