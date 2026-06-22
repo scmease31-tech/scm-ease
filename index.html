@@ -4587,6 +4587,9 @@ function runAnalysisAuto() {
     planEndDate: planEndDate ? planEndDate.toISOString() : null,
     planSheetName
   })); } catch(e) { console.warn('localStorage quota exceeded', e); }
+  // Save raw data to sessionStorage so date filter works after page refresh
+  try { sessionStorage.setItem('rmPlanRaw', JSON.stringify(planRaw)); } catch(e) {}
+  try { sessionStorage.setItem('rmStockRaw', JSON.stringify(stockRaw)); } catch(e) {}
 }
 
 // ── RENDER: Customer Summary ──────────────────────────────────────────
@@ -5475,11 +5478,22 @@ window.onDateRangeChange = function() {
     rangeSpan.textContent = `${days} day${days !== 1 ? 's' : ''} selected`;
   }
   
-  // Re-run analysis with planRaw data if available
+  // Try restoring raw data from sessionStorage if not in memory
+  if (planRaw.length === 0) {
+    try { const s = sessionStorage.getItem('rmPlanRaw'); if (s) planRaw = JSON.parse(s); } catch(e) {}
+  }
+  if (stockRaw.length === 0) {
+    try { const s = sessionStorage.getItem('rmStockRaw'); if (s) stockRaw = JSON.parse(s); } catch(e) {}
+  }
+  
+  // Re-run analysis with loading indicator so UI refreshes
   if (planRaw.length > 0 && stockRaw.length > 0) {
-    runAnalysisAuto();
+    document.getElementById('loadingIndicator').style.display = 'block';
+    setTimeout(() => {
+      try { runAnalysisAuto(); } catch(e) { console.error('Analysis error:', e); }
+      document.getElementById('loadingIndicator').style.display = 'none';
+    }, 50);
   } else if (lastAnalysis) {
-    // If loaded from cache, we need planRaw — show message
     alert('Please re-upload the Planning Sheet to recalculate with new date range.');
   }
 };
