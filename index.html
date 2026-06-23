@@ -229,44 +229,30 @@
     text-align: right; min-width: 32px;
   }
 
-  /* ── GLOBAL POWER TARGET ── */
-  .global-power-row {
-    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    margin-bottom: 10px; padding: 10px 14px;
-    background: linear-gradient(135deg, #064430, #041f17);
-    border-radius: var(--radius); color: #fff;
+  /* ── PER-MODULE POWER TARGET ── */
+  .module-power-row {
+    display: flex; align-items: center; gap: 5px; margin-top: 2px;
   }
-  .global-power-row .gp-label {
-    font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
-    color: var(--solar-3); white-space: nowrap;
-  }
-  .global-power-row .gp-icon { font-size: 14px; }
-  .global-power-row input {
-    width: 120px; border: 1px solid rgba(255,255,255,0.25); border-radius: var(--radius-sm);
-    padding: 5px 8px; font: 600 13px 'JetBrains Mono', monospace;
-    color: #fff; background: rgba(255,255,255,0.1);
+  .module-power-row input {
+    width: 70px; border: 1px solid var(--line2); border-radius: var(--radius-sm);
+    padding: 4px 6px; font: 600 11px 'JetBrains Mono', monospace;
+    color: var(--ink); background: #f8fafb;
     -moz-appearance: textfield;
   }
-  .global-power-row input::-webkit-outer-spin-button,
-  .global-power-row input::-webkit-inner-spin-button { -webkit-appearance: none; }
-  .global-power-row input:focus { outline: none; border-color: var(--solar-3); background: rgba(255,255,255,0.18); }
-  .global-power-row input::placeholder { color: rgba(255,255,255,0.4); }
-  .global-power-row select {
-    border: 1px solid rgba(255,255,255,0.25); border-radius: var(--radius-sm);
-    padding: 5px 8px; font: 600 12px 'JetBrains Mono', monospace;
-    color: #fff; background: rgba(255,255,255,0.1); cursor: pointer;
+  .module-power-row input::-webkit-outer-spin-button,
+  .module-power-row input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .module-power-row input:focus { outline: none; border-color: var(--solar-2); background: #fff; }
+  .module-power-row select {
+    border: 1px solid var(--line2); border-radius: var(--radius-sm);
+    padding: 4px 4px; font: 600 10px 'JetBrains Mono', monospace;
+    color: var(--ink); background: #f8fafb; cursor: pointer;
   }
-  .global-power-row select:focus { outline: none; border-color: var(--solar-3); }
-  .global-power-row select option { color: var(--ink); background: #fff; }
-  .global-power-row .gp-result {
-    font-size: 11px; color: rgba(255,255,255,0.7); margin-left: auto;
+  .module-power-row select:focus { outline: none; border-color: var(--solar-2); }
+  .module-power-row .mp-clear {
+    border: none; background: none; color: var(--muted); font-size: 11px;
+    cursor: pointer; padding: 2px 4px; line-height: 1;
   }
-  .global-power-row .gp-result strong { color: var(--solar-3); font-weight: 700; }
-  .global-power-row .gp-clear {
-    border: none; background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.7);
-    border-radius: 4px; padding: 3px 8px; font-size: 10px; font-weight: 600; cursor: pointer;
-  }
-  .global-power-row .gp-clear:hover { background: rgba(255,255,255,0.22); color: #fff; }
+  .module-power-row .mp-clear:hover { color: var(--danger); }
   .module-qty-auto {
     background: rgba(37,209,154,0.12) !important; border-color: var(--solar-3) !important;
   }
@@ -2240,7 +2226,6 @@
   <!-- MODULE INPUTS -->
   <div class="controls-section">
     <div class="section-label">Module Configuration — Qty &amp; Watt Peak</div>
-    <div class="global-power-row" id="globalPowerRow"></div>
     <div class="controls-grid" id="moduleControls"></div>
   </div>
 
@@ -3331,8 +3316,8 @@ const rowPricing = saved.rowPricing || {};
 const currencyRates = saved.currencyRates || { USD: 83.50, RMB: 11.50 };
 const recycleBin = saved.recycleBin || []; // [{ type:'row'|'module', data, moduleName, moduleKey, time, label }]
 let activeModule = saved.activeModule || "all";
-// Global power target: { value: number, unit: 'W'|'kW'|'MW'|'GW' } — auto-calculates moduleQty from Wp
-let globalPower = saved.globalPower || null;
+// Per-module power target: { moduleKey: { value: number, unit: 'W'|'kW'|'MW'|'GW' } } — auto-calculates moduleQty from Wp
+const modulePower = saved.modulePower || {};
 
 // Unit multipliers for generation
 const GEN_UNITS = { W: 1, kW: 1e3, MW: 1e6, GW: 1e9 };
@@ -4268,7 +4253,7 @@ document.addEventListener('click', function(e) {
 
 // ── SAVE ──────────────────────────────────────────────────────────────────
 function saveState() {
-  try { localStorage.setItem("rmConsv2", JSON.stringify({ modules, moduleQty, moduleWp, activeModule, rowOverrides, rowGeneration, rowPricing, currencyRates, recycleBin, globalPower, _baseVersion: _BASE_VERSION })); } catch(e) { console.warn('localStorage quota exceeded', e); }
+  try { localStorage.setItem("rmConsv2", JSON.stringify({ modules, moduleQty, moduleWp, activeModule, rowOverrides, rowGeneration, rowPricing, currencyRates, recycleBin, modulePower, _baseVersion: _BASE_VERSION })); } catch(e) { console.warn('localStorage quota exceeded', e); }
 }
 
 // ── PRICING UOM CONVERSION ────────────────────────────────────────────────
@@ -4338,80 +4323,34 @@ function allRows() {
   return modules.flatMap(m => m.rows.map((row, ri) => ({ module: m, row, rowIndex: ri })));
 }
 
-// ── GLOBAL POWER TARGET ───────────────────────────────────────────────────
-function applyGlobalPower() {
-  if (!globalPower || !globalPower.value) return;
-  const totalW = globalPower.value * GEN_UNITS[globalPower.unit];
-  modules.forEach(m => {
-    const wp = n(moduleWp[m.key]);
-    if (wp > 0) {
-      moduleQty[m.key] = Math.ceil(totalW / wp);
-    }
-  });
+// ── PER-MODULE POWER TARGET ───────────────────────────────────────────────
+function applyModulePower(key) {
+  const mp = modulePower[key];
+  if (!mp || !mp.value) return;
+  const wp = n(moduleWp[key]);
+  if (wp > 0) {
+    moduleQty[key] = Math.ceil((mp.value * GEN_UNITS[mp.unit]) / wp);
+  }
 }
 
-function renderGlobalPower() {
-  const el = document.getElementById('globalPowerRow');
-  const gp = globalPower || {};
-  const gpVal = gp.value || '';
-  const gpUnit = gp.unit || 'MW';
-  // Compute total modules from global power
-  let totalMods = 0;
-  if (globalPower && globalPower.value) {
-    modules.forEach(m => { totalMods += n(moduleQty[m.key]); });
-  }
-  const resultText = globalPower && globalPower.value
-    ? `<span class="gp-result"><strong>${fmt2.format(totalMods)}</strong> modules auto-calculated</span>`
-    : '<span class="gp-result">Enter total power to auto-fill module qty from Wp</span>';
-  el.innerHTML = `
-    <span class="gp-icon">⚡</span>
-    <span class="gp-label">GLOBAL POWER TARGET</span>
-    <input type="number" min="0" step="any" id="gpValueInput" value="${gpVal}" placeholder="e.g. 10"/>
-    <select id="gpUnitSelect">
-      <option value="W"${gpUnit==='W'?' selected':''}>W</option>
-      <option value="kW"${gpUnit==='kW'?' selected':''}>kW</option>
-      <option value="MW"${gpUnit==='MW'?' selected':''}>MW</option>
-      <option value="GW"${gpUnit==='GW'?' selected':''}>GW</option>
-    </select>
-    ${resultText}
-    ${globalPower && globalPower.value ? '<button class="gp-clear" id="gpClearBtn">✕ Clear</button>' : ''}
-  `;
-  document.getElementById('gpValueInput').addEventListener('input', (e) => {
-    const val = n(e.target.value);
-    if (val > 0) {
-      globalPower = { value: val, unit: document.getElementById('gpUnitSelect').value };
-      applyGlobalPower();
-    } else {
-      globalPower = null;
-    }
-    saveState(); renderControls(); render(); renderGlobalPower();
-  });
-  document.getElementById('gpUnitSelect').addEventListener('change', (e) => {
-    if (globalPower && globalPower.value) {
-      globalPower.unit = e.target.value;
-      applyGlobalPower();
-      saveState(); renderControls(); render(); renderGlobalPower();
-    }
-  });
-  const clearBtn = document.getElementById('gpClearBtn');
-  if (clearBtn) {
-    clearBtn.addEventListener('click', () => {
-      globalPower = null;
-      saveState(); renderControls(); render(); renderGlobalPower();
-    });
-  }
+function applyAllModulePower() {
+  modules.forEach(m => applyModulePower(m.key));
 }
 
 // ── CONTROLS ──────────────────────────────────────────────────────────────
 function renderControls() {
-  const gpActive = globalPower && globalPower.value > 0;
   const box = document.getElementById("moduleControls");
   box.innerHTML = modules.map(module => {
-    const qty = n(moduleQty[module.key]);
-    const wp  = n(moduleWp[module.key]);
+    const mk = module.key;
+    const qty = n(moduleQty[mk]);
+    const wp  = n(moduleWp[mk]);
     const totalW = qty * wp;
     const pwr = fmtPower(totalW);
-    const isAutoQty = gpActive && wp > 0;
+    const mp = modulePower[mk];
+    const hasTarget = mp && mp.value > 0;
+    const isAutoQty = hasTarget && wp > 0;
+    const mpVal = hasTarget ? mp.value : '';
+    const mpUnit = (mp && mp.unit) || 'MW';
     return `
     <div class="module-card">
       <div class="module-card-header">
@@ -4421,16 +4360,29 @@ function renderControls() {
       </div>
       <div class="module-inputs">
         <div class="input-row">
+          <span class="input-label">Power</span>
+          <div class="module-power-row">
+            <input type="number" min="0" step="any" value="${mpVal}" data-mp-val="${mk}" placeholder="e.g. 10"/>
+            <select data-mp-unit="${mk}">
+              <option value="W"${mpUnit==='W'?' selected':''}>W</option>
+              <option value="kW"${mpUnit==='kW'?' selected':''}>kW</option>
+              <option value="MW"${mpUnit==='MW'?' selected':''}>MW</option>
+              <option value="GW"${mpUnit==='GW'?' selected':''}>GW</option>
+            </select>
+            ${hasTarget ? `<button class="mp-clear" data-mp-clear="${mk}" title="Clear power target">✕</button>` : ''}
+          </div>
+        </div>
+        <div class="input-row">
           <span class="input-label">Modules</span>
           <div class="input-field-wrap">
-            <input type="number" min="0" step="1" value="${moduleQty[module.key] || ""}" data-module-qty="${module.key}" placeholder="Qty" ${isAutoQty ? 'readonly title="Auto-calculated from Global Power Target"' : ''} class="${isAutoQty ? 'module-qty-auto' : ''}"/>
+            <input type="number" min="0" step="1" value="${moduleQty[mk] || ""}" data-module-qty="${mk}" placeholder="Qty" ${isAutoQty ? 'readonly title="Auto-calculated from Power Target"' : ''} class="${isAutoQty ? 'module-qty-auto' : ''}"/>
           </div>
-          <span class="input-unit">${isAutoQty ? '⚡ auto' : 'nos'}</span>
+          <span class="input-unit">${isAutoQty ? '⚡auto' : 'nos'}</span>
         </div>
         <div class="input-row">
           <span class="input-label">Module Wp</span>
           <div class="input-field-wrap">
-            <input type="number" min="0" step="0.01" value="${moduleWp[module.key] || ""}" data-module-wp="${module.key}" placeholder="e.g. 580"/>
+            <input type="number" min="0" step="0.01" value="${moduleWp[mk] || ""}" data-module-wp="${mk}" placeholder="e.g. 580"/>
           </div>
           <span class="input-unit">Wp</span>
         </div>
@@ -4443,19 +4395,54 @@ function renderControls() {
     </div>`;
   }).join("");
 
+  // Power target value input
+  document.querySelectorAll("[data-mp-val]").forEach(inp => {
+    inp.addEventListener("input", () => {
+      const mk = inp.dataset.mpVal;
+      const val = n(inp.value);
+      const unitSel = document.querySelector(`[data-mp-unit="${mk}"]`);
+      if (val > 0) {
+        modulePower[mk] = { value: val, unit: unitSel ? unitSel.value : 'MW' };
+        applyModulePower(mk);
+      } else {
+        delete modulePower[mk];
+      }
+      saveState(); renderControls(); render();
+    });
+  });
+  // Power target unit change
+  document.querySelectorAll("[data-mp-unit]").forEach(sel => {
+    sel.addEventListener("change", () => {
+      const mk = sel.dataset.mpUnit;
+      if (modulePower[mk] && modulePower[mk].value > 0) {
+        modulePower[mk].unit = sel.value;
+        applyModulePower(mk);
+        saveState(); renderControls(); render();
+      }
+    });
+  });
+  // Power target clear
+  document.querySelectorAll("[data-mp-clear]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      delete modulePower[btn.dataset.mpClear];
+      saveState(); renderControls(); render();
+    });
+  });
+  // Module qty manual input
   document.querySelectorAll("[data-module-qty]").forEach(inp => {
     inp.addEventListener("input", () => {
       moduleQty[inp.dataset.moduleQty] = n(inp.value);
       saveState(); render();
     });
   });
+  // Module Wp input
   document.querySelectorAll("[data-module-wp]").forEach(inp => {
     inp.addEventListener("input", () => {
-      moduleWp[inp.dataset.moduleWp] = n(inp.value);
-      // If global power is active, recalculate qty for this module
-      if (globalPower && globalPower.value > 0) {
-        applyGlobalPower();
-        saveState(); renderControls(); render(); renderGlobalPower();
+      const mk = inp.dataset.moduleWp;
+      moduleWp[mk] = n(inp.value);
+      if (modulePower[mk] && modulePower[mk].value > 0) {
+        applyModulePower(mk);
+        saveState(); renderControls(); render();
         return;
       }
       saveState(); render();
@@ -5127,8 +5114,8 @@ window.rbinRestore = function(idx) {
 
   recycleBin.splice(idx, 1);
   updateRbinBadge();
-  applyGlobalPower();
-  saveState(); renderControls(); render(); renderGlobalPower();
+  applyAllModulePower();
+  saveState(); renderControls(); render();
   renderRecycleBin();
 };
 
@@ -5178,8 +5165,8 @@ function saveAddModuleModal() {
   moduleQty[key] = 0;
   moduleWp[key] = 0;
   closeModal('addModuleModal');
-  applyGlobalPower();
-  saveState(); renderControls(); render(); renderGlobalPower();
+  applyAllModulePower();
+  saveState(); renderControls(); render();
 }
 function deleteModuleType(key) {
   const mod = modules.find(m => m.key === key);
@@ -5202,9 +5189,10 @@ function deleteModuleType(key) {
   modules.splice(modules.indexOf(mod), 1);
   delete moduleQty[key];
   delete moduleWp[key];
+  delete modulePower[key];
   if (activeModule === key) activeModule = 'all';
   updateRbinBadge();
-  saveState(); renderControls(); render(); renderGlobalPower();
+  saveState(); renderControls(); render();
 }
 
 function render() {
@@ -8185,8 +8173,8 @@ document.getElementById("clearQty").addEventListener("click", () => {
   Object.keys(rowOverrides).forEach(k => delete rowOverrides[k]);
   Object.keys(rowGeneration).forEach(k => delete rowGeneration[k]);
   Object.keys(rowPricing).forEach(k => delete rowPricing[k]);
-  globalPower = null;
-  saveState(); renderControls(); render(); renderGlobalPower();
+  Object.keys(modulePower).forEach(k => delete modulePower[k]);
+  saveState(); renderControls(); render();
 });
 document.getElementById("searchBox").addEventListener("input", renderTable);
 document.getElementById("addRowBtn").addEventListener("click", openAddRowModal);
@@ -8596,8 +8584,7 @@ async function loadAnalysisState() {
   } catch(e) { console.error("Error loading saved analysis", e); }
 }
 
-applyGlobalPower();
-renderGlobalPower();
+applyAllModulePower();
 renderControls();
 render();
 loadAnalysisState();
@@ -10928,7 +10915,6 @@ window.umSwitchTab = function(tab) {
         saveState();
         if (typeof renderControls === 'function') renderControls();
         if (typeof render === 'function') render();
-        if (typeof renderGlobalPower === 'function') renderGlobalPower();
         btn.textContent = 'Reset ✓';
       } else if (data.ok && (!data.modules || data.modules.length === 0)) {
         alert('No defaults have been saved yet. Ask the admin to save defaults first.');
