@@ -54,6 +54,15 @@ async function ghPut(path, content, sha, message, token) {
   return r.json();
 }
 
+// Fetch a blob by its sha (needed for files >1 MB where contents API returns empty content)
+async function ghGetBlob(sha, token) {
+  const r = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/git/blobs/${sha}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json', 'User-Agent': 'SCM-Worker' },
+  });
+  if (!r.ok) throw new Error(`GitHub GET blob ${sha}: ${r.status}`);
+  return r.json();
+}
+
 // safe base64 encode/decode for unicode
 function b64Encode(str) { return btoa(String.fromCharCode(...new TextEncoder().encode(str))); }
 function b64Decode(b64) { return new TextDecoder().decode(Uint8Array.from(atob(b64), c => c.charCodeAt(0))); }
@@ -81,7 +90,21 @@ async function handleSave(body, env, authHeader) {
 
   // fetch current index.html from GitHub
   const file = await ghGet('index.html', env.GITHUB_TOKEN);
-  const html = b64Decode(file.content.replace(/\n/g, ''));
+
+  // For files >1 MB the contents API returns empty content; fall back to Blobs API
+  let rawB64 = file.content ? file.content.replace(/\n/g, '') : '';
+  if (!rawB64 && file.sha) {
+    const blob = await ghGetBlob(file.sha, env.GITHUB_TOKEN);
+    rawB64 = (blob.content || '').replace(/\n/g, '');
+  }
+  if (!rawB64) return jsonResp({ error: 'Failed to read index.html content from GitHub' }, 500);
+
+  const html = b64Decode(rawB64);
+
+  // Safety: verify we decoded real HTML (not an empty or truncated file)
+  if (html.length < 1000 || !html.includes('</html>')) {
+    return jsonResp({ error: 'Decoded index.html is empty or corrupt — aborting to prevent data loss' }, 500);
+  }
 
   // replace baseModules line
   const newVersion = Date.now();
@@ -90,11 +113,24 @@ async function handleSave(body, env, authHeader) {
     /^const baseModules = \[.*\];$/m,
     `const baseModules = ${modulesJson};`
   );
+  if (updated === html) {
+    return jsonResp({ error: 'baseModules pattern not found in index.html — aborting' }, 500);
+  }
+
   // replace _BASE_VERSION line
+  const beforeVer = updated;
   updated = updated.replace(
     /^const _BASE_VERSION = .*?;$/m,
     `const _BASE_VERSION = ${newVersion};`
   );
+  if (updated === beforeVer) {
+    return jsonResp({ error: '_BASE_VERSION pattern not found in index.html — aborting' }, 500);
+  }
+
+  // Final guard: updated file must be roughly the same size as original
+  if (updated.length < html.length * 0.5) {
+    return jsonResp({ error: 'Updated HTML is suspiciously small — aborting to prevent data loss' }, 500);
+  }
 
   // commit back
   const encoded = b64Encode(updated);
