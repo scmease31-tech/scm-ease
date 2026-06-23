@@ -6361,6 +6361,30 @@ function runAnalysisAuto() {
   analysisDB.save('rmRawData', { planRaw, stockRaw, planFmt }).catch(e => {
     console.warn('Failed to save raw data', e);
   });
+
+  // Auto-share planning data to server so all users can see it
+  (async function shareToServer() {
+    const isAdmin = !!sessionStorage.getItem('adminToken');
+    const hasPlanChanges = sessionStorage.getItem('planChangesPerm') === '1';
+    if (!isAdmin && !hasPlanChanges) return;
+    try {
+      const shareBody = {
+        analysisState: stateToSave,
+        rawData: { planRaw, stockRaw, planFmt }
+      };
+      if (isAdmin) {
+        shareBody.userName = undefined;
+        shareBody.userPassword = undefined;
+      }
+      const headers = { 'Content-Type': 'application/json' };
+      if (isAdmin) headers['Authorization'] = 'Bearer ' + sessionStorage.getItem('adminToken');
+      const r = await fetch('https://scm-ease-admin.scm-ease.workers.dev/api/shared-planning', {
+        method: 'POST', headers, body: JSON.stringify(shareBody)
+      });
+      if (r.ok) console.log('Planning data shared to all users');
+      else console.warn('Failed to share planning data:', (await r.json()).error);
+    } catch(e) { console.warn('Failed to share planning data:', e); }
+  })();
 }
 
 // ── RENDER: Customer Summary ──────────────────────────────────────────
@@ -8490,7 +8514,29 @@ async function loadAnalysisState() {
       if (ls) { data = JSON.parse(ls); }
     } catch(e) {}
   }
-  if (!data || !data.lastAnalysis || !data.aggregatedStock) return;
+  if (!data || !data.lastAnalysis || !data.aggregatedStock) {
+    // No local data — try loading shared planning data from server
+    try {
+      const r = await fetch('https://scm-ease-admin.scm-ease.workers.dev/api/shared-planning');
+      if (r.ok) {
+        const shared = await r.json();
+        if (!shared.empty && shared.analysisState && shared.analysisState.lastAnalysis) {
+          data = shared.analysisState;
+          // Also restore raw data from server
+          if (shared.rawData) {
+            if (shared.rawData.planRaw && shared.rawData.planRaw.length) planRaw = shared.rawData.planRaw;
+            if (shared.rawData.stockRaw && shared.rawData.stockRaw.length) stockRaw = shared.rawData.stockRaw;
+            if (shared.rawData.planFmt && shared.rawData.planFmt.length) planFmt = shared.rawData.planFmt;
+          }
+          // Cache locally so next load is instant
+          analysisDB.save('rmAnalysisState', data).catch(() => {});
+          if (shared.rawData) analysisDB.save('rmRawData', shared.rawData).catch(() => {});
+          console.log('Loaded shared planning data from server');
+        }
+      }
+    } catch(e) { console.warn('Failed to fetch shared planning data:', e); }
+    if (!data || !data.lastAnalysis || !data.aggregatedStock) return;
+  }
   // Auto-clear stale cache from older code versions
   if ((data.parseVersion || 0) < PARSE_VERSION) {
     console.warn('[Cache] Stale parse data (v' + (data.parseVersion||0) + ' < v' + PARSE_VERSION + ') — clearing');

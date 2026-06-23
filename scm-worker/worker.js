@@ -221,6 +221,7 @@ const DEFAULT_PERMS = { calc: true, calc_changes: false, plan: true, plan_edit: 
 const ALLOWED_PERM_KEYS = ['calc', 'calc_changes', 'plan', 'plan_edit', 'plan_changes', 'cell', 'vendor', 'vendor_edit', 'explorer'];
 const CONSUMPTION_DEFAULTS_KEY = 'consumption_defaults';
 const PLANNING_CONFIG_KEY = 'planning_config';
+const SHARED_PLANNING_KEY = 'shared_planning_data';
 
 async function getUsers(env) {
   const raw = await env.LOGS.get(USERS_KEY);
@@ -418,6 +419,35 @@ async function handleGetPlanningConfig(env) {
   catch { return jsonResp({ customerModuleOverrides: {} }); }
 }
 
+// ── Shared Planning Data (analysis + raw data shared to all users) ────
+async function handleSaveSharedPlanning(body, env, authHeader) {
+  // Only admin or users with plan_changes permission
+  const { userName, userPassword, analysisState, rawData } = body;
+  if (userName && userPassword) {
+    const verified = await verifyUserCredentials(env, userName, userPassword);
+    if (!verified) return jsonResp({ error: 'Unauthorized' }, 401);
+    const hasPerm = await userHasPermission(env, verified, 'plan_changes');
+    if (!hasPerm) return jsonResp({ error: 'No plan_changes permission' }, 403);
+  } else {
+    const token = (authHeader || '').replace('Bearer ', '');
+    const payload = await verifyToken(token, env.JWT_SECRET);
+    if (!payload) return jsonResp({ error: 'Unauthorized' }, 401);
+  }
+  if (!analysisState) return jsonResp({ error: 'No analysis data provided' }, 400);
+  const data = JSON.stringify({ analysisState, rawData: rawData || null, _ts: Date.now() });
+  if (data.length > 20 * 1024 * 1024) return jsonResp({ error: 'Data too large (>20MB)' }, 413);
+  await env.LOGS.put(SHARED_PLANNING_KEY, data);
+  await appendLog(env, { type: 'planning_share', user: userName || 'admin', ts: new Date().toISOString(), detail: 'Shared planning data to all users' });
+  return jsonResp({ ok: true });
+}
+
+async function handleGetSharedPlanning(env) {
+  const raw = await env.LOGS.get(SHARED_PLANNING_KEY);
+  if (!raw) return jsonResp({ empty: true });
+  try { return jsonResp(JSON.parse(raw)); }
+  catch { return jsonResp({ empty: true }); }
+}
+
 async function appendLog(env, entry) {
   try {
     const raw = await env.LOGS.get(LOG_KEY);
@@ -512,6 +542,9 @@ export default {
     if (request.method === 'GET' && path === '/api/planning-config') {
       return handleGetPlanningConfig(env);
     }
+    if (request.method === 'GET' && path === '/api/shared-planning') {
+      return handleGetSharedPlanning(env);
+    }
 
     if (request.method !== 'POST') return jsonResp({ error: 'Method not allowed' }, 405);
 
@@ -532,6 +565,7 @@ export default {
       if (path === '/api/consumption-defaults') return handleSaveConsumptionDefaults(body, env, request.headers.get('Authorization'));
       if (path === '/api/customer-data') return handleSaveCustomerData(body, env);
       if (path === '/api/planning-config') return handleSavePlanningConfig(body, env);
+      if (path === '/api/shared-planning') return handleSaveSharedPlanning(body, env, request.headers.get('Authorization'));
       return jsonResp({ error: 'Not found' }, 404);
     } catch (e) {
       return jsonResp({ error: e.message || 'Internal error' }, 500);
