@@ -2373,7 +2373,13 @@
     <div class="summary-grid" id="planKpi"></div>
 
     <!-- Shortage/Surplus Bar -->
-    <div id="shortageBar"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+      <div id="shortageBar" style="flex:1;"></div>
+      <button class="btn" id="deployPlanningBtn" onclick="deployPlanningData()"
+        style="display:none;background:linear-gradient(135deg,#10b981,#059669);color:#fff;padding:6px 18px;border-radius:6px;font-size:12px;font-weight:600;white-space:nowrap;">
+        🚀 Deploy Planning (for all users)
+      </button>
+    </div>
 
     <!-- Date Range Selector -->
     <div id="dateRangeBar" style="background:linear-gradient(90deg,#f0f9ff,#e0f2fe); border:1px solid #7dd3fc; border-radius:8px; padding:10px 16px; margin-bottom:10px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
@@ -5364,6 +5370,45 @@ window.deployCustomerMappings = async function() {
   }
 };
 
+// Explicit deploy for planning data (analysis + raw Excel data)
+window.deployPlanningData = async function() {
+  if (!sessionStorage.getItem('adminToken') && sessionStorage.getItem('planChangesPerm') !== '1') {
+    alert('You do not have permission to deploy planning data. Contact admin.');
+    return;
+  }
+  if (!window._latestPlanningState) {
+    alert('No planning data to deploy. Upload planning & stock files first.');
+    return;
+  }
+  if (!confirm('Deploy current planning data to all users?\nThis will overwrite the shared planning data everyone sees.')) return;
+  const btn = document.getElementById('deployPlanningBtn');
+  const origText = '🚀 Deploy Planning (for all users)';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Deploying…'; }
+  try {
+    const shareBody = {
+      analysisState: window._latestPlanningState,
+      rawData: window._latestPlanningRaw || null
+    };
+    const headers = { 'Content-Type': 'application/json' };
+    const token = sessionStorage.getItem('adminToken');
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    const r = await fetch('https://scm-ease-admin.scm-ease.workers.dev/api/shared-planning', {
+      method: 'POST', headers, body: JSON.stringify(shareBody)
+    });
+    if (r.ok) {
+      if (btn) btn.textContent = '✅ Deployed!';
+      setTimeout(() => { if (btn) { btn.textContent = origText; btn.disabled = false; } }, 2000);
+    } else {
+      const d = await r.json();
+      alert('Deploy failed: ' + (d.error || 'Unknown error'));
+      if (btn) { btn.textContent = origText; btn.disabled = false; }
+    }
+  } catch(e) {
+    alert('Deploy failed: ' + e.message);
+    if (btn) { btn.textContent = origText; btn.disabled = false; }
+  }
+};
+
 async function loadCustomerDataFromCloud() {
   try {
     const r = await fetch(_KV_URL + '/api/customer-data');
@@ -6401,29 +6446,16 @@ function runAnalysisAuto() {
     console.warn('Failed to save raw data', e);
   });
 
-  // Auto-share planning data to server so all users can see it
-  (async function shareToServer() {
+  // Store latest state for explicit deploy
+  window._latestPlanningState = stateToSave;
+  window._latestPlanningRaw = { planRaw, stockRaw, planFmt };
+  // Show deploy button if admin or has plan_changes permission
+  const dpBtn = document.getElementById('deployPlanningBtn');
+  if (dpBtn) {
     const isAdmin = !!sessionStorage.getItem('adminToken');
     const hasPlanChanges = sessionStorage.getItem('planChangesPerm') === '1';
-    if (!isAdmin && !hasPlanChanges) return;
-    try {
-      const shareBody = {
-        analysisState: stateToSave,
-        rawData: { planRaw, stockRaw, planFmt }
-      };
-      if (isAdmin) {
-        shareBody.userName = undefined;
-        shareBody.userPassword = undefined;
-      }
-      const headers = { 'Content-Type': 'application/json' };
-      if (isAdmin) headers['Authorization'] = 'Bearer ' + sessionStorage.getItem('adminToken');
-      const r = await fetch('https://scm-ease-admin.scm-ease.workers.dev/api/shared-planning', {
-        method: 'POST', headers, body: JSON.stringify(shareBody)
-      });
-      if (r.ok) console.log('Planning data shared to all users');
-      else console.warn('Failed to share planning data:', (await r.json()).error);
-    } catch(e) { console.warn('Failed to share planning data:', e); }
-  })();
+    dpBtn.style.display = (isAdmin || hasPlanChanges) ? '' : 'none';
+  }
 }
 
 // ── RENDER: Customer Summary ──────────────────────────────────────────
@@ -10937,6 +10969,9 @@ window.umSwitchTab = function(tab) {
     if (custDeploy) custDeploy.style.display = canSave ? '' : 'none';
     const modDeploy = document.getElementById('deployModTypeMappingsBtn');
     if (modDeploy) modDeploy.style.display = canSave ? '' : 'none';
+    // Deploy Planning button
+    const planDeploy = document.getElementById('deployPlanningBtn');
+    if (planDeploy && window._latestPlanningState) planDeploy.style.display = canSave ? '' : 'none';
   };
 })();
 </script>
