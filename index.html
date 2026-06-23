@@ -581,6 +581,20 @@
   .tbl-rbin-item .rbin-actions { display: flex; gap: 6px; }
   .tbl-rbin-item .rbin-actions button { padding: 3px 10px; border-radius: 4px; font: 600 10px 'Inter', sans-serif; cursor: pointer; }
 
+  /* ── Drag & Drop ────────────────────────────────────────── */
+  .tbl-drag-handle { cursor: grab; opacity: 0.35; font-size: 13px; user-select: none; padding: 0 3px; }
+  .tbl-drag-handle:hover { opacity: 0.8; }
+  tr.tbl-row-dragging { opacity: 0.4; background: #dbeafe !important; }
+  tr.tbl-row-drop-above { box-shadow: 0 -2px 0 0 #2563eb inset; }
+  tr.tbl-row-drop-below { box-shadow: 0 2px 0 0 #2563eb inset; }
+  th.tbl-col-dragging { opacity: 0.4; background: #dbeafe !important; }
+  th.tbl-col-drop-left { box-shadow: -3px 0 0 0 #2563eb inset; }
+  th.tbl-col-drop-right { box-shadow: 3px 0 0 0 #2563eb inset; }
+  td.tbl-col-drop-left { box-shadow: -3px 0 0 0 #2563eb inset; }
+  td.tbl-col-drop-right { box-shadow: 3px 0 0 0 #2563eb inset; }
+  .tbl-drag-active .tbl-drag-handle { opacity: 0.7; }
+  .tbl-mgr-btn.drag-on { background: #dbeafe; border-color: #60a5fa; color: #1d4ed8; }
+
   /* Column group headers */
   thead tr.group-row th {
     background: var(--solar-1);
@@ -3842,7 +3856,8 @@ function injectTableToolbar(tbodyId) {
   bar.innerHTML =
     '<button class="tbl-mgr-btn" onclick="tblShowColManager(\'' + tbodyId + '\',this)">📋 Columns <span class="mgr-badge" data-mgr-colbadge="' + tbodyId + '" style="display:none">0</span></button>' +
     '<button class="tbl-mgr-btn" onclick="tblUnhideAll(\'' + tbodyId + '\')">👁️ Unhide Rows <span class="mgr-badge" data-mgr-rowbadge="' + tbodyId + '" style="display:none">0</span></button>' +
-    '<button class="tbl-mgr-btn" onclick="tblRbinToggle()">🗑️ Recycle Bin <span class="mgr-badge tbl-rbin-badge" style="display:' + (_tableRecycleBin.length > 0 ? '' : 'none') + '">' + _tableRecycleBin.length + '</span></button>';
+    '<button class="tbl-mgr-btn" onclick="tblRbinToggle()">🗑️ Recycle Bin <span class="mgr-badge tbl-rbin-badge" style="display:' + (_tableRecycleBin.length > 0 ? '' : 'none') + '">' + _tableRecycleBin.length + '</span></button>' +
+    '<button class="tbl-mgr-btn" data-drag-toggle="' + tbodyId + '" onclick="tblToggleDrag(\'' + tbodyId + '\',this)">↕️ Drag Mode</button>';
   wrap.insertBefore(bar, table);
 }
 
@@ -3913,6 +3928,201 @@ function _addRowActCells(tbodyId) {
   });
 }
 
+// ── DRAG & DROP: Row + Column reordering ──────────────────────────────
+const _dragState = {};  // { tbodyId: bool } - whether drag mode is on
+
+window.tblToggleDrag = function(tbodyId, btn) {
+  const on = !_dragState[tbodyId];
+  _dragState[tbodyId] = on;
+  btn.classList.toggle('drag-on', on);
+  const table = document.getElementById(tbodyId)?.closest('table');
+  if (!table) return;
+  table.classList.toggle('tbl-drag-active', on);
+  // Toggle drag handles visibility & draggable state
+  table.querySelectorAll('.tbl-drag-handle').forEach(h => { h.style.display = on ? '' : 'none'; });
+  // Toggle column header draggable
+  const hdrRow = table.querySelector('thead tr:not(.group-row):not(.filter-row)');
+  if (hdrRow) {
+    hdrRow.querySelectorAll('th').forEach(th => {
+      if (th.dataset.rowact) return;
+      if (th.dataset.dragcol === undefined) return;
+      th.draggable = on;
+    });
+  }
+};
+
+// ── ROW DRAG & DROP ───────────────────────────────────────────────────
+let _rowDragEl = null;
+
+function _initRowDrag(tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  tbody.querySelectorAll('tr').forEach(tr => {
+    if (tr.querySelector('.tbl-drag-handle')) return;
+    if (tr.querySelector('td[colspan]')) return;
+    // Insert drag handle as first child or into the row-act-cell
+    const handle = document.createElement('span');
+    handle.className = 'tbl-drag-handle';
+    handle.textContent = '☰';
+    handle.style.display = _dragState[tbodyId] ? '' : 'none';
+    handle.draggable = true;
+    handle.addEventListener('dragstart', function(e) {
+      if (!_dragState[tbodyId]) { e.preventDefault(); return; }
+      _rowDragEl = tr;
+      tr.classList.add('tbl-row-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', 'row');
+    });
+    handle.addEventListener('dragend', function() {
+      tr.classList.remove('tbl-row-dragging');
+      tbody.querySelectorAll('.tbl-row-drop-above,.tbl-row-drop-below').forEach(r => {
+        r.classList.remove('tbl-row-drop-above', 'tbl-row-drop-below');
+      });
+      _rowDragEl = null;
+    });
+    // Prepend handle to first td
+    const firstTd = tr.querySelector('td');
+    if (firstTd) firstTd.insertBefore(handle, firstTd.firstChild);
+
+    // Drop zone on each row
+    tr.addEventListener('dragover', function(e) {
+      if (!_rowDragEl || _rowDragEl === tr) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const rect = tr.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      tbody.querySelectorAll('.tbl-row-drop-above,.tbl-row-drop-below').forEach(r => {
+        r.classList.remove('tbl-row-drop-above', 'tbl-row-drop-below');
+      });
+      tr.classList.add(e.clientY < mid ? 'tbl-row-drop-above' : 'tbl-row-drop-below');
+    });
+    tr.addEventListener('dragleave', function() {
+      tr.classList.remove('tbl-row-drop-above', 'tbl-row-drop-below');
+    });
+    tr.addEventListener('drop', function(e) {
+      e.preventDefault();
+      if (!_rowDragEl || _rowDragEl === tr) return;
+      const rect = tr.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      if (e.clientY < mid) {
+        tbody.insertBefore(_rowDragEl, tr);
+      } else {
+        tbody.insertBefore(_rowDragEl, tr.nextSibling);
+      }
+      tr.classList.remove('tbl-row-drop-above', 'tbl-row-drop-below');
+    });
+  });
+}
+
+// ── COLUMN DRAG & DROP ────────────────────────────────────────────────
+let _colDragIdx = -1;
+let _colDragTable = null;
+
+function _initColDrag(tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const table = tbody.closest('table');
+  if (!table) return;
+  const thead = table.querySelector('thead');
+  if (!thead) return;
+
+  // Find the main header row (not group-row, not filter-row)
+  const hdrRow = thead.querySelector('tr:not(.group-row):not(.filter-row)');
+  if (!hdrRow) return;
+
+  hdrRow.querySelectorAll('th').forEach((th, idx) => {
+    if (th.dataset.rowact) return; // skip row-action header
+    if (th.dataset.dragcol !== undefined) return; // already set up
+    th.dataset.dragcol = idx;
+    th.style.cursor = _dragState[tbodyId] ? 'grab' : '';
+    th.draggable = !!_dragState[tbodyId];
+
+    th.addEventListener('dragstart', function(e) {
+      if (!_dragState[tbodyId]) { e.preventDefault(); return; }
+      if (e.target !== th) return; // don't intercept child drags
+      _colDragIdx = idx;
+      _colDragTable = table;
+      th.classList.add('tbl-col-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', 'col');
+    });
+    th.addEventListener('dragend', function() {
+      th.classList.remove('tbl-col-dragging');
+      _clearColDropIndicators(table);
+      _colDragIdx = -1;
+      _colDragTable = null;
+    });
+    th.addEventListener('dragover', function(e) {
+      if (_colDragIdx < 0 || _colDragTable !== table) return;
+      const myIdx = parseInt(th.dataset.dragcol);
+      if (myIdx === _colDragIdx) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      _clearColDropIndicators(table);
+      const rect = th.getBoundingClientRect();
+      const mid = rect.left + rect.width / 2;
+      const cls = e.clientX < mid ? 'tbl-col-drop-left' : 'tbl-col-drop-right';
+      // Highlight entire column
+      th.classList.add(cls);
+      _highlightCol(table, myIdx, cls);
+    });
+    th.addEventListener('dragleave', function() {
+      _clearColDropIndicators(table);
+    });
+    th.addEventListener('drop', function(e) {
+      e.preventDefault();
+      if (_colDragIdx < 0 || _colDragTable !== table) return;
+      const toIdx = parseInt(th.dataset.dragcol);
+      if (toIdx === _colDragIdx) return;
+      const rect = th.getBoundingClientRect();
+      const mid = rect.left + rect.width / 2;
+      const insertBefore = e.clientX < mid;
+      _moveColumn(table, _colDragIdx, toIdx, insertBefore);
+      _clearColDropIndicators(table);
+      // Re-index dragcol attributes
+      const newHdrRow = thead.querySelector('tr:not(.group-row):not(.filter-row)');
+      if (newHdrRow) {
+        newHdrRow.querySelectorAll('th').forEach((h, i) => {
+          if (h.dataset.dragcol !== undefined) h.dataset.dragcol = i;
+        });
+      }
+    });
+  });
+}
+
+function _highlightCol(table, colIdx, cls) {
+  // Highlight body cells in same column
+  const tbody = table.querySelector('tbody');
+  if (!tbody) return;
+  tbody.querySelectorAll('tr').forEach(tr => {
+    const cells = tr.children;
+    if (cells[colIdx]) cells[colIdx].classList.add(cls);
+  });
+}
+
+function _clearColDropIndicators(table) {
+  table.querySelectorAll('.tbl-col-drop-left,.tbl-col-drop-right').forEach(el => {
+    el.classList.remove('tbl-col-drop-left', 'tbl-col-drop-right');
+  });
+}
+
+function _moveColumn(table, fromIdx, toIdx, insertBefore) {
+  // Move cells in every row (thead + tbody + tfoot)
+  const allRows = table.querySelectorAll('tr');
+  allRows.forEach(tr => {
+    if (tr.classList.contains('group-row')) return; // skip group rows (they use colspan)
+    const cells = Array.from(tr.children);
+    const fromCell = cells[fromIdx];
+    const toCell = cells[toIdx];
+    if (!fromCell || !toCell) return;
+    if (insertBefore) {
+      tr.insertBefore(fromCell, toCell);
+    } else {
+      tr.insertBefore(fromCell, toCell.nextSibling);
+    }
+  });
+}
+
 // ── Auto-enhance: call after each render to maintain row actions ──────
 function enhanceTable(tbodyId) {
   if (!document.getElementById(tbodyId)) return;
@@ -3927,6 +4137,9 @@ function enhanceTable(tbodyId) {
   // Re-apply column visibility after re-render
   _applyColVisibility(tbodyId);
   _showHiddenBar(tbodyId);
+  // Initialize drag handles for new rows
+  _initRowDrag(tbodyId);
+  _initColDrag(tbodyId);
 }
 
 // Close column manager on outside click
