@@ -6779,6 +6779,7 @@ function renderCustomerMaterials(customerOrders, consolidated) {
     custMatIdx++;
   });
 
+  _tblEnhanced.forEach(id => { if (id.startsWith('custMatBody_')) _tblEnhanced.delete(id); });
   container.innerHTML = html;
   for (let i = 0; i < custMatIdx; i++) enhanceTable('custMatBody_' + i);
 }
@@ -6890,6 +6891,7 @@ function renderModuleTypeMappings(plannedModules, consolidated) {
     modMapIdx++;
   });
 
+  _tblEnhanced.forEach(id => { if (id.startsWith('modMapBody_')) _tblEnhanced.delete(id); });
   container.innerHTML = html || '<div style="color:var(--muted);padding:16px;">No modules defined. Add module types in the Calculator tab.</div>';
   for (let i = 0; i < modMapIdx; i++) enhanceTable('modMapBody_' + i);
 }
@@ -7373,6 +7375,7 @@ function renderStockCapacity(customerOrders, plannedModules, consolidated) {
     </div>`;
     custCapIdx++;
   });
+  _tblEnhanced.forEach(id => { if (id.startsWith('capCustBody_')) _tblEnhanced.delete(id); });
   custCapContainer.innerHTML = custCapHtml;
   for (let i = 0; i < custCapIdx; i++) enhanceTable('capCustBody_' + i);
 }
