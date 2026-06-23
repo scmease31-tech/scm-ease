@@ -63,9 +63,21 @@ async function ghGetBlob(sha, token) {
   return r.json();
 }
 
-// safe base64 encode/decode for unicode
-function b64Encode(str) { return btoa(String.fromCharCode(...new TextEncoder().encode(str))); }
-function b64Decode(b64) { return new TextDecoder().decode(Uint8Array.from(atob(b64), c => c.charCodeAt(0))); }
+// safe base64 encode/decode for unicode (chunked to handle files >1 MB without stack overflow)
+function b64Encode(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 8192) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+  }
+  return btoa(bin);
+}
+function b64Decode(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
 
 // ── Handlers ──────────────────────────────────────────────────────────
 async function handleLogin(body, env) {
