@@ -2576,6 +2576,11 @@
       <div style="background:linear-gradient(90deg,#dbeafe,#e0f2fe);border:1px solid #93c5fd;border-radius:8px;padding:9px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:12px;color:#1e3a5f;">
         <span style="font-size:16px">🔗</span>
         <span><strong>Customer Stock Mapping:</strong> Map specific stock items to each customer. If not mapped, the global/default mapping is used. Click <strong>🔗 Map</strong> on any material to assign specific stock items for that customer.</span>
+        <span style="flex:1"></span>
+        <button class="btn" id="deployCustMappingsBtn" onclick="deployCustomerMappings()"
+          style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;padding:5px 16px;border-radius:6px;font-size:11px;font-weight:600;white-space:nowrap;">
+          🚀 Deploy Mappings (for all users)
+        </button>
       </div>
       <div id="customerMaterialsContainer"></div>
     </div>
@@ -2716,6 +2721,11 @@
       <div style="background:linear-gradient(90deg,#f0fdf4,#ecfdf5);border:1px solid #86efac;border-radius:8px;padding:9px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:12px;color:#14532d;">
         <span style="font-size:16px">🏭</span>
         <span><strong>Module Type Mapping:</strong> Map specific stock items per module type (e.g. which solar cells are for G12R vs M10R). This acts as a <strong>universal pre-filter</strong> — only items mapped here will appear in Customer Materials mapping. Auto-populated from smart mapping on first use.</span>
+        <span style="flex:1"></span>
+        <button class="btn" id="deployModTypeMappingsBtn" onclick="deployCustomerMappings()"
+          style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;padding:5px 16px;border-radius:6px;font-size:11px;font-weight:600;white-space:nowrap;">
+          🚀 Deploy Mappings (for all users)
+        </button>
       </div>
       <div id="moduleTypeMappingContainer"></div>
     </div>
@@ -5325,6 +5335,35 @@ function syncCustomerDataToCloud() {
   }).catch(e => console.warn('Cloud sync failed:', e));
 }
 
+// Explicit deploy for customer & module-type mappings (replaces auto-sync)
+window.deployCustomerMappings = async function() {
+  if (!sessionStorage.getItem('adminToken') && sessionStorage.getItem('planChangesPerm') !== '1') {
+    alert('You do not have permission to deploy mappings. Contact admin.');
+    return;
+  }
+  if (!confirm('Deploy all customer & module-type mappings to all users?')) return;
+  const btn1 = document.getElementById('deployCustMappingsBtn');
+  const btn2 = document.getElementById('deployModTypeMappingsBtn');
+  const origText = '🚀 Deploy Mappings (for all users)';
+  if (btn1) { btn1.disabled = true; btn1.textContent = '⏳ Deploying…'; }
+  if (btn2) { btn2.disabled = true; btn2.textContent = '⏳ Deploying…'; }
+  try {
+    syncCustomerDataToCloud();
+    // Small delay to let fetch fire, then show success
+    await new Promise(r => setTimeout(r, 1500));
+    if (btn1) btn1.textContent = '✅ Deployed!';
+    if (btn2) btn2.textContent = '✅ Deployed!';
+    setTimeout(() => {
+      if (btn1) { btn1.textContent = origText; btn1.disabled = false; }
+      if (btn2) { btn2.textContent = origText; btn2.disabled = false; }
+    }, 2000);
+  } catch(e) {
+    alert('Deploy failed: ' + e.message);
+    if (btn1) { btn1.textContent = origText; btn1.disabled = false; }
+    if (btn2) { btn2.textContent = origText; btn2.disabled = false; }
+  }
+};
+
 async function loadCustomerDataFromCloud() {
   try {
     const r = await fetch(_KV_URL + '/api/customer-data');
@@ -7735,7 +7774,6 @@ window.saveStockMapping = function() {
       }
     });
     savePlanOverrides();
-    syncCustomerDataToCloud();
     modal._modTypeMode = false;
     closeModal('stockMapModal');
     if (lastAnalysis) {
@@ -7764,7 +7802,6 @@ window.saveStockMapping = function() {
       }
     });
     savePlanOverrides();
-    syncCustomerDataToCloud();
     modal._custMode = false;
     closeModal('stockMapModal');
     if (lastAnalysis) {
@@ -10895,6 +10932,11 @@ window.umSwitchTab = function(tab) {
     // Save Stock Mappings button
     const stockBtn = document.getElementById('saveStockMappingsBtn');
     if (stockBtn) stockBtn.style.display = canSave ? '' : 'none';
+    // Deploy Mappings buttons (customer & module-type)
+    const custDeploy = document.getElementById('deployCustMappingsBtn');
+    if (custDeploy) custDeploy.style.display = canSave ? '' : 'none';
+    const modDeploy = document.getElementById('deployModTypeMappingsBtn');
+    if (modDeploy) modDeploy.style.display = canSave ? '' : 'none';
   };
 })();
 </script>
