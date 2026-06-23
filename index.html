@@ -2259,6 +2259,7 @@
         <button class="plan-view-tab" data-planview="consolidated" onclick="switchPlanView('consolidated')">📋 Consolidated Materials</button>
         <button class="plan-view-tab" data-planview="detailed" onclick="switchPlanView('detailed')">🔍 Detailed Breakdown</button>
         <button class="plan-view-tab" data-planview="capacity" onclick="switchPlanView('capacity')">⚡ Stock Capacity</button>
+        <button class="plan-view-tab" data-planview="moduleMapping" onclick="switchPlanView('moduleMapping')">🏭 Module Type Mapping</button>
       </div>
       <div style="margin-left:auto; display:flex; align-items:center; gap:6px;">
         <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" style="width:16px;height:16px;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -2512,6 +2513,16 @@
         <div style="margin-bottom:8px;"><input type="text" class="mapping-search" id="capSearchCustomer" placeholder="Search customers & materials..." oninput="filterCapView('customer')" style="width:280px;font-size:12px;padding:6px 10px;"></div>
         <div id="capCustomerContainer"></div>
       </div>
+    </div>
+
+    <!-- Module Type Mapping View -->
+    <div id="planViewModuleMapping" style="display:none;">
+      <div class="section-label">🏭 Module Type Based Stock Mapping — Universal Pre-filter</div>
+      <div style="background:linear-gradient(90deg,#f0fdf4,#ecfdf5);border:1px solid #86efac;border-radius:8px;padding:9px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:12px;color:#14532d;">
+        <span style="font-size:16px">🏭</span>
+        <span><strong>Module Type Mapping:</strong> Map specific stock items per module type (e.g. which solar cells are for G12R vs M10R). This acts as a <strong>universal pre-filter</strong> — only items mapped here will appear in Customer Materials mapping. Auto-populated from smart mapping on first use.</span>
+      </div>
+      <div id="moduleTypeMappingContainer"></div>
     </div>
   </div>
 </main>
@@ -4244,6 +4255,8 @@ const stockVariantSelections = savedPlan.stockVariantSelections || {}; // { "mat
 const discardedMaterials = new Set(savedPlan.discardedMaterials || []); // Set of materialKey
 const customerStockMappings = savedPlan.customerStockMappings || {}; // { customerName: { materialKey: [stockItemDesc1, ...] } }
 const customerVariantSelections = savedPlan.customerVariantSelections || {}; // { "customer|||materialKey|||stockDesc": ["variant1", ...] }
+const moduleTypeMappings = savedPlan.moduleTypeMappings || {}; // { moduleKey: { materialKey: [stockItemDesc1, ...] } }
+const moduleTypeVariantSelections = savedPlan.moduleTypeVariantSelections || {}; // { "moduleKey|||materialKey|||stockDesc": ["variant1", ...] }
 
 // Customer module type overrides (loaded from KV, shared across all users)
 let customerModuleOverrides = {}; // { customerName: { modKey: "m10r", wp: 595 } }
@@ -4319,7 +4332,9 @@ function savePlanOverrides() {
     stockVariantSelections,
     discardedMaterials: Array.from(discardedMaterials),
     customerStockMappings,
-    customerVariantSelections
+    customerVariantSelections,
+    moduleTypeMappings,
+    moduleTypeVariantSelections
   })); } catch(e) { console.warn('localStorage quota exceeded', e); }
 }
 
@@ -4332,7 +4347,7 @@ function syncCustomerDataToCloud() {
     console.log('Cloud sync skipped — no plan_changes permission');
     return;
   }
-  const data = { customerStockMappings, customerVariantSelections, _ts: Date.now() };
+  const data = { customerStockMappings, customerVariantSelections, moduleTypeMappings, moduleTypeVariantSelections, _ts: Date.now() };
   if (!sessionStorage.getItem('adminToken')) {
     data.userName = sessionStorage.getItem('siteUser') || '';
     data.userPassword = sessionStorage.getItem('sitePass') || '';
@@ -4361,6 +4376,19 @@ async function loadCustomerDataFromCloud() {
     if (data.customerVariantSelections) {
       Object.entries(data.customerVariantSelections).forEach(([key, variants]) => {
         if (!customerVariantSelections[key]) customerVariantSelections[key] = variants;
+      });
+    }
+    if (data.moduleTypeMappings) {
+      Object.entries(data.moduleTypeMappings).forEach(([modKey, mappings]) => {
+        if (!moduleTypeMappings[modKey]) moduleTypeMappings[modKey] = {};
+        Object.entries(mappings).forEach(([mk, items]) => {
+          if (!moduleTypeMappings[modKey][mk]) moduleTypeMappings[modKey][mk] = items;
+        });
+      });
+    }
+    if (data.moduleTypeVariantSelections) {
+      Object.entries(data.moduleTypeVariantSelections).forEach(([key, variants]) => {
+        if (!moduleTypeVariantSelections[key]) moduleTypeVariantSelections[key] = variants;
       });
     }
     savePlanOverrides(); // persist merged data locally
@@ -4617,7 +4645,7 @@ setupDropZone('stockUpload', 'stockFileInput', (file) => {
 // ── VIEW SWITCHING ─────────────────────────────────────────────────
 window.switchPlanView = function(view) {
   activePlanView = view;
-  ['customers','customerMaterials','modules','consolidated','detailed','capacity'].forEach(v => {
+  ['customers','customerMaterials','modules','consolidated','detailed','capacity','moduleMapping'].forEach(v => {
     const el = document.getElementById('planView' + v.charAt(0).toUpperCase() + v.slice(1));
     if (el) el.style.display = v === view ? 'block' : 'none';
   });
@@ -5310,6 +5338,9 @@ function runAnalysisAuto() {
   // E3) Stock Capacity
   renderStockCapacity(customerOrders, plannedModules, consolidated);
 
+  // E4) Module Type Mapping
+  renderModuleTypeMappings(plannedModules, consolidated);
+
   // F) KPIs
   const totMods = Object.values(plannedModules).reduce((s, v) => s + v.qty, 0);
   const totalMW = customerOrders.reduce((s, o) => s + (o.qty * o.wp / 1e6), 0);
@@ -5887,6 +5918,201 @@ function renderCustomerMaterials(customerOrders, consolidated) {
   container.innerHTML = html;
 }
 
+// ── RENDER: Module Type Based Stock Mapping ──────────────────────────
+let currentModTypeKey = '', currentModTypeMaterialKey = '';
+
+function renderModuleTypeMappings(plannedModules, consolidated) {
+  const container = document.getElementById('moduleTypeMappingContainer');
+  if (!container) return;
+
+  // Get module types that have planned quantity
+  const activeModKeys = Object.keys(plannedModules || {});
+  // Also include all base module types even if not currently planned
+  const allModKeys = modules.map(m => m.key);
+  const modKeySet = new Set([...activeModKeys, ...allModKeys]);
+
+  let html = '';
+
+  modKeySet.forEach(modKey => {
+    const mod = modules.find(m => m.key === modKey);
+    if (!mod) return;
+
+    const planned = plannedModules && plannedModules[modKey] ? plannedModules[modKey] : null;
+    const qtyLabel = planned ? `${fmt2.format(planned.qty)} modules planned` : 'Not in current plan';
+    const qtyColor = planned ? 'var(--solar-1)' : 'var(--muted)';
+
+    // Auto-populate module-type mappings from buildAutoStockMapping if not set
+    if (!moduleTypeMappings[modKey]) {
+      moduleTypeMappings[modKey] = {};
+      mod.rows.forEach(row => {
+        const mk = `${row.group}|||${row.spec}`;
+        const autoItems = buildAutoStockMapping(row.group, row.spec, row.uom);
+        if (autoItems.length > 0) {
+          moduleTypeMappings[modKey][mk] = [...autoItems];
+        }
+      });
+      savePlanOverrides();
+    }
+
+    const modMappings = moduleTypeMappings[modKey] || {};
+    const modKeyEsc = modKey.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+    html += `<div style="background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:10px;overflow:hidden;">
+      <div onclick="this.parentElement.classList.toggle('cust-mat-open')" style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;user-select:none;">
+        <span class="cust-mat-arrow" style="transition:transform .2s;font-size:12px;">▶</span>
+        <div style="font-size:14px;font-weight:700;color:var(--ink);flex:1;">${escHtml(mod.name)}</div>
+        <span style="font-size:11px;color:${qtyColor};font-weight:600;">${qtyLabel}</span>
+        <span style="font-size:11px;color:var(--muted);">${mod.rows.length} materials</span>
+        <span style="font-size:11px;color:#818cf8;">${Object.keys(modMappings).filter(mk => modMappings[mk].length > 0).length} mapped</span>
+      </div>
+      <div class="cust-mat-body" style="max-height:0;overflow:hidden;transition:max-height .3s ease;">
+      <div style="padding:0 14px 14px;">
+      <div class="table-wrap" style="max-height:450px;overflow-y:auto;">
+        <table style="font-size:12px;">
+          <thead>
+            <tr>
+              <th>Material Group</th>
+              <th>Specification</th>
+              <th class="center">UOM</th>
+              <th class="num">Per Module</th>
+              <th>Mapped Stock Items</th>
+              <th class="num">Stock Qty</th>
+              <th class="center">Action</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+    mod.rows.forEach(row => {
+      const mk = `${row.group}|||${row.spec}`;
+      if (discardedMaterials.has(mk)) return;
+      const mkEsc = mk.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      const mapped = modMappings[mk] || [];
+      const cons = row.qty * (1 + row.wastage / 100);
+
+      // Calculate stock qty from mapped items
+      let stockTotal = 0;
+      const stockPills = mapped.map(desc => {
+        if (aggregatedStock[desc]) {
+          const mtVKey = modKey + '|||' + mk + '|||' + desc;
+          const selVars = moduleTypeVariantSelections[mtVKey];
+          const info = aggregatedStock[desc];
+          let qty = info.qty;
+          if (selVars && selVars.length > 0 && info.variants) {
+            qty = 0;
+            selVars.forEach(v => { if (info.variants[v]) qty += info.variants[v]; });
+          }
+          stockTotal += qty;
+          return `<span class="stock-pill manual" title="${escHtml(desc)}: ${fmt2.format(qty)} ${info.uom}" style="font-size:9px;padding:1px 5px;">${escHtml(desc.substring(0,30))}${desc.length>30?'…':''}</span>`;
+        }
+        return '';
+      }).join(' ');
+
+      const stockHtml = mapped.length > 0 ? stockPills : '<span style="color:var(--muted);font-size:10px;">No mapping</span>';
+
+      html += `<tr>
+        <td class="group-cell">${escHtml(row.group)}</td>
+        <td class="spec">${escHtml(row.spec)}</td>
+        <td class="center" style="color:var(--muted)">${escHtml(row.uom)}</td>
+        <td class="num">${fmt6.format(cons)}</td>
+        <td style="padding:4px 6px">${stockHtml}</td>
+        <td class="num" style="font-weight:700;color:var(--solar-1)">${fmt2.format(stockTotal)}</td>
+        <td class="center"><button class="map-btn" onclick="openModuleTypeMapModal('${modKeyEsc}','${mkEsc}')" title="Map stock for ${escHtml(mod.name)} — ${escHtml(row.group)}">🔗</button></td>
+      </tr>`;
+    });
+
+    html += `</tbody></table></div></div></div></div>`;
+  });
+
+  container.innerHTML = html || '<div style="color:var(--muted);padding:16px;">No modules defined. Add module types in the Calculator tab.</div>';
+}
+
+// ── Module Type Stock Mapping Modal ──────────────────────────────────
+window.openModuleTypeMapModal = function(moduleKey, materialKey, isRefilter) {
+  currentModTypeKey = moduleKey;
+  currentModTypeMaterialKey = materialKey;
+  const [group, spec] = materialKey.split('|||');
+  const modMappings = moduleTypeMappings[moduleKey] || {};
+  const currentlyMapped = modMappings[materialKey] || [];
+  const autoMapped = buildAutoStockMapping(group, spec, '');
+  const mod = modules.find(m => m.key === moduleKey);
+  const modName = mod ? mod.name : moduleKey;
+
+  if (!isRefilter) {
+    document.getElementById('mapModalMaterial').textContent = `${modName}: ${group}`;
+    document.getElementById('mapModalSpec').textContent = `${spec} (module-type mapping — applies to all customers using ${modName})`;
+    document.getElementById('mapModalSearch').value = '';
+  }
+
+  const container = document.getElementById('mapModalItems');
+  const allItems = Object.entries(aggregatedStock);
+  const searchVal = document.getElementById('mapModalSearch').value.toLowerCase();
+
+  const scored = allItems.map(([desc, info]) => {
+    let score = 0;
+    if (currentlyMapped.includes(desc)) score = 100;
+    else if (autoMapped.includes(desc)) score = 50;
+    const dl = desc.toLowerCase(), gl = group.toLowerCase(), sl = spec.toLowerCase();
+    gl.split(/\s+/).forEach(w => { if (w.length > 2 && dl.includes(w)) score += 3; });
+    sl.split(/\s+/).forEach(w => { if (w.length > 2 && dl.includes(w)) score += 2; });
+    return { desc, info, score };
+  })
+  .filter(item => {
+    if (!searchVal) return true;
+    if (item.desc.toLowerCase().includes(searchVal)) return true;
+    if (item.info.cat.toLowerCase().includes(searchVal)) return true;
+    if (item.info.subcat.toLowerCase().includes(searchVal)) return true;
+    if (item.info.code && item.info.code.toLowerCase().includes(searchVal)) return true;
+    if (item.info.variantNames && Object.values(item.info.variantNames).some(vn => vn.toLowerCase().includes(searchVal))) return true;
+    return false;
+  })
+  .sort((a, b) => b.score - a.score);
+
+  container.innerHTML = scored.slice(0, 100).map(item => {
+    const isSelected = currentlyMapped.includes(item.desc);
+    const isAuto = autoMapped.includes(item.desc);
+    const codeTag = item.info.code ? `<span style="font-size:9px;padding:1px 5px;background:#f0f4f8;border:1px solid #e2eaf0;border-radius:3px;color:#3a4a56;font-family:'JetBrains Mono',monospace;">${escHtml(item.info.code)}</span> ` : '';
+    let variantHtml = '';
+    if (item.info.variants && Object.keys(item.info.variants).length > 0) {
+      const allVNames = Object.keys(item.info.variants);
+      const mtVKey = moduleKey + '|||' + materialKey + '|||' + item.desc;
+      const savedMtVariants = moduleTypeVariantSelections[mtVKey] || [];
+      const hasSelection = savedMtVariants.length > 0;
+      variantHtml = '<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px;" onclick="event.stopPropagation()">' +
+        allVNames.map(v => {
+          const q = item.info.variants[v];
+          const vLabel = item.info.variantNames && item.info.variantNames[v] ? item.info.variantNames[v] : v;
+          const isOn = !hasSelection || savedMtVariants.includes(v);
+          return `<span class="variant-pill" data-variant="${escHtml(v)}" data-stock="${escHtml(item.desc)}"
+            onclick="toggleVariantPill(this)"
+            style="font-size:9px;padding:2px 6px;border-radius:4px;cursor:pointer;user-select:none;
+            background:${isOn ? '#e0e7ff' : '#f3f4f6'};color:${isOn ? '#3730a3' : '#9ca3af'};
+            border:1px solid ${isOn ? '#818cf8' : '#d1d5db'};${!isOn ? 'text-decoration:line-through;' : ''}"
+            title="Click to ${isOn ? 'exclude' : 'include'} this variant">
+            ${escHtml(vLabel)}: ${fmt2.format(q)}</span>`;
+        }).join('') + '</div>';
+    }
+    return `<div class="mapping-item ${isSelected ? 'selected' : ''}" onclick="toggleMappingItem(this)">
+      <input type="checkbox" ${isSelected ? 'checked' : ''} value="${escHtml(item.desc)}">
+      <div style="flex:1">
+        <div class="mapping-item-desc">${codeTag}${escHtml(item.desc)}</div>
+        <div class="mapping-item-uom">${item.info.cat} → ${item.info.subcat} ${isAuto ? '<span style="color:#818cf8;font-size:9px;">● auto match</span>' : ''}</div>
+        ${variantHtml}
+      </div>
+      <div class="mapping-item-qty">${fmt2.format(item.info.qty)} ${item.info.uom}</div>
+    </div>`;
+  }).join('');
+
+  if (scored.length > 100) {
+    container.innerHTML += `<div style="padding:8px;text-align:center;color:var(--muted);font-size:11px;">Showing 100 of ${scored.length} items. Use search to filter.</div>`;
+  }
+
+  if (!isRefilter) {
+    document.getElementById('stockMapModal')._custMode = false;
+    document.getElementById('stockMapModal')._modTypeMode = true;
+    document.getElementById('stockMapModal').classList.add('open');
+  }
+};
+
 // ── Customer Stock Mapping Modal ─────────────────────────────────────
 let currentCustMapCustomer = '', currentCustMapKey = '';
 
@@ -5898,16 +6124,42 @@ window.openCustomerMapModal = function(customer, materialKey, isRefilter) {
   const currentlyMapped = custMappings[materialKey] || [];
   const globalMapped = stockMappingOverrides[materialKey] || buildAutoStockMapping(group, spec, '');
 
+  // Build module-type pre-filter: find which module types this customer uses
+  // and get the union of module-type mapped items for this material
+  let modTypeFilterItems = null; // null = no filter (show all)
+  if (lastAnalysis && lastAnalysis.customerOrders) {
+    const custModKeys = new Set();
+    lastAnalysis.customerOrders.filter(o => o.customer === customer).forEach(o => custModKeys.add(o.modKey));
+    if (custModKeys.size > 0) {
+      const unionItems = new Set();
+      let hasAnyMapping = false;
+      custModKeys.forEach(mk => {
+        const modMap = moduleTypeMappings[mk];
+        if (modMap && modMap[materialKey] && modMap[materialKey].length > 0) {
+          hasAnyMapping = true;
+          modMap[materialKey].forEach(desc => unionItems.add(desc));
+        }
+      });
+      if (hasAnyMapping) modTypeFilterItems = unionItems;
+    }
+  }
+
   // Use the existing mapping modal
   if (!isRefilter) {
     document.getElementById('mapModalMaterial').textContent = `${customer}: ${group}`;
-    document.getElementById('mapModalSpec').textContent = `${spec} (customer-specific mapping — leave empty to use global)`;
+    const filterNote = modTypeFilterItems ? ` — filtered by module-type mapping (${modTypeFilterItems.size} items)` : '';
+    document.getElementById('mapModalSpec').textContent = `${spec} (customer-specific mapping — leave empty to use global)${filterNote}`;
     document.getElementById('mapModalSearch').value = '';
   }
 
   // Render items in the modal
   const container = document.getElementById('mapModalItems');
-  const allItems = Object.entries(aggregatedStock);
+  let allItems = Object.entries(aggregatedStock);
+  // Apply module-type pre-filter if available
+  if (modTypeFilterItems) {
+    // Always include currently mapped items even if not in module-type filter
+    allItems = allItems.filter(([desc]) => modTypeFilterItems.has(desc) || currentlyMapped.includes(desc));
+  }
 
   const custSearch = document.getElementById('mapModalSearch').value.toLowerCase();
   const scored = allItems.map(([desc, info]) => {
@@ -5969,6 +6221,7 @@ window.openCustomerMapModal = function(customer, materialKey, isRefilter) {
   // Set customer mode flag and open modal (skip if refiltering)
   if (!isRefilter) {
     document.getElementById('stockMapModal')._custMode = true;
+    document.getElementById('stockMapModal')._modTypeMode = false;
     document.getElementById('stockMapModal').classList.add('open');
   }
 };
@@ -6274,6 +6527,7 @@ window.openStockMapModal = function(materialKey) {
   document.getElementById('mapModalSpec').textContent = spec;
   document.getElementById('mapModalSearch').value = '';
   document.getElementById('stockMapModal')._custMode = false;
+  document.getElementById('stockMapModal')._modTypeMode = false;
 
   // Get currently mapped items
   const currentlyMapped = stockMappingOverrides[materialKey] || [];
@@ -6356,11 +6610,33 @@ window.toggleVariantPill = function(pill) {
   const stockDesc = pill.dataset.stock;
   const modal = document.getElementById('stockMapModal');
   const isCust = modal._custMode;
+  const isModType = modal._modTypeMode;
   const info = aggregatedStock[stockDesc];
   if (!info || !info.variants) return;
   const allVNames = Object.keys(info.variants);
 
-  if (isCust) {
+  if (isModType) {
+    // Module-type variant selection
+    const mtVKey = currentModTypeKey + '|||' + currentModTypeMaterialKey + '|||' + stockDesc;
+    let selected = moduleTypeVariantSelections[mtVKey] ? [...moduleTypeVariantSelections[mtVKey]] : [...allVNames];
+    if (selected.includes(variant)) {
+      selected = selected.filter(v => v !== variant);
+      if (selected.length === 0) selected = [...allVNames];
+    } else {
+      selected.push(variant);
+    }
+    if (selected.length === allVNames.length) {
+      delete moduleTypeVariantSelections[mtVKey];
+    } else {
+      moduleTypeVariantSelections[mtVKey] = selected;
+    }
+    const isOn = !moduleTypeVariantSelections[mtVKey] || (moduleTypeVariantSelections[mtVKey] && moduleTypeVariantSelections[mtVKey].includes(variant));
+    pill.style.background = isOn ? '#e0e7ff' : '#f3f4f6';
+    pill.style.color = isOn ? '#3730a3' : '#9ca3af';
+    pill.style.borderColor = isOn ? '#818cf8' : '#d1d5db';
+    pill.style.textDecoration = isOn ? 'none' : 'line-through';
+    pill.title = 'Click to ' + (isOn ? 'exclude' : 'include') + ' this variant';
+  } else if (isCust) {
     // Customer-specific variant selection
     const cvKey = currentCustMapCustomer + '|||' + currentCustMapKey + '|||' + stockDesc;
     let selected = customerVariantSelections[cvKey] ? [...customerVariantSelections[cvKey]] : [...allVNames];
@@ -6413,6 +6689,10 @@ window.toggleMappingItem = function(div) {
 
 window.filterMappingItems = function() {
   const modal = document.getElementById('stockMapModal');
+  if (modal._modTypeMode) {
+    openModuleTypeMapModal(currentModTypeKey, currentModTypeMaterialKey, true);
+    return;
+  }
   if (modal._custMode) {
     openCustomerMapModal(currentCustMapCustomer, currentCustMapKey, true);
     return;
@@ -6426,6 +6706,34 @@ window.filterMappingItems = function() {
 
 window.saveStockMapping = function() {
   const modal = document.getElementById('stockMapModal');
+  // Handle module-type mapping mode
+  if (modal._modTypeMode) {
+    const container = document.getElementById('mapModalItems');
+    const checked = Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+    if (!moduleTypeMappings[currentModTypeKey]) moduleTypeMappings[currentModTypeKey] = {};
+    if (checked.length > 0) {
+      moduleTypeMappings[currentModTypeKey][currentModTypeMaterialKey] = checked;
+    } else {
+      delete moduleTypeMappings[currentModTypeKey][currentModTypeMaterialKey];
+    }
+    // Clean up module-type variant selections for unchecked items
+    Object.keys(moduleTypeVariantSelections).forEach(mtk => {
+      if (mtk.startsWith(currentModTypeKey + '|||' + currentModTypeMaterialKey + '|||')) {
+        const desc = mtk.split('|||').slice(3).join('|||');
+        if (!checked.includes(desc)) delete moduleTypeVariantSelections[mtk];
+      }
+    });
+    savePlanOverrides();
+    syncCustomerDataToCloud();
+    modal._modTypeMode = false;
+    closeModal('stockMapModal');
+    if (lastAnalysis) {
+      renderModuleTypeMappings(lastAnalysis.plannedModules, lastAnalysis.consolidated);
+      renderCustomerMaterials(lastAnalysis.customerOrders, lastAnalysis.consolidated);
+      renderStockCapacity(lastAnalysis.customerOrders, lastAnalysis.plannedModules, lastAnalysis.consolidated);
+    }
+    return;
+  }
   // Handle customer-specific mapping mode
   if (modal._custMode) {
     const container = document.getElementById('mapModalItems');
@@ -6931,6 +7239,10 @@ window.filterPlanViews = function() {
   document.querySelectorAll('#capCustomerContainer > div').forEach(card => {
     card.style.display = (!term || card.textContent.toLowerCase().includes(term)) ? '' : 'none';
   });
+  // Filter module-type mapping cards
+  document.querySelectorAll('#moduleTypeMappingContainer > div').forEach(card => {
+    card.style.display = (!term || card.textContent.toLowerCase().includes(term)) ? '' : 'none';
+  });
   // Re-apply column filters on top of search
   applyColumnFilters('planOrderBody');
   applyColumnFilters('consolidatedBody');
@@ -7059,6 +7371,7 @@ window.applyPlanFilters = function() {
   renderDetailedTable(plannedModules, consolidated);
   renderCustomerMaterials(filtered, consolidated);
   renderStockCapacity(filtered, plannedModules, consolidated);
+  renderModuleTypeMappings(plannedModules, consolidated);
 
   // Update KPIs
   const totMods = Object.values(plannedModules).reduce((s, v) => s + v.qty, 0);
