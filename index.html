@@ -229,6 +229,48 @@
     text-align: right; min-width: 32px;
   }
 
+  /* ── GLOBAL POWER TARGET ── */
+  .global-power-row {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 10px; padding: 10px 14px;
+    background: linear-gradient(135deg, #064430, #041f17);
+    border-radius: var(--radius); color: #fff;
+  }
+  .global-power-row .gp-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+    color: var(--solar-3); white-space: nowrap;
+  }
+  .global-power-row .gp-icon { font-size: 14px; }
+  .global-power-row input {
+    width: 120px; border: 1px solid rgba(255,255,255,0.25); border-radius: var(--radius-sm);
+    padding: 5px 8px; font: 600 13px 'JetBrains Mono', monospace;
+    color: #fff; background: rgba(255,255,255,0.1);
+    -moz-appearance: textfield;
+  }
+  .global-power-row input::-webkit-outer-spin-button,
+  .global-power-row input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .global-power-row input:focus { outline: none; border-color: var(--solar-3); background: rgba(255,255,255,0.18); }
+  .global-power-row input::placeholder { color: rgba(255,255,255,0.4); }
+  .global-power-row select {
+    border: 1px solid rgba(255,255,255,0.25); border-radius: var(--radius-sm);
+    padding: 5px 8px; font: 600 12px 'JetBrains Mono', monospace;
+    color: #fff; background: rgba(255,255,255,0.1); cursor: pointer;
+  }
+  .global-power-row select:focus { outline: none; border-color: var(--solar-3); }
+  .global-power-row select option { color: var(--ink); background: #fff; }
+  .global-power-row .gp-result {
+    font-size: 11px; color: rgba(255,255,255,0.7); margin-left: auto;
+  }
+  .global-power-row .gp-result strong { color: var(--solar-3); font-weight: 700; }
+  .global-power-row .gp-clear {
+    border: none; background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.7);
+    border-radius: 4px; padding: 3px 8px; font-size: 10px; font-weight: 600; cursor: pointer;
+  }
+  .global-power-row .gp-clear:hover { background: rgba(255,255,255,0.22); color: #fff; }
+  .module-qty-auto {
+    background: rgba(37,209,154,0.12) !important; border-color: var(--solar-3) !important;
+  }
+
   /* Power generation mini-display on each card */
   .power-pill {
     margin-top: 8px; padding: 6px 10px;
@@ -2198,6 +2240,7 @@
   <!-- MODULE INPUTS -->
   <div class="controls-section">
     <div class="section-label">Module Configuration — Qty &amp; Watt Peak</div>
+    <div class="global-power-row" id="globalPowerRow"></div>
     <div class="controls-grid" id="moduleControls"></div>
   </div>
 
@@ -3288,6 +3331,8 @@ const rowPricing = saved.rowPricing || {};
 const currencyRates = saved.currencyRates || { USD: 83.50, RMB: 11.50 };
 const recycleBin = saved.recycleBin || []; // [{ type:'row'|'module', data, moduleName, moduleKey, time, label }]
 let activeModule = saved.activeModule || "all";
+// Global power target: { value: number, unit: 'W'|'kW'|'MW'|'GW' } — auto-calculates moduleQty from Wp
+let globalPower = saved.globalPower || null;
 
 // Unit multipliers for generation
 const GEN_UNITS = { W: 1, kW: 1e3, MW: 1e6, GW: 1e9 };
@@ -4223,7 +4268,7 @@ document.addEventListener('click', function(e) {
 
 // ── SAVE ──────────────────────────────────────────────────────────────────
 function saveState() {
-  try { localStorage.setItem("rmConsv2", JSON.stringify({ modules, moduleQty, moduleWp, activeModule, rowOverrides, rowGeneration, rowPricing, currencyRates, recycleBin, _baseVersion: _BASE_VERSION })); } catch(e) { console.warn('localStorage quota exceeded', e); }
+  try { localStorage.setItem("rmConsv2", JSON.stringify({ modules, moduleQty, moduleWp, activeModule, rowOverrides, rowGeneration, rowPricing, currencyRates, recycleBin, globalPower, _baseVersion: _BASE_VERSION })); } catch(e) { console.warn('localStorage quota exceeded', e); }
 }
 
 // ── PRICING UOM CONVERSION ────────────────────────────────────────────────
@@ -4293,14 +4338,80 @@ function allRows() {
   return modules.flatMap(m => m.rows.map((row, ri) => ({ module: m, row, rowIndex: ri })));
 }
 
+// ── GLOBAL POWER TARGET ───────────────────────────────────────────────────
+function applyGlobalPower() {
+  if (!globalPower || !globalPower.value) return;
+  const totalW = globalPower.value * GEN_UNITS[globalPower.unit];
+  modules.forEach(m => {
+    const wp = n(moduleWp[m.key]);
+    if (wp > 0) {
+      moduleQty[m.key] = Math.ceil(totalW / wp);
+    }
+  });
+}
+
+function renderGlobalPower() {
+  const el = document.getElementById('globalPowerRow');
+  const gp = globalPower || {};
+  const gpVal = gp.value || '';
+  const gpUnit = gp.unit || 'MW';
+  // Compute total modules from global power
+  let totalMods = 0;
+  if (globalPower && globalPower.value) {
+    modules.forEach(m => { totalMods += n(moduleQty[m.key]); });
+  }
+  const resultText = globalPower && globalPower.value
+    ? `<span class="gp-result"><strong>${fmt2.format(totalMods)}</strong> modules auto-calculated</span>`
+    : '<span class="gp-result">Enter total power to auto-fill module qty from Wp</span>';
+  el.innerHTML = `
+    <span class="gp-icon">⚡</span>
+    <span class="gp-label">GLOBAL POWER TARGET</span>
+    <input type="number" min="0" step="any" id="gpValueInput" value="${gpVal}" placeholder="e.g. 10"/>
+    <select id="gpUnitSelect">
+      <option value="W"${gpUnit==='W'?' selected':''}>W</option>
+      <option value="kW"${gpUnit==='kW'?' selected':''}>kW</option>
+      <option value="MW"${gpUnit==='MW'?' selected':''}>MW</option>
+      <option value="GW"${gpUnit==='GW'?' selected':''}>GW</option>
+    </select>
+    ${resultText}
+    ${globalPower && globalPower.value ? '<button class="gp-clear" id="gpClearBtn">✕ Clear</button>' : ''}
+  `;
+  document.getElementById('gpValueInput').addEventListener('input', (e) => {
+    const val = n(e.target.value);
+    if (val > 0) {
+      globalPower = { value: val, unit: document.getElementById('gpUnitSelect').value };
+      applyGlobalPower();
+    } else {
+      globalPower = null;
+    }
+    saveState(); renderControls(); render(); renderGlobalPower();
+  });
+  document.getElementById('gpUnitSelect').addEventListener('change', (e) => {
+    if (globalPower && globalPower.value) {
+      globalPower.unit = e.target.value;
+      applyGlobalPower();
+      saveState(); renderControls(); render(); renderGlobalPower();
+    }
+  });
+  const clearBtn = document.getElementById('gpClearBtn');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      globalPower = null;
+      saveState(); renderControls(); render(); renderGlobalPower();
+    });
+  }
+}
+
 // ── CONTROLS ──────────────────────────────────────────────────────────────
 function renderControls() {
+  const gpActive = globalPower && globalPower.value > 0;
   const box = document.getElementById("moduleControls");
   box.innerHTML = modules.map(module => {
     const qty = n(moduleQty[module.key]);
     const wp  = n(moduleWp[module.key]);
     const totalW = qty * wp;
     const pwr = fmtPower(totalW);
+    const isAutoQty = gpActive && wp > 0;
     return `
     <div class="module-card">
       <div class="module-card-header">
@@ -4312,9 +4423,9 @@ function renderControls() {
         <div class="input-row">
           <span class="input-label">Modules</span>
           <div class="input-field-wrap">
-            <input type="number" min="0" step="1" value="${moduleQty[module.key] || ""}" data-module-qty="${module.key}" placeholder="Qty"/>
+            <input type="number" min="0" step="1" value="${moduleQty[module.key] || ""}" data-module-qty="${module.key}" placeholder="Qty" ${isAutoQty ? 'readonly title="Auto-calculated from Global Power Target"' : ''} class="${isAutoQty ? 'module-qty-auto' : ''}"/>
           </div>
-          <span class="input-unit">nos</span>
+          <span class="input-unit">${isAutoQty ? '⚡ auto' : 'nos'}</span>
         </div>
         <div class="input-row">
           <span class="input-label">Module Wp</span>
@@ -4341,6 +4452,12 @@ function renderControls() {
   document.querySelectorAll("[data-module-wp]").forEach(inp => {
     inp.addEventListener("input", () => {
       moduleWp[inp.dataset.moduleWp] = n(inp.value);
+      // If global power is active, recalculate qty for this module
+      if (globalPower && globalPower.value > 0) {
+        applyGlobalPower();
+        saveState(); renderControls(); render(); renderGlobalPower();
+        return;
+      }
       saveState(); render();
     });
   });
@@ -5010,7 +5127,8 @@ window.rbinRestore = function(idx) {
 
   recycleBin.splice(idx, 1);
   updateRbinBadge();
-  saveState(); renderControls(); render();
+  applyGlobalPower();
+  saveState(); renderControls(); render(); renderGlobalPower();
   renderRecycleBin();
 };
 
@@ -5060,7 +5178,8 @@ function saveAddModuleModal() {
   moduleQty[key] = 0;
   moduleWp[key] = 0;
   closeModal('addModuleModal');
-  saveState(); renderControls(); render();
+  applyGlobalPower();
+  saveState(); renderControls(); render(); renderGlobalPower();
 }
 function deleteModuleType(key) {
   const mod = modules.find(m => m.key === key);
@@ -5085,7 +5204,7 @@ function deleteModuleType(key) {
   delete moduleWp[key];
   if (activeModule === key) activeModule = 'all';
   updateRbinBadge();
-  saveState(); renderControls(); render();
+  saveState(); renderControls(); render(); renderGlobalPower();
 }
 
 function render() {
@@ -8066,7 +8185,8 @@ document.getElementById("clearQty").addEventListener("click", () => {
   Object.keys(rowOverrides).forEach(k => delete rowOverrides[k]);
   Object.keys(rowGeneration).forEach(k => delete rowGeneration[k]);
   Object.keys(rowPricing).forEach(k => delete rowPricing[k]);
-  saveState(); renderControls(); render();
+  globalPower = null;
+  saveState(); renderControls(); render(); renderGlobalPower();
 });
 document.getElementById("searchBox").addEventListener("input", renderTable);
 document.getElementById("addRowBtn").addEventListener("click", openAddRowModal);
@@ -8476,6 +8596,8 @@ async function loadAnalysisState() {
   } catch(e) { console.error("Error loading saved analysis", e); }
 }
 
+applyGlobalPower();
+renderGlobalPower();
 renderControls();
 render();
 loadAnalysisState();
@@ -10806,6 +10928,7 @@ window.umSwitchTab = function(tab) {
         saveState();
         if (typeof renderControls === 'function') renderControls();
         if (typeof render === 'function') render();
+        if (typeof renderGlobalPower === 'function') renderGlobalPower();
         btn.textContent = 'Reset ✓';
       } else if (data.ok && (!data.modules || data.modules.length === 0)) {
         alert('No defaults have been saved yet. Ask the admin to save defaults first.');
