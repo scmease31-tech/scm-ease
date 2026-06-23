@@ -344,7 +344,7 @@
     border-right: 1px solid #cde8d8;
     position: sticky;
     top: 36px;            /* freeze just below a single column-header row */
-    z-index: auto;        /* keep auto so the filter dropdown panel can escape on top */
+    z-index: 9;           /* below header rows (10-12), above body content */
     white-space: nowrap;
     overflow: visible;
   }
@@ -540,6 +540,41 @@
   }
   .row-act-btn:hover { border-color: var(--solar-2); background: #f0f7f3; }
   .row-act-btn.del:hover { border-color: #dc2626; background: #fef2f2; }
+
+  /* ── Column Header Controls ─────────────────────────────── */
+  .col-ctrl-icons {
+    display: none; position: absolute; top: 1px; right: 1px;
+    background: rgba(255,255,255,0.97); border: 1px solid var(--line2);
+    border-radius: 5px; padding: 1px 2px; gap: 1px; z-index: 25;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12); white-space: nowrap;
+  }
+  th:hover > .col-ctrl-icons, th.tbl-col-dragging > .col-ctrl-icons { display: inline-flex; }
+  .col-ctrl-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border: none; background: transparent;
+    cursor: pointer; font-size: 11px; border-radius: 3px; padding: 0; opacity: 0.6;
+  }
+  .col-ctrl-btn:hover { opacity: 1; background: #f0f4f8; }
+  .col-ctrl-btn.drag-h { cursor: grab; }
+  .col-ctrl-btn.hide-h:hover { background: #fef3c7; }
+  .col-ctrl-btn.del-h:hover { background: #fef2f2; }
+
+  /* ── Row Select Checkboxes (floating, no extra column) ─── */
+  .tbl-row-sel {
+    position: absolute; left: 2px; top: 50%; transform: translateY(-50%);
+    z-index: 5; width: 16px; height: 16px;
+  }
+  .tbl-row-sel input { width: 14px; height: 14px; cursor: pointer; accent-color: var(--solar-1); margin: 0; }
+  .tbl-sel-hdr {
+    position: absolute; left: 2px; top: 50%; transform: translateY(-50%); z-index: 15;
+  }
+  .tbl-sel-hdr input { width: 14px; height: 14px; cursor: pointer; accent-color: var(--solar-1); margin: 0; }
+  tr.tbl-row-selected > td { background: #eff6ff !important; }
+  .tbl-mgr-btn.sel-act { display: none; }
+  .tbl-mgr-btn.sel-act.has-sel { display: inline-flex; }
+  /* left padding to make room for checkbox — header, filter, and body rows */
+  .tbl-has-sel tbody tr td:first-child { padding-left: 22px; position: relative; }
+  .tbl-has-sel thead tr:not(.group-row) th:first-child { padding-left: 22px; }
   /* Confirmation modal for table row delete */
   .tbl-confirm-overlay {
     display: none; position: fixed; inset: 0; z-index: 9999;
@@ -3531,50 +3566,38 @@ function clearTableFilters(tbodyId) {
 
 // ═══════════════════════════════════════════════════════════════════════
 // ── UNIVERSAL TABLE MANAGEMENT SYSTEM ─────────────────────────────────
-// Column hide/unhide, Row hide/delete, Recycle bin for ALL tables
+// Column inline controls (drag/hide/delete on each header)
+// Row checkboxes + bulk hide/delete, Recycle bin for ALL tables
 // ═══════════════════════════════════════════════════════════════════════
 
 const _hiddenCols = {};       // { tbodyId: Set(colIndex) }
 const _hiddenRowsData = {};   // { tbodyId: [ { html, cells[], time } ] }
 const _tableRecycleBin = JSON.parse(localStorage.getItem('tblRecycleBin') || '[]');
 const _tblEnhanced = new Set();
-let _colMgrPanel = null;      // currently open column manager panel
-let _pendingDeleteInfo = null; // { tbodyId, rowEl, label }
+let _colMgrPanel = null;
+let _pendingDeleteInfo = null; // { tbodyId, rows[], label }
 
 function _saveTblRecycleBin() {
   try {
-    // Keep max 80 items, store compact representation
     if (_tableRecycleBin.length > 80) _tableRecycleBin.length = 80;
     localStorage.setItem('tblRecycleBin', JSON.stringify(_tableRecycleBin));
   } catch(e) { console.warn('tblRecycleBin save failed', e); }
 }
 
-// ── Column Visibility ─────────────────────────────────────────────────
+// ── Column Visibility (show/hide manager panel) ───────────────────────
 window.tblShowColManager = function(tbodyId, btnEl) {
-  // Close existing panel
   if (_colMgrPanel) { _colMgrPanel.remove(); _colMgrPanel = null; }
-
   const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
   const table = tbody.closest('table');
   if (!table) return;
   const thead = table.querySelector('thead');
   if (!thead) return;
-
-  // Find the data header row (skip group-row and filter-row)
-  const headerRows = thead.querySelectorAll('tr');
-  let headerRow = null;
-  for (let i = 0; i < headerRows.length; i++) {
-    if (!headerRows[i].classList.contains('group-row') && !headerRows[i].classList.contains('filter-row')) {
-      headerRow = headerRows[i]; break;
-    }
-  }
+  const headerRow = thead.querySelector('tr:not(.group-row):not(.filter-row)');
   if (!headerRow) return;
-
   if (!_hiddenCols[tbodyId]) _hiddenCols[tbodyId] = new Set();
   const hidden = _hiddenCols[tbodyId];
   const ths = headerRow.querySelectorAll('th');
-
   const panel = document.createElement('div');
   panel.className = 'col-mgr-panel open';
   panel.innerHTML = '<div style="font-weight:700;font-size:11px;color:var(--ink);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">' +
@@ -3586,28 +3609,19 @@ window.tblShowColManager = function(tbodyId, btnEl) {
       const isHidden = hidden.has(i);
       return '<div class="col-mgr-item ' + (isHidden ? 'hidden-col' : '') + '" onclick="tblToggleCol(\'' + tbodyId + '\',' + i + ',this)">' +
         '<input type="checkbox" ' + (isHidden ? '' : 'checked') + ' onclick="event.stopPropagation();tblToggleCol(\'' + tbodyId + '\',' + i + ',this.closest(\'.col-mgr-item\'))">' +
-        '<span>' + (text.length > 35 ? text.substring(0,35) + '…' : text) + '</span>' +
-      '</div>';
+        '<span>' + (text.length > 35 ? text.substring(0,35) + '…' : text) + '</span></div>';
     }).join('');
-
-  // Position relative to button
   const wrapper = document.createElement('div');
   wrapper.style.cssText = 'position:relative;display:inline-block;';
   btnEl.parentNode.insertBefore(wrapper, btnEl);
   wrapper.appendChild(btnEl);
   wrapper.appendChild(panel);
-
   _colMgrPanel = panel;
-
-  // Close on outside click
   setTimeout(() => {
     const closer = function(e) {
       if (!panel.contains(e.target) && e.target !== btnEl) {
-        panel.remove();
-        wrapper.parentNode.insertBefore(btnEl, wrapper);
-        wrapper.remove();
-        _colMgrPanel = null;
-        document.removeEventListener('click', closer);
+        panel.remove(); wrapper.parentNode.insertBefore(btnEl, wrapper); wrapper.remove();
+        _colMgrPanel = null; document.removeEventListener('click', closer);
       }
     };
     document.addEventListener('click', closer);
@@ -3617,13 +3631,8 @@ window.tblShowColManager = function(tbodyId, btnEl) {
 window.tblToggleCol = function(tbodyId, colIdx, itemEl) {
   if (!_hiddenCols[tbodyId]) _hiddenCols[tbodyId] = new Set();
   const hidden = _hiddenCols[tbodyId];
-  if (hidden.has(colIdx)) {
-    hidden.delete(colIdx);
-  } else {
-    hidden.add(colIdx);
-  }
+  if (hidden.has(colIdx)) hidden.delete(colIdx); else hidden.add(colIdx);
   _applyColVisibility(tbodyId);
-  // Update panel item
   if (itemEl) {
     const cb = itemEl.querySelector('input[type="checkbox"]');
     if (cb) cb.checked = !hidden.has(colIdx);
@@ -3635,7 +3644,6 @@ window.tblToggleCol = function(tbodyId, colIdx, itemEl) {
 window.tblShowAllCols = function(tbodyId) {
   if (_hiddenCols[tbodyId]) _hiddenCols[tbodyId].clear();
   _applyColVisibility(tbodyId);
-  // Update all panel items
   if (_colMgrPanel) {
     _colMgrPanel.querySelectorAll('.col-mgr-item').forEach(item => {
       item.classList.remove('hidden-col');
@@ -3646,32 +3654,166 @@ window.tblShowAllCols = function(tbodyId) {
   _updateMgrBadges(tbodyId);
 };
 
+// Hide a single column (from inline header button)
+window.tblHideCol = function(tbodyId, colIdx) {
+  if (!_hiddenCols[tbodyId]) _hiddenCols[tbodyId] = new Set();
+  _hiddenCols[tbodyId].add(colIdx);
+  _applyColVisibility(tbodyId);
+  _updateMgrBadges(tbodyId);
+};
+
+// Delete a single column (from inline header button) — moves to recycle bin
+window.tblDeleteCol = function(tbodyId, colIdx) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const table = tbody.closest('table');
+  if (!table) return;
+  const hdrRow = table.querySelector('thead tr:not(.group-row):not(.filter-row)');
+  const colName = hdrRow ? (hdrRow.children[colIdx]?.textContent.trim() || 'Col ' + (colIdx+1)) : 'Column';
+  // Collect column data for recycle bin
+  const colCells = [];
+  tbody.querySelectorAll('tr').forEach(tr => {
+    const cell = tr.children[colIdx];
+    if (cell) colCells.push(cell.textContent.trim());
+  });
+  _tableRecycleBin.unshift({
+    tbodyId, type: 'column', label: 'Column: ' + colName, colIdx,
+    cells: colCells, source: _getTableSource(tbody),
+    time: Date.now()
+  });
+  _saveTblRecycleBin();
+  // Remove column cells from all rows
+  table.querySelectorAll('tr').forEach(tr => {
+    if (tr.classList.contains('group-row')) return;
+    const cell = tr.children[colIdx];
+    if (cell) cell.remove();
+  });
+  // Re-index dragcol attributes
+  if (hdrRow) {
+    Array.from(hdrRow.children).forEach((h, i) => {
+      if (h.dataset.dragcol !== undefined) h.dataset.dragcol = i;
+    });
+  }
+  _updateMgrBadges(tbodyId);
+  _updateTblRbinBadge();
+};
+
 function _applyColVisibility(tbodyId) {
   const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
   const table = tbody.closest('table');
   if (!table) return;
   const hidden = _hiddenCols[tbodyId] || new Set();
-
-  // Apply to thead rows (skip group-row which uses colspan)
   table.querySelectorAll('thead tr').forEach(tr => {
     if (tr.classList.contains('group-row')) return;
-    const cells = tr.querySelectorAll('th');
-    cells.forEach((cell, i) => {
-      cell.style.display = hidden.has(i) ? 'none' : '';
-    });
+    tr.querySelectorAll('th').forEach((cell, i) => { cell.style.display = hidden.has(i) ? 'none' : ''; });
   });
-  // Apply to tbody rows
   tbody.querySelectorAll('tr').forEach(tr => {
-    const cells = tr.querySelectorAll('td');
-    cells.forEach((cell, i) => {
-      cell.style.display = hidden.has(i) ? 'none' : '';
+    tr.querySelectorAll('td').forEach((cell, i) => { cell.style.display = hidden.has(i) ? 'none' : ''; });
+  });
+  const tfoot = table.querySelector('tfoot');
+  if (tfoot) {
+    tfoot.querySelectorAll('tr').forEach(tr => {
+      tr.querySelectorAll('td').forEach((cell, i) => { cell.style.display = hidden.has(i) ? 'none' : ''; });
     });
+  }
+}
+
+// ── Row Selection via Floating Checkboxes (no extra column) ───────────
+function _addRowCheckboxes(tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const table = tbody.closest('table');
+  if (!table) return;
+  const thead = table.querySelector('thead');
+  if (!thead) return;
+
+  // Mark table so CSS adds left padding
+  table.classList.add('tbl-has-sel');
+
+  // Add select-all checkbox floating in first th of main header row
+  const hdrRow = thead.querySelector('tr:not(.group-row):not(.filter-row)');
+  if (hdrRow && !hdrRow.querySelector('.tbl-sel-hdr')) {
+    const firstTh = hdrRow.querySelector('th');
+    if (firstTh) {
+      const wrap = document.createElement('span');
+      wrap.className = 'tbl-sel-hdr';
+      wrap.innerHTML = '<input type="checkbox" onchange="tblSelectAll(\'' + tbodyId + '\',this.checked)" title="Select all visible">';
+      firstTh.appendChild(wrap);
+    }
+  }
+
+  // Add floating checkboxes to body rows
+  _addRowCheckboxCells(tbodyId);
+}
+
+function _addRowCheckboxCells(tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  tbody.querySelectorAll('tr').forEach(tr => {
+    if (tr.querySelector('.tbl-row-sel')) return;
+    if (tr.querySelector('td[colspan]')) return;
+    const firstTd = tr.querySelector('td');
+    if (!firstTd) return;
+    const wrap = document.createElement('span');
+    wrap.className = 'tbl-row-sel';
+    wrap.innerHTML = '<input type="checkbox" onchange="tblRowSelChanged(\'' + tbodyId + '\',this)">';
+    firstTd.appendChild(wrap);
   });
 }
 
-// ── Row Hide / Unhide ─────────────────────────────────────────────────
+window.tblSelectAll = function(tbodyId, checked) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  // Only select visible (not hidden, not filtered out) rows
+  tbody.querySelectorAll('tr').forEach(tr => {
+    if (tr.style.display === 'none') return;
+    if (tr.classList.contains('row-hidden')) return;
+    if (tr.querySelector('td[colspan]')) return;
+    const cb = tr.querySelector('.tbl-row-sel input');
+    if (cb) {
+      cb.checked = checked;
+      tr.classList.toggle('tbl-row-selected', checked);
+    }
+  });
+  _updateSelectionButtons(tbodyId);
+};
+
+window.tblRowSelChanged = function(tbodyId, cb) {
+  const tr = cb.closest('tr');
+  if (tr) tr.classList.toggle('tbl-row-selected', cb.checked);
+  _updateSelectionButtons(tbodyId);
+};
+
+function _getSelectedRows(tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return [];
+  return Array.from(tbody.querySelectorAll('tr.tbl-row-selected'));
+}
+
+function _updateSelectionButtons(tbodyId) {
+  const count = _getSelectedRows(tbodyId).length;
+  const bar = _getToolbar(tbodyId);
+  if (!bar) return;
+  bar.querySelectorAll('.sel-act').forEach(btn => {
+    btn.classList.toggle('has-sel', count > 0);
+  });
+  const badge = bar.querySelector('[data-sel-count]');
+  if (badge) { badge.textContent = count; badge.style.display = count > 0 ? '' : 'none'; }
+}
+
+function _getToolbar(tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return null;
+  const table = tbody.closest('table');
+  if (!table) return null;
+  const wrap = table.closest('.table-wrap') || table.parentElement;
+  return wrap.querySelector('.tbl-mgr-bar');
+}
+
+// ── Bulk Row Hide ─────────────────────────────────────────────────────
 window.tblHideRow = function(tbodyId, btn) {
+  // Legacy single-row hide (kept for compatibility)
   const tr = btn.closest('tr');
   if (!tr) return;
   if (!_hiddenRowsData[tbodyId]) _hiddenRowsData[tbodyId] = [];
@@ -3680,6 +3822,25 @@ window.tblHideRow = function(tbodyId, btn) {
   tr.classList.add('row-hidden');
   _updateMgrBadges(tbodyId);
   _showHiddenBar(tbodyId);
+};
+
+window.tblHideSelected = function(tbodyId) {
+  const rows = _getSelectedRows(tbodyId);
+  if (!rows.length) return;
+  if (!_hiddenRowsData[tbodyId]) _hiddenRowsData[tbodyId] = [];
+  rows.forEach(tr => {
+    const cells = Array.from(tr.querySelectorAll('td')).map(td => td.textContent.trim());
+    _hiddenRowsData[tbodyId].push({ html: tr.outerHTML, cells, time: Date.now() });
+    tr.classList.add('row-hidden');
+    const cb = tr.querySelector('.tbl-row-sel input');
+    if (cb) cb.checked = false;
+    tr.classList.remove('tbl-row-selected');
+  });
+  _updateMgrBadges(tbodyId);
+  _showHiddenBar(tbodyId);
+  _updateSelectionButtons(tbodyId);
+  // Uncheck select-all
+  _uncheckSelectAll(tbodyId);
 };
 
 window.tblUnhideAll = function(tbodyId) {
@@ -3691,20 +3852,24 @@ window.tblUnhideAll = function(tbodyId) {
   _hideHiddenBar(tbodyId);
 };
 
-function _showHiddenBar(tbodyId) {
+function _uncheckSelectAll(tbodyId) {
   const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
   const table = tbody.closest('table');
   if (!table) return;
-  const wrap = table.closest('.table-wrap') || table.parentElement;
+  const selAll = table.querySelector('thead .tbl-sel-hdr input');
+  if (selAll) selAll.checked = false;
+}
+
+function _showHiddenBar(tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const wrap = (tbody.closest('table')?.closest('.table-wrap')) || tbody.closest('table')?.parentElement;
+  if (!wrap) return;
   let bar = wrap.querySelector('.hidden-rows-bar');
   const count = (_hiddenRowsData[tbodyId] || []).length;
   if (count === 0) { if (bar) bar.remove(); return; }
-  if (!bar) {
-    bar = document.createElement('div');
-    bar.className = 'hidden-rows-bar';
-    wrap.appendChild(bar);
-  }
+  if (!bar) { bar = document.createElement('div'); bar.className = 'hidden-rows-bar'; wrap.appendChild(bar); }
   bar.innerHTML = '<span>👁️ <strong>' + count + '</strong> row' + (count > 1 ? 's' : '') + ' hidden</span>' +
     '<button onclick="tblUnhideAll(\'' + tbodyId + '\')">Unhide All</button>';
 }
@@ -3712,24 +3877,32 @@ function _showHiddenBar(tbodyId) {
 function _hideHiddenBar(tbodyId) {
   const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
-  const table = tbody.closest('table');
-  if (!table) return;
-  const wrap = table.closest('.table-wrap') || table.parentElement;
+  const wrap = (tbody.closest('table')?.closest('.table-wrap')) || tbody.closest('table')?.parentElement;
+  if (!wrap) return;
   const bar = wrap.querySelector('.hidden-rows-bar');
   if (bar) bar.remove();
 }
 
-// ── Row Delete with Confirmation + Recycle Bin ────────────────────────
+// ── Bulk Row Delete with Confirmation + Recycle Bin ───────────────────
 window.tblDeleteRow = function(tbodyId, btn) {
   const tr = btn.closest('tr');
   if (!tr) return;
   const cells = Array.from(tr.querySelectorAll('td')).map(td => td.textContent.trim());
   const label = cells.slice(0, 3).join(' | ').substring(0, 80);
-  _pendingDeleteInfo = { tbodyId, rowEl: tr, label, cells };
-  const overlay = document.getElementById('tblConfirmOverlay');
+  _pendingDeleteInfo = { tbodyId, rows: [tr], label, isBulk: false };
   document.getElementById('tblConfirmMsg').innerHTML =
-    '<strong>' + label + '</strong><br>This row will be moved to the recycle bin. You can restore it later.';
-  overlay.classList.add('open');
+    '<strong>' + label + '</strong><br>This row will be moved to the recycle bin.';
+  document.getElementById('tblConfirmOverlay').classList.add('open');
+};
+
+window.tblDeleteSelected = function(tbodyId) {
+  const rows = _getSelectedRows(tbodyId);
+  if (!rows.length) return;
+  const label = rows.length + ' selected row' + (rows.length > 1 ? 's' : '');
+  _pendingDeleteInfo = { tbodyId, rows, label, isBulk: true };
+  document.getElementById('tblConfirmMsg').innerHTML =
+    '<strong>Delete ' + label + '?</strong><br>They will be moved to the recycle bin.';
+  document.getElementById('tblConfirmOverlay').classList.add('open');
 };
 
 window.tblConfirmCancel = function() {
@@ -3739,30 +3912,33 @@ window.tblConfirmCancel = function() {
 
 window.tblConfirmDelete = function() {
   if (!_pendingDeleteInfo) return;
-  const { tbodyId, rowEl, label, cells } = _pendingDeleteInfo;
-
-  // Find source tab name
-  const table = rowEl.closest('table');
-  const section = table ? (table.closest('[id]') || {}).id || '' : '';
-  let source = tbodyId;
-  if (section.includes('planView')) source = 'Planning';
-  else if (section.includes('cap')) source = 'Stock Capacity';
-  else if (section.includes('cell')) source = 'Cell Inventory';
-  else if (section.includes('um') || section.includes('perm')) source = 'Users';
-
-  _tableRecycleBin.unshift({
-    tbodyId, label, cells, source,
-    html: rowEl.outerHTML,
-    time: Date.now()
+  const { tbodyId, rows } = _pendingDeleteInfo;
+  const source = _getTableSource(document.getElementById(tbodyId));
+  rows.forEach(tr => {
+    const cells = Array.from(tr.querySelectorAll('td')).map(td => td.textContent.trim());
+    const label = cells.slice(0, 3).join(' | ').substring(0, 80);
+    _tableRecycleBin.unshift({ tbodyId, label, cells, source, html: tr.outerHTML, time: Date.now() });
+    tr.remove();
   });
   _saveTblRecycleBin();
-
-  rowEl.remove();
   _pendingDeleteInfo = null;
   document.getElementById('tblConfirmOverlay').classList.remove('open');
   _updateMgrBadges(tbodyId);
   _updateTblRbinBadge();
+  _updateSelectionButtons(tbodyId);
+  _uncheckSelectAll(tbodyId);
 };
+
+function _getTableSource(tbody) {
+  if (!tbody) return 'Unknown';
+  const table = tbody.closest('table');
+  const section = table ? (table.closest('[id]') || {}).id || '' : '';
+  if (section.includes('planView')) return 'Planning';
+  if (section.includes('cap')) return 'Stock Capacity';
+  if (section.includes('cell')) return 'Cell Inventory';
+  if (section.includes('um') || section.includes('perm')) return 'Users';
+  return tbody.id || 'Table';
+}
 
 // ── Table Recycle Bin Panel ───────────────────────────────────────────
 window.tblRbinToggle = function() {
@@ -3787,7 +3963,6 @@ window.tblRbinRestore = function(idx) {
     temp.innerHTML = item.html;
     const tr = temp.firstElementChild;
     if (tr) tbody.appendChild(tr);
-    // Re-apply column visibility
     _applyColVisibility(item.tbodyId);
   }
   _tableRecycleBin.splice(idx, 1);
@@ -3813,15 +3988,15 @@ function _renderTblRbin() {
   body.innerHTML = _tableRecycleBin.map((item, idx) => {
     const preview = item.cells ? item.cells.slice(0, 4).join(' | ').substring(0, 100) : '';
     const timeStr = new Date(item.time).toLocaleString();
+    const typeLabel = item.type === 'column' ? '📊 ' : '';
     return '<div class="tbl-rbin-item">' +
-      '<div class="rbin-label">' + (item.label || 'Deleted row').replace(/</g, '&lt;') + '</div>' +
+      '<div class="rbin-label">' + typeLabel + (item.label || 'Deleted').replace(/</g, '&lt;') + '</div>' +
       '<div class="rbin-source">From: ' + (item.source || item.tbodyId) + ' — ' + timeStr + '</div>' +
       '<div class="rbin-preview">' + preview.replace(/</g, '&lt;') + '</div>' +
       '<div class="rbin-actions">' +
-        '<button style="border:1px solid var(--solar-2);background:#e6f7f1;color:var(--solar-1);" onclick="tblRbinRestore(' + idx + ')">↩ Restore</button>' +
+        (item.type !== 'column' ? '<button style="border:1px solid var(--solar-2);background:#e6f7f1;color:var(--solar-1);" onclick="tblRbinRestore(' + idx + ')">↩ Restore</button>' : '') +
         '<button style="border:1px solid #fca5a5;background:#fef2f2;color:#dc2626;" onclick="tblRbinPermDelete(' + idx + ')">✗ Delete</button>' +
-      '</div>' +
-    '</div>';
+      '</div></div>';
   }).join('');
 }
 
@@ -3832,7 +4007,7 @@ function _updateTblRbinBadge() {
   });
 }
 
-// ── Table Manager Toolbar ─────────────────────────────────────────────
+// ── Badges ────────────────────────────────────────────────────────────
 function _updateMgrBadges(tbodyId) {
   const hidColCount = (_hiddenCols[tbodyId] || new Set()).size;
   const hidRowCount = (_hiddenRowsData[tbodyId] || []).length;
@@ -3842,117 +4017,104 @@ function _updateMgrBadges(tbodyId) {
   if (rowBadge) { rowBadge.textContent = hidRowCount; rowBadge.style.display = hidRowCount > 0 ? '' : 'none'; }
 }
 
-// Inject toolbar above a table
+// ── Toolbar ───────────────────────────────────────────────────────────
 function injectTableToolbar(tbodyId) {
   const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
   const table = tbody.closest('table');
   if (!table) return;
   const wrap = table.closest('.table-wrap') || table.parentElement;
-  if (wrap.querySelector('.tbl-mgr-bar')) return; // already has toolbar
+  if (wrap.querySelector('.tbl-mgr-bar')) return;
 
   const bar = document.createElement('div');
   bar.className = 'tbl-mgr-bar';
   bar.innerHTML =
     '<button class="tbl-mgr-btn" onclick="tblShowColManager(\'' + tbodyId + '\',this)">📋 Columns <span class="mgr-badge" data-mgr-colbadge="' + tbodyId + '" style="display:none">0</span></button>' +
     '<button class="tbl-mgr-btn" onclick="tblUnhideAll(\'' + tbodyId + '\')">👁️ Unhide Rows <span class="mgr-badge" data-mgr-rowbadge="' + tbodyId + '" style="display:none">0</span></button>' +
-    '<button class="tbl-mgr-btn" onclick="tblRbinToggle()">🗑️ Recycle Bin <span class="mgr-badge tbl-rbin-badge" style="display:' + (_tableRecycleBin.length > 0 ? '' : 'none') + '">' + _tableRecycleBin.length + '</span></button>' +
-    '<button class="tbl-mgr-btn" data-drag-toggle="' + tbodyId + '" onclick="tblToggleDrag(\'' + tbodyId + '\',this)">↕️ Drag Mode</button>';
+    '<button class="tbl-mgr-btn sel-act" onclick="tblHideSelected(\'' + tbodyId + '\')">🙈 Hide Selected <span class="mgr-badge" data-sel-count style="display:none">0</span></button>' +
+    '<button class="tbl-mgr-btn sel-act" style="border-color:#fca5a5;" onclick="tblDeleteSelected(\'' + tbodyId + '\')">🗑️ Delete Selected</button>' +
+    '<button class="tbl-mgr-btn" onclick="tblRbinToggle()">♻️ Recycle Bin <span class="mgr-badge tbl-rbin-badge" style="display:' + (_tableRecycleBin.length > 0 ? '' : 'none') + '">' + _tableRecycleBin.length + '</span></button>';
   wrap.insertBefore(bar, table);
 }
 
-// ── Enhance table: inject row action cells into each row ──────────────
-function addRowActions(tbodyId) {
+// ── Column Inline Controls (drag, hide, delete on each th) ───────────
+function _addColControls(tbodyId) {
   const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
   const table = tbody.closest('table');
   if (!table) return;
-
-  // Check if already has row-act column by looking at thead
   const thead = table.querySelector('thead');
   if (!thead) return;
+  const hdrRow = thead.querySelector('tr:not(.group-row):not(.filter-row)');
+  if (!hdrRow) return;
 
-  // Skip tables that already have their own Action/Actions column
-  const existingHeaders = thead.querySelectorAll('th');
-  for (let i = 0; i < existingHeaders.length; i++) {
-    const txt = existingHeaders[i].textContent.trim().toLowerCase();
-    if (txt === 'actions' || txt === 'action') return;
-  }
+  hdrRow.querySelectorAll('th').forEach((th, idx) => {
+    if (th.querySelector('.col-ctrl-icons')) return; // already done
+    th.dataset.dragcol = idx;
 
-  // Add "Row Actions" header to ALL non-group, non-filter header rows if not present
-  const headerRows = thead.querySelectorAll('tr:not(.group-row):not(.filter-row)');
-  let alreadyHas = false;
-  headerRows.forEach(tr => {
-    const lastTh = tr.querySelector('th:last-child');
-    if (lastTh && lastTh.dataset.rowact) { alreadyHas = true; return; }
-    const th = document.createElement('th');
-    th.dataset.rowact = '1';
-    th.style.cssText = 'width:50px;text-align:center;font-size:9px;';
-    th.textContent = '⚙️';
-    tr.appendChild(th);
-  });
-  if (alreadyHas) return;
+    const icons = document.createElement('span');
+    icons.className = 'col-ctrl-icons';
+    icons.innerHTML =
+      '<button class="col-ctrl-btn drag-h" draggable="true" title="Drag to reorder">☰</button>' +
+      '<button class="col-ctrl-btn hide-h" onclick="event.stopPropagation();tblHideCol(\'' + tbodyId + '\',' + idx + ')" title="Hide column">👁</button>' +
+      '<button class="col-ctrl-btn del-h" onclick="event.stopPropagation();tblDeleteCol(\'' + tbodyId + '\',' + idx + ')" title="Delete column">✗</button>';
+    th.appendChild(icons);
 
-  // Add empty th to filter rows
-  thead.querySelectorAll('tr.filter-row').forEach(tr => {
-    const th = document.createElement('th');
-    th.dataset.rowact = '1';
-    tr.appendChild(th);
-  });
-
-  // Add empty th to group rows (increase colspan of last th)
-  thead.querySelectorAll('tr.group-row').forEach(tr => {
-    const lastTh = tr.querySelector('th:last-child');
-    if (lastTh) {
-      const cs = parseInt(lastTh.getAttribute('colspan') || '1');
-      lastTh.setAttribute('colspan', cs + 1);
-    }
-  });
-
-  // Add action buttons to each existing tbody row
-  _addRowActCells(tbodyId);
-}
-
-function _addRowActCells(tbodyId) {
-  const tbody = document.getElementById(tbodyId);
-  if (!tbody) return;
-  tbody.querySelectorAll('tr').forEach(tr => {
-    if (tr.querySelector('.row-act-cell')) return;
-    if (tr.querySelector('td[colspan]')) return; // skip placeholder rows
-    const td = document.createElement('td');
-    td.className = 'row-act-cell';
-    td.innerHTML =
-      '<button class="row-act-btn" onclick="tblHideRow(\'' + tbodyId + '\',this)" title="Hide row">👁️</button>' +
-      '<button class="row-act-btn del" onclick="tblDeleteRow(\'' + tbodyId + '\',this)" title="Delete row">✗</button>';
-    tr.appendChild(td);
-  });
-}
-
-// ── DRAG & DROP: Row + Column reordering ──────────────────────────────
-const _dragState = {};  // { tbodyId: bool } - whether drag mode is on
-
-window.tblToggleDrag = function(tbodyId, btn) {
-  const on = !_dragState[tbodyId];
-  _dragState[tbodyId] = on;
-  btn.classList.toggle('drag-on', on);
-  const table = document.getElementById(tbodyId)?.closest('table');
-  if (!table) return;
-  table.classList.toggle('tbl-drag-active', on);
-  // Toggle drag handles visibility & draggable state
-  table.querySelectorAll('.tbl-drag-handle').forEach(h => { h.style.display = on ? '' : 'none'; });
-  // Toggle column header draggable
-  const hdrRow = table.querySelector('thead tr:not(.group-row):not(.filter-row)');
-  if (hdrRow) {
-    hdrRow.querySelectorAll('th').forEach(th => {
-      if (th.dataset.rowact) return;
-      if (th.dataset.dragcol === undefined) return;
-      th.draggable = on;
+    // Column drag from the ☰ button
+    const dragBtn = icons.querySelector('.drag-h');
+    dragBtn.addEventListener('dragstart', function(e) {
+      e.stopPropagation();
+      _colDragIdx = idx;
+      _colDragTable = table;
+      th.classList.add('tbl-col-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', 'col');
     });
-  }
-};
+    dragBtn.addEventListener('dragend', function() {
+      th.classList.remove('tbl-col-dragging');
+      _clearColDropIndicators(table);
+      _colDragIdx = -1;
+      _colDragTable = null;
+    });
 
-// ── ROW DRAG & DROP ───────────────────────────────────────────────────
+    // Drop target on each header
+    th.addEventListener('dragover', function(e) {
+      if (_colDragIdx < 0 || _colDragTable !== table) {
+        // Check if it's a row drag — don't interfere
+        if (_rowDragEl) return;
+        return;
+      }
+      const myIdx = parseInt(th.dataset.dragcol);
+      if (myIdx === _colDragIdx) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      _clearColDropIndicators(table);
+      const rect = th.getBoundingClientRect();
+      const mid = rect.left + rect.width / 2;
+      const cls = e.clientX < mid ? 'tbl-col-drop-left' : 'tbl-col-drop-right';
+      th.classList.add(cls);
+      _highlightCol(table, myIdx, cls);
+    });
+    th.addEventListener('dragleave', function() { _clearColDropIndicators(table); });
+    th.addEventListener('drop', function(e) {
+      if (_colDragIdx < 0 || _colDragTable !== table) return;
+      e.preventDefault();
+      const toIdx = parseInt(th.dataset.dragcol);
+      if (toIdx === _colDragIdx) return;
+      const rect = th.getBoundingClientRect();
+      const insertBefore = e.clientX < rect.left + rect.width / 2;
+      _moveColumn(table, _colDragIdx, toIdx, insertBefore);
+      _clearColDropIndicators(table);
+      // Re-index
+      hdrRow.querySelectorAll('th').forEach((h, i) => { if (h.dataset.dragcol !== undefined) h.dataset.dragcol = i; });
+    });
+  });
+}
+
+// ── Row Drag & Drop ───────────────────────────────────────────────────
 let _rowDragEl = null;
+let _colDragIdx = -1;
+let _colDragTable = null;
 
 function _initRowDrag(tbodyId) {
   const tbody = document.getElementById(tbodyId);
@@ -3960,14 +4122,11 @@ function _initRowDrag(tbodyId) {
   tbody.querySelectorAll('tr').forEach(tr => {
     if (tr.querySelector('.tbl-drag-handle')) return;
     if (tr.querySelector('td[colspan]')) return;
-    // Insert drag handle as first child or into the row-act-cell
     const handle = document.createElement('span');
     handle.className = 'tbl-drag-handle';
     handle.textContent = '☰';
-    handle.style.display = _dragState[tbodyId] ? '' : 'none';
     handle.draggable = true;
     handle.addEventListener('dragstart', function(e) {
-      if (!_dragState[tbodyId]) { e.preventDefault(); return; }
       _rowDragEl = tr;
       tr.classList.add('tbl-row-dragging');
       e.dataTransfer.effectAllowed = 'move';
@@ -3980,11 +4139,10 @@ function _initRowDrag(tbodyId) {
       });
       _rowDragEl = null;
     });
-    // Prepend handle to first td
-    const firstTd = tr.querySelector('td');
-    if (firstTd) firstTd.insertBefore(handle, firstTd.firstChild);
+    // Insert handle into first td
+    const firstRealTd = tr.querySelector('td');
+    if (firstRealTd) firstRealTd.insertBefore(handle, firstRealTd.firstChild);
 
-    // Drop zone on each row
     tr.addEventListener('dragover', function(e) {
       if (!_rowDragEl || _rowDragEl === tr) return;
       e.preventDefault();
@@ -4004,94 +4162,14 @@ function _initRowDrag(tbodyId) {
       if (!_rowDragEl || _rowDragEl === tr) return;
       const rect = tr.getBoundingClientRect();
       const mid = rect.top + rect.height / 2;
-      if (e.clientY < mid) {
-        tbody.insertBefore(_rowDragEl, tr);
-      } else {
-        tbody.insertBefore(_rowDragEl, tr.nextSibling);
-      }
+      if (e.clientY < mid) tbody.insertBefore(_rowDragEl, tr);
+      else tbody.insertBefore(_rowDragEl, tr.nextSibling);
       tr.classList.remove('tbl-row-drop-above', 'tbl-row-drop-below');
     });
   });
 }
 
-// ── COLUMN DRAG & DROP ────────────────────────────────────────────────
-let _colDragIdx = -1;
-let _colDragTable = null;
-
-function _initColDrag(tbodyId) {
-  const tbody = document.getElementById(tbodyId);
-  if (!tbody) return;
-  const table = tbody.closest('table');
-  if (!table) return;
-  const thead = table.querySelector('thead');
-  if (!thead) return;
-
-  // Find the main header row (not group-row, not filter-row)
-  const hdrRow = thead.querySelector('tr:not(.group-row):not(.filter-row)');
-  if (!hdrRow) return;
-
-  hdrRow.querySelectorAll('th').forEach((th, idx) => {
-    if (th.dataset.rowact) return; // skip row-action header
-    if (th.dataset.dragcol !== undefined) return; // already set up
-    th.dataset.dragcol = idx;
-    th.style.cursor = _dragState[tbodyId] ? 'grab' : '';
-    th.draggable = !!_dragState[tbodyId];
-
-    th.addEventListener('dragstart', function(e) {
-      if (!_dragState[tbodyId]) { e.preventDefault(); return; }
-      if (e.target !== th) return; // don't intercept child drags
-      _colDragIdx = idx;
-      _colDragTable = table;
-      th.classList.add('tbl-col-dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', 'col');
-    });
-    th.addEventListener('dragend', function() {
-      th.classList.remove('tbl-col-dragging');
-      _clearColDropIndicators(table);
-      _colDragIdx = -1;
-      _colDragTable = null;
-    });
-    th.addEventListener('dragover', function(e) {
-      if (_colDragIdx < 0 || _colDragTable !== table) return;
-      const myIdx = parseInt(th.dataset.dragcol);
-      if (myIdx === _colDragIdx) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      _clearColDropIndicators(table);
-      const rect = th.getBoundingClientRect();
-      const mid = rect.left + rect.width / 2;
-      const cls = e.clientX < mid ? 'tbl-col-drop-left' : 'tbl-col-drop-right';
-      // Highlight entire column
-      th.classList.add(cls);
-      _highlightCol(table, myIdx, cls);
-    });
-    th.addEventListener('dragleave', function() {
-      _clearColDropIndicators(table);
-    });
-    th.addEventListener('drop', function(e) {
-      e.preventDefault();
-      if (_colDragIdx < 0 || _colDragTable !== table) return;
-      const toIdx = parseInt(th.dataset.dragcol);
-      if (toIdx === _colDragIdx) return;
-      const rect = th.getBoundingClientRect();
-      const mid = rect.left + rect.width / 2;
-      const insertBefore = e.clientX < mid;
-      _moveColumn(table, _colDragIdx, toIdx, insertBefore);
-      _clearColDropIndicators(table);
-      // Re-index dragcol attributes
-      const newHdrRow = thead.querySelector('tr:not(.group-row):not(.filter-row)');
-      if (newHdrRow) {
-        newHdrRow.querySelectorAll('th').forEach((h, i) => {
-          if (h.dataset.dragcol !== undefined) h.dataset.dragcol = i;
-        });
-      }
-    });
-  });
-}
-
 function _highlightCol(table, colIdx, cls) {
-  // Highlight body cells in same column
   const tbody = table.querySelector('tbody');
   if (!tbody) return;
   tbody.querySelectorAll('tr').forEach(tr => {
@@ -4107,39 +4185,31 @@ function _clearColDropIndicators(table) {
 }
 
 function _moveColumn(table, fromIdx, toIdx, insertBefore) {
-  // Move cells in every row (thead + tbody + tfoot)
-  const allRows = table.querySelectorAll('tr');
-  allRows.forEach(tr => {
-    if (tr.classList.contains('group-row')) return; // skip group rows (they use colspan)
+  table.querySelectorAll('tr').forEach(tr => {
+    if (tr.classList.contains('group-row')) return;
     const cells = Array.from(tr.children);
     const fromCell = cells[fromIdx];
     const toCell = cells[toIdx];
     if (!fromCell || !toCell) return;
-    if (insertBefore) {
-      tr.insertBefore(fromCell, toCell);
-    } else {
-      tr.insertBefore(fromCell, toCell.nextSibling);
-    }
+    if (insertBefore) tr.insertBefore(fromCell, toCell);
+    else tr.insertBefore(fromCell, toCell.nextSibling);
   });
 }
 
-// ── Auto-enhance: call after each render to maintain row actions ──────
+// ── Auto-enhance ──────────────────────────────────────────────────────
 function enhanceTable(tbodyId) {
   if (!document.getElementById(tbodyId)) return;
   if (!_tblEnhanced.has(tbodyId)) {
     injectTableToolbar(tbodyId);
-    addRowActions(tbodyId);
+    _addRowCheckboxes(tbodyId);
+    _addColControls(tbodyId);
     _tblEnhanced.add(tbodyId);
   } else {
-    // Re-add row action cells for newly rendered rows
-    _addRowActCells(tbodyId);
+    _addRowCheckboxCells(tbodyId);
   }
-  // Re-apply column visibility after re-render
   _applyColVisibility(tbodyId);
   _showHiddenBar(tbodyId);
-  // Initialize drag handles for new rows
   _initRowDrag(tbodyId);
-  _initColDrag(tbodyId);
 }
 
 // Close column manager on outside click
