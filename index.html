@@ -7391,6 +7391,14 @@ function renderStockCapacity(customerOrders, plannedModules, consolidated) {
   customerOrders.forEach(o => { totalMods += o.qty; totalWp += o.qty * o.wp; });
   const avgWp = totalMods > 0 ? totalWp / totalMods : 580;
 
+  // ═══ Build baseMaterialKey → consolidated entry lookup ═══
+  const conByBase = {}; // baseMaterialKey → first consolidated entry (for stock lookup)
+  Object.keys(consolidated).forEach(ck => {
+    const mat = consolidated[ck];
+    const bmk = mat.baseMaterialKey || ck;
+    if (!conByBase[bmk]) conByBase[bmk] = mat;
+  });
+
   // ═══ CONSOLIDATED VIEW ═══
   let conHtml = '';
   let bottleneckModules = Infinity, bottleneckName = '';
@@ -7465,7 +7473,7 @@ function renderStockCapacity(customerOrders, plannedModules, consolidated) {
       const matKey = `${row.group}|||${row.spec}`;
       if (discardedMaterials.has(matKey)) return;
       const cons = row.qty * (1 + row.wastage / 100);
-      const cData = consolidated[matKey];
+      const cData = conByBase[matKey] || null;
       const stockQty = cData ? cData.stockResult.total : 0;
       const modulesPossible = cons > 0 ? Math.floor(stockQty / cons) : 0;
       const wattsCapacity = modulesPossible * wp;
@@ -7578,7 +7586,7 @@ function renderStockCapacity(customerOrders, plannedModules, consolidated) {
         if (custMappings[mk] && custMappings[mk].length > 0) {
           let t = 0; custMappings[mk].forEach(d => { if (aggregatedStock[d]) t += getStockQtyWithVariants(mk, d); }); return t;
         }
-        return consolidated[mk] ? consolidated[mk].stockResult.total : 0;
+        return conByBase[mk] ? conByBase[mk].stockResult.total : 0;
       };
       const capA = ca.perModule > 0 ? getStock(a, ca) / ca.perModule : Infinity;
       const capB = cb.perModule > 0 ? getStock(b, cb) / cb.perModule : Infinity;
@@ -7590,7 +7598,8 @@ function renderStockCapacity(customerOrders, plannedModules, consolidated) {
         stockQty = 0;
         custMappings[mk].forEach(d => { if (aggregatedStock[d]) stockQty += getStockQtyWithVariants(mk, d); });
       } else {
-        stockQty = consolidated[mk] ? consolidated[mk].stockResult.total : 0;
+        const cbData = conByBase[mk];
+        stockQty = cbData ? cbData.stockResult.total : 0;
       }
       const modulesPossible = mat.perModule > 0 ? Math.floor(stockQty / mat.perModule) : 0;
       const wattsCapacity = modulesPossible * custAvgWp;
@@ -7602,7 +7611,7 @@ function renderStockCapacity(customerOrders, plannedModules, consolidated) {
       }
 
       // Get material codes for this material
-      const custCData = consolidated[mk];
+      const custCData = conByBase[mk];
       const custMatCodes = custCData && custCData.stockResult.items ? custCData.stockResult.items.map(i => aggregatedStock[i.desc] ? aggregatedStock[i.desc].code : '').filter(Boolean) : [];
       const custCodeHtml = custMatCodes.length > 0 ? custMatCodes.map(c => `<span style="font-size:9px;background:#e0f2fe;color:#0c4a6e;padding:1px 4px;border-radius:3px;">${escHtml(c)}</span>`).join(' ') : '';
 
