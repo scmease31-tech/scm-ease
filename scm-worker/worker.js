@@ -1,6 +1,6 @@
 // SCM Ease Admin Worker — Cloudflare Workers
 // Env vars needed: ADMIN_ID, ADMIN_PASS, ADMIN_EMAIL, GITHUB_TOKEN, JWT_SECRET, RESEND_API_KEY (optional)
-const GITHUB_REPO = 'sohildobariya31-blip/scm-ease';
+const GITHUB_REPO = 'scmease31-tech/scm-ease';
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
