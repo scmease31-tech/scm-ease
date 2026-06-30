@@ -2541,12 +2541,12 @@
 
     <!-- Detailed Module-wise Breakdown -->
     <div id="planViewDetailed" style="display:none;">
-      <div class="section-label" style="margin-top: 10px;">Detailed Material Breakdown per Module Type</div>
+      <div class="section-label" style="margin-top: 10px;">Detailed Material Breakdown per Customer (Waterfall)</div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Module Type</th>
+              <th>Customer</th>
               <th>Material Group</th>
               <th>Technical Specifications</th>
               <th class="center">UOM</th>
@@ -6406,7 +6406,7 @@ function runAnalysisAuto() {
   renderConsolidatedTable(consolidated);
 
   // E) Detailed breakdown
-  renderDetailedTable(plannedModules, consolidated);
+  renderDetailedTable(customerOrders, consolidated);
 
   // E2) Customer Materials mapping
   renderCustomerMaterials(customerOrders, consolidated);
@@ -6790,56 +6790,85 @@ function renderConsolidatedTable(consolidated) {
 
 
 // ── RENDER: Detailed Table ──────────────────────────────────────────
-function renderDetailedTable(plannedModules, consolidated) {
+function renderDetailedTable(customerOrders, consolidated) {
   let html = '';
 
-  // Track remaining stock per material — waterfall: each module consumes from the pool
+  // Track remaining stock per base material — waterfall: each customer consumes from the pool
   const remainingStock = {};
   Object.keys(consolidated).forEach(mk => {
     const cData = consolidated[mk];
-    remainingStock[mk] = cData ? cData.stockResult.total : 0;
+    const bmk = cData.baseMaterialKey || mk;
+    if (remainingStock[bmk] === undefined) {
+      remainingStock[bmk] = cData ? cData.stockResult.total : 0;
+    }
   });
 
-  Object.keys(plannedModules).forEach(mk => {
-    const mod = modules.find(m => m.key === mk);
-    if (!mod) return;
-    const mQty = plannedModules[mk].qty;
-    const wpVals = plannedModules[mk].wpValues;
-    const pwr = fmtPower(mQty * Math.max(...wpVals, 0));
+  // Group orders by customer
+  const custMap = {};
+  customerOrders.forEach(ord => {
+    if (!custMap[ord.customer]) custMap[ord.customer] = { totalQty: 0, totalMW: 0, orders: [] };
+    custMap[ord.customer].totalQty += ord.qty;
+    custMap[ord.customer].totalMW += ord.qty * ord.wp / 1e6;
+    custMap[ord.customer].orders.push(ord);
+  });
 
-    // Module type header row
+  const sortedCust = Object.entries(custMap).sort((a, b) => b[1].totalMW - a[1].totalMW);
+
+  sortedCust.forEach(([custName, data]) => {
+    const pwr = fmtPower(data.totalMW * 1e6);
+
+    // Customer header row
     html += `<tr style="background:linear-gradient(90deg,#1a9e76 0%,#0f6e52 100%);">
       <td colspan="13" style="color:#fff;font-weight:700;font-size:13px;padding:8px 12px;letter-spacing:0.5px;">
-        📦 ${escHtml(mod.name)} — ${fmt2.format(mQty)} modules × ${wpVals.join('/')}Wp = ${pwr.val} ${pwr.unit}
+        👤 ${escHtml(custName)} — ${fmt2.format(data.totalQty)} modules = ${pwr.val} ${pwr.unit}
       </td>
     </tr>`;
 
-    mod.rows.forEach((row, ri) => {
-      const cons = row.qty * (1 + row.wastage / 100);
-      const reqQty = cons * mQty;
-      const materialKey = `${row.group}|||${row.spec}`;
-      const isDiscarded = discardedMaterials.has(materialKey);
-      const cData = consolidated[materialKey];
+    // Aggregate materials required by this customer
+    const custMaterials = {}; // bmk -> { group, spec, uom, reqQty, modBreakdown }
+    
+    data.orders.forEach(ord => {
+      const mod = modules.find(m => m.key === ord.modKey);
+      if (!mod) return;
+      mod.rows.forEach(row => {
+        const bmk = `${row.group}|||${row.spec}`;
+        if (discardedMaterials.has(bmk)) return;
+        
+        const cons = row.qty * (1 + row.wastage / 100);
+        const reqQty = cons * ord.qty;
+
+        if (!custMaterials[bmk]) {
+          custMaterials[bmk] = { group: row.group, spec: row.spec, uom: row.uom, reqQty: 0, modBreakdown: {} };
+        }
+        custMaterials[bmk].reqQty += reqQty;
+        if (!custMaterials[bmk].modBreakdown[mod.name]) custMaterials[bmk].modBreakdown[mod.name] = 0;
+        custMaterials[bmk].modBreakdown[mod.name] += reqQty;
+      });
+    });
+
+    Object.keys(custMaterials).sort((a,b) => custMaterials[b].reqQty - custMaterials[a].reqQty).forEach(bmk => {
+      const mat = custMaterials[bmk];
+      const isDiscarded = discardedMaterials.has(bmk);
+      
+      const cDataKey = Object.keys(consolidated).find(k => (consolidated[k].baseMaterialKey || k) === bmk);
+      const cData = cDataKey ? consolidated[cDataKey] : null;
+      
       const totalStock = cData ? cData.stockResult.total : 0;
+      const available = remainingStock[bmk] !== undefined ? remainingStock[bmk] : 0;
+      const shortage = mat.reqQty - available;
 
-      // Available = remaining after prior modules consumed
-      const available = remainingStock[materialKey] !== undefined ? remainingStock[materialKey] : 0;
-      const shortage = reqQty - available;
-
-      // Deduct what this module uses from the pool
-      if (!isDiscarded && remainingStock[materialKey] !== undefined) {
-        remainingStock[materialKey] = Math.max(0, available - reqQty);
+      if (!isDiscarded && remainingStock[bmk] !== undefined) {
+        remainingStock[bmk] = Math.max(0, available - mat.reqQty);
       }
 
       const wasConsumed = available < totalStock;
 
       let statusBadge;
       if (isDiscarded) statusBadge = '<span class="status-badge na">🚫</span>';
-      else if (available >= reqQty) statusBadge = '<span class="status-badge ok">✅</span>';
-      else if (available >= reqQty * 0.5) statusBadge = '<span class="status-badge low">⚠️</span>';
+      else if (available >= mat.reqQty) statusBadge = '<span class="status-badge ok">✅</span>';
+      else if (available >= mat.reqQty * 0.5) statusBadge = '<span class="status-badge low">⚠️</span>';
       else statusBadge = '<span class="status-badge short">❌</span>';
 
-      // Material codes from mapped stock items for detailed view
       const detailCodes = [];
       if (cData && cData.stockResult && cData.stockResult.items.length > 0) {
         cData.stockResult.items.forEach(item => {
@@ -6850,19 +6879,23 @@ function renderDetailedTable(plannedModules, consolidated) {
       const detailCodeHtml = detailCodes.length > 0
         ? detailCodes.map(c => `<span style="font-size:9px;padding:1px 5px;background:#f0f4f8;border:1px solid #e2eaf0;border-radius:3px;color:#3a4a56;font-family:'JetBrains Mono',monospace;display:inline-block;margin:1px 2px;">${escHtml(c)}</span>`).join('')
         : '<span style="color:var(--muted);font-size:9px;">—</span>';
+        
+      const modBreakdownHtml = Object.entries(mat.modBreakdown).map(([mName, rq]) => 
+        `<span class="mod-badge" style="font-size:9px;" title="${mName}">${escHtml(mName.split(' ')[0])} <span style="color:var(--muted);">${fmt2.format(rq)}</span></span>`
+      ).join(' ');
 
       html += `<tr class="${isDiscarded ? 'discarded' : ''}">
-        <td><span class="mod-badge">${escHtml(mod.name)}</span><br><span style="font-size:10px;color:#666;">×${fmt2.format(mQty)} modules</span></td>
-        <td class="group-cell">${escHtml(row.group)}</td>
-        <td class="spec">${escHtml(row.spec)}</td>
-        <td class="center" style="font-weight:600;color:var(--muted);font-size:11px">${escHtml(row.uom)}</td>
+        <td><span style="font-weight:600;color:var(--ink);">${escHtml(custName)}</span><br>${modBreakdownHtml}</td>
+        <td class="group-cell">${escHtml(mat.group)}</td>
+        <td class="spec">${escHtml(mat.spec)}</td>
+        <td class="center" style="font-weight:600;color:var(--muted);font-size:11px">${escHtml(mat.uom)}</td>
         <td style="padding:4px 6px">${detailCodeHtml}</td>
-        <td class="num">${row.qty}</td>
-        <td class="num">${row.wastage}%</td>
-        <td class="num">${cons.toFixed(6)}</td>
-        <td class="num">${fmt2.format(mQty)}</td>
-        <td class="num" style="background:#e6f7f1;color:var(--solar-1);font-weight:bold;">${fmt2.format(reqQty)}</td>
-        <td class="num" style="color:${available < reqQty ? 'var(--danger)' : 'var(--solar-1)'};font-weight:bold;">
+        <td class="num">—</td>
+        <td class="num">—</td>
+        <td class="num">—</td>
+        <td class="num">—</td>
+        <td class="num" style="background:#e6f7f1;color:var(--solar-1);font-weight:bold;">${fmt2.format(mat.reqQty)}</td>
+        <td class="num" style="color:${available < mat.reqQty ? 'var(--danger)' : 'var(--solar-1)'};font-weight:bold;">
           ${fmt2.format(available)}<br>
           <span style="font-size:9px;color:var(--muted);font-weight:normal;">${cData && cData.stockResult.isManual ? '🔗 Manual' : 'Auto'}${wasConsumed ? ' (after prior use)' : ''}</span>
         </td>
