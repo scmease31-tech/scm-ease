@@ -2551,10 +2551,6 @@
               <th>Technical Specifications</th>
               <th class="center">UOM</th>
               <th>Material Code</th>
-              <th class="num">Qty / Module</th>
-              <th class="num">Wastage %</th>
-              <th class="num">Consumption</th>
-              <th class="num">Module Qty</th>
               <th class="num" style="background:#e6f7f1;color:var(--solar-1);">Required Qty</th>
               <th class="num" style="background:#0d4f38;color:#fff;">Available Stock</th>
               <th class="num" style="background:#991b1b;color:#fff;">Shortage (Buy)</th>
@@ -2566,9 +2562,8 @@
               <th><div class="cf-wrap" data-col="2" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
               <th><div class="cf-wrap" data-col="3" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
               <th><div class="cf-wrap" data-col="4" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
-              <th></th><th></th><th></th><th></th>
               <th></th><th></th><th></th>
-              <th><div class="cf-wrap" data-col="12" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+              <th><div class="cf-wrap" data-col="8" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
             </tr>
           </thead>
           <tbody id="resultBodyPlan"></tbody>
@@ -6819,7 +6814,7 @@ function renderDetailedTable(customerOrders, consolidated) {
 
     // Customer header row
     html += `<tr style="background:linear-gradient(90deg,#1a9e76 0%,#0f6e52 100%);">
-      <td colspan="13" style="color:#fff;font-weight:700;font-size:13px;padding:8px 12px;letter-spacing:0.5px;">
+      <td colspan="9" style="color:#fff;font-weight:700;font-size:13px;padding:8px 12px;letter-spacing:0.5px;">
         👤 ${escHtml(custName)} — ${fmt2.format(data.totalQty)} modules = ${pwr.val} ${pwr.unit}
       </td>
     </tr>`;
@@ -6890,10 +6885,6 @@ function renderDetailedTable(customerOrders, consolidated) {
         <td class="spec">${escHtml(mat.spec)}</td>
         <td class="center" style="font-weight:600;color:var(--muted);font-size:11px">${escHtml(mat.uom)}</td>
         <td style="padding:4px 6px">${detailCodeHtml}</td>
-        <td class="num">—</td>
-        <td class="num">—</td>
-        <td class="num">—</td>
-        <td class="num">—</td>
         <td class="num" style="background:#e6f7f1;color:var(--solar-1);font-weight:bold;">${fmt2.format(mat.reqQty)}</td>
         <td class="num" style="color:${available < mat.reqQty ? 'var(--danger)' : 'var(--solar-1)'};font-weight:bold;">
           ${fmt2.format(available)}<br>
