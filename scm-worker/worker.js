@@ -222,6 +222,7 @@ const ALLOWED_PERM_KEYS = ['calc', 'calc_changes', 'plan', 'plan_edit', 'plan_ch
 const CONSUMPTION_DEFAULTS_KEY = 'consumption_defaults';
 const PLANNING_CONFIG_KEY = 'planning_config';
 const SHARED_PLANNING_KEY = 'shared_planning_data';
+const VENDOR_DATA_KEY = 'vendor_sheet_data';
 
 async function getUsers(env) {
   const raw = await env.LOGS.get(USERS_KEY);
@@ -515,6 +516,38 @@ async function handleGetCustomerData(env) {
   } catch { return jsonResp({ customerStockMappings: {}, customerVariantSelections: {} }); }
 }
 
+// ── Vendor Sheet Data persistence (KV) ────────────────────────────────
+async function handleSaveVendorData(body, env, authHeader) {
+  const { vendorHeaders, vendorData, userName, userPassword } = body;
+  // Auth: admin token or vendor user with vendor_edit permission
+  const token = (authHeader || '').replace('Bearer ', '');
+  const adminPayload = token ? await verifyToken(token, env.JWT_SECRET) : null;
+  if (!adminPayload) {
+    // Try user auth
+    if (userName && userPassword) {
+      const verified = await verifyUserCredentials(env, userName, userPassword);
+      if (!verified) return jsonResp({ error: 'Unauthorized' }, 401);
+      const hasPerm = await userHasPermission(env, verified, 'vendor_edit');
+      if (!hasPerm) return jsonResp({ error: 'No vendor_edit permission' }, 403);
+    } else {
+      return jsonResp({ error: 'Unauthorized' }, 401);
+    }
+  }
+  if (!vendorHeaders || !vendorData) return jsonResp({ error: 'Missing vendor data' }, 400);
+  const data = JSON.stringify({ vendorHeaders, vendorData, _ts: Date.now(), _user: userName || 'admin' });
+  if (data.length > 10 * 1024 * 1024) return jsonResp({ error: 'Data too large (>10MB)' }, 413);
+  await env.LOGS.put(VENDOR_DATA_KEY, data);
+  await appendLog(env, { type: 'vendor_save', user: userName || 'admin', ts: new Date().toISOString(), detail: 'Saved vendor sheet data' });
+  return jsonResp({ ok: true });
+}
+
+async function handleGetVendorData(env) {
+  const raw = await env.LOGS.get(VENDOR_DATA_KEY);
+  if (!raw) return jsonResp({ empty: true });
+  try { return jsonResp(JSON.parse(raw)); }
+  catch { return jsonResp({ empty: true }); }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────
 export default {
   async fetch(request, env) {
@@ -545,6 +578,9 @@ export default {
     if (request.method === 'GET' && path === '/api/shared-planning') {
       return handleGetSharedPlanning(env);
     }
+    if (request.method === 'GET' && path === '/api/vendor-data') {
+      return handleGetVendorData(env);
+    }
 
     if (request.method !== 'POST') return jsonResp({ error: 'Method not allowed' }, 405);
 
@@ -566,6 +602,7 @@ export default {
       if (path === '/api/customer-data') return handleSaveCustomerData(body, env);
       if (path === '/api/planning-config') return handleSavePlanningConfig(body, env);
       if (path === '/api/shared-planning') return handleSaveSharedPlanning(body, env, request.headers.get('Authorization'));
+      if (path === '/api/vendor-data') return handleSaveVendorData(body, env, request.headers.get('Authorization'));
       return jsonResp({ error: 'Not found' }, 404);
     } catch (e) {
       return jsonResp({ error: e.message || 'Internal error' }, 500);
