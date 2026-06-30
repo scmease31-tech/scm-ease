@@ -212,7 +212,7 @@ const MAX_LOGS = 500;
 const USERS_KEY = 'app_users';
 const PERMISSIONS_KEY = 'user_permissions';
 const DEFAULT_USERS = [
-  {name:'Nikita',password:'nikita'},{name:'Akshay',password:'akshay'},
+  {name:'Sohil',password:'sohil'},{name:'Nikita',password:'nikita'},{name:'Akshay',password:'akshay'},
   {name:'Megha',password:'megha'},{name:'Piyush',password:'piyush'},
   {name:'Purvi',password:'purvi'},{name:'Khushi',password:'khushi'},
   {name:'Rajesh',password:'rajesh'}
