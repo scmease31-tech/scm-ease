@@ -14,5 +14,5 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: 8e07f4c35c0781d179b6680f73c1ed21
+          accountId: abb90e52ec93e7bf3addd679d3eef17c
           command: pages deploy . --project-name=scm-ease
