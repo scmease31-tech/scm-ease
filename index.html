@@ -2867,6 +2867,7 @@ const VENDOR_SHEETS = {
   <div class="vendor-auth-bar" id="vendorAuthBar">
     <span>🔓 Editing as <span class="vab-user" id="vendorAuthUser">—</span></span>
     <span class="vab-last-edit" id="vendorLastEditInfo"></span>
+    <span id="vendorSaveStatus" style="font-size:11px;font-weight:600;color:#059669;margin-left:8px;transition:opacity 0.3s;"></span>
     <span class="vab-spacer"></span>
     <button class="vab-logout" onclick="vendorLogout()">Logout</button>
   </div>
@@ -2887,6 +2888,9 @@ const VENDOR_SHEETS = {
       <button class="vendor-login-btn" id="vendorLoginBtn" onclick="vendorShowLogin()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         Login to Edit
+      </button>
+      <button class="btn btn-outline v-edit-only" style="background:#10b981;color:#fff;border:none;font-weight:600" onclick="vendorManualSave()">
+        💾 Save Changes
       </button>
       <button class="btn btn-outline v-edit-only" onclick="vendorAddRow()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -5387,7 +5391,9 @@ window.deployPlanningData = async function() {
   try {
     const shareBody = {
       analysisState: window._latestPlanningState,
-      rawData: window._latestPlanningRaw || null
+      rawData: window._latestPlanningRaw || null,
+      userName: sessionStorage.getItem('siteUser') || '',
+      userPassword: sessionStorage.getItem('sitePass') || ''
     };
     const headers = { 'Content-Type': 'application/json' };
     const token = sessionStorage.getItem('adminToken');
@@ -6276,8 +6282,9 @@ function runAnalysisAuto() {
       const isLabel = labelGroups.some(lg => (row.group || '').toLowerCase().includes(lg));
       if (isLabel && !activeLabels.has(row.spec)) return;
 
-      // Material key: group + spec (unique identifier)
-      const materialKey = `${row.group}|||${row.spec}`;
+      // Material key now includes modKey so each module type gets its own row
+      const materialKey = `${row.group}|||${row.spec}|||${mk}`;
+      const baseMaterialKey = `${row.group}|||${row.spec}`;
       const cons = row.qty * (1 + row.wastage / 100);
 
       if (!consolidated[materialKey]) {
@@ -6290,7 +6297,10 @@ function runAnalysisAuto() {
           requiredQty: 0,
           usedBy: [],
           items: [],
-          isLabel
+          isLabel,
+          modKey: mk,
+          modName: mod.name,
+          baseMaterialKey
         };
       }
 
@@ -6303,25 +6313,41 @@ function runAnalysisAuto() {
     });
   });
 
-  // 6. Map stock to consolidated materials
+  // 6. Map stock to consolidated materials (use baseMaterialKey for stock lookup)
+  // First compute total required per base material for overall status
+  const baseRequired = {};
+  Object.keys(consolidated).forEach(mk => {
+    const mat = consolidated[mk];
+    const bmk = mat.baseMaterialKey || mk;
+    if (!baseRequired[bmk]) baseRequired[bmk] = 0;
+    baseRequired[bmk] += mat.requiredQty;
+  });
+
   let itemsShort = 0, itemsOk = 0, itemsLow = 0;
+  const baseStockCache = {}; // cache stock lookups per base material
 
   Object.keys(consolidated).forEach(mk => {
     const mat = consolidated[mk];
-    if (discardedMaterials.has(mk)) {
+    const bmk = mat.baseMaterialKey || mk;
+    if (discardedMaterials.has(bmk) || discardedMaterials.has(mk)) {
       mat.stockResult = { total: 0, items: [], isManual: false };
       mat.diff = 0;
       mat.status = 'discarded';
       return;
     }
-    const stockResult = getStockForMaterial(mk, mat.group, mat.spec, mat.uom);
-    mat.stockResult = stockResult;
-    mat.diff = stockResult.total - mat.requiredQty;
+    // Use cached stock result for same base material
+    if (!baseStockCache[bmk]) {
+      baseStockCache[bmk] = getStockForMaterial(bmk, mat.group, mat.spec, mat.uom);
+    }
+    mat.stockResult = baseStockCache[bmk];
+    // Diff is based on total stock vs total required for this base material
+    const totalReqForBase = baseRequired[bmk] || mat.requiredQty;
+    mat.diff = mat.stockResult.total - totalReqForBase;
 
-    if (stockResult.total >= mat.requiredQty * 1.0) {
+    if (mat.stockResult.total >= totalReqForBase * 1.0) {
       mat.status = 'ok';
       itemsOk++;
-    } else if (stockResult.total >= mat.requiredQty * 0.5) {
+    } else if (mat.stockResult.total >= totalReqForBase * 0.5) {
       mat.status = 'low';
       itemsLow++;
     } else {
@@ -6660,29 +6686,34 @@ function renderModuleSummary(plannedModules) {
 // ── RENDER: Consolidated Material Table ──────────────────────────────
 function renderConsolidatedTable(consolidated) {
   let html = '';
-  // Sort: short first, then low, then ok
+  // Sort: short first, then low, then ok — then group by base material key
   const statusOrder = { short: 0, low: 1, ok: 2, discarded: 3 };
   const sortedKeys = Object.keys(consolidated).sort((a, b) => {
     const sa = statusOrder[consolidated[a].status] ?? 9;
     const sb = statusOrder[consolidated[b].status] ?? 9;
     if (sa !== sb) return sa - sb;
-    return consolidated[b].requiredQty - consolidated[a].requiredQty;
+    // Group by base material key so same material rows stay together
+    const bmkA = consolidated[a].baseMaterialKey || a;
+    const bmkB = consolidated[b].baseMaterialKey || b;
+    if (bmkA !== bmkB) return consolidated[b].requiredQty - consolidated[a].requiredQty;
+    return 0;
   });
 
   sortedKeys.forEach(mk => {
     const mat = consolidated[mk];
-    const isDiscarded = discardedMaterials.has(mk);
+    const bmk = mat.baseMaterialKey || mk;
+    const isDiscarded = discardedMaterials.has(bmk) || discardedMaterials.has(mk);
 
     // Status badge
     let statusBadge = '';
     if (isDiscarded) {
-      statusBadge = '<span class="status-badge na">🚫 Discarded</span>';
+      statusBadge = '<span class="status-badge na">\u{1F6AB} Discarded</span>';
     } else if (mat.status === 'ok') {
-      statusBadge = '<span class="status-badge ok">✅ OK</span>';
+      statusBadge = '<span class="status-badge ok">\u2705 OK</span>';
     } else if (mat.status === 'low') {
-      statusBadge = '<span class="status-badge low">⚠️ Low</span>';
+      statusBadge = '<span class="status-badge low">\u26A0\uFE0F Low</span>';
     } else {
-      statusBadge = '<span class="status-badge short">❌ Short</span>';
+      statusBadge = '<span class="status-badge short">\u274C Short</span>';
     }
 
     // Stock pills
@@ -6690,19 +6721,21 @@ function renderConsolidatedTable(consolidated) {
     if (mat.stockResult && mat.stockResult.items.length > 0) {
       mat.stockResult.items.forEach(item => {
         const cls = item.manual ? 'manual' : 'matched';
-        stockPillsHtml += `<span class="stock-pill ${cls}" title="${escHtml(item.desc)}: ${fmt2.format(item.qty)} ${item.uom}">${escHtml(item.desc.substring(0,40))}${item.desc.length > 40 ? '…' : ''}</span>`;
+        stockPillsHtml += `<span class="stock-pill ${cls}" title="${escHtml(item.desc)}: ${fmt2.format(item.qty)} ${item.uom}">${escHtml(item.desc.substring(0,40))}${item.desc.length > 40 ? '\u2026' : ''}</span>`;
       });
     } else if (!isDiscarded) {
       stockPillsHtml += '<span style="color:var(--muted);font-size:10px;font-style:italic;">No match found</span>';
     }
     stockPillsHtml += '</div>';
 
-    // Used by — with module-wise qty breakdown
-    let usedByHtml = '';
-    if (mat.items && mat.items.length > 0) {
-      usedByHtml = mat.items.map(item => {
+    // Module type badge
+    let moduleHtml = '';
+    if (mat.modName) {
+      moduleHtml = `<span class="mod-badge" style="font-size:9px;padding:1px 5px;" title="${escHtml(mat.modName)}">${escHtml(mat.modName)}</span>`;
+    } else if (mat.items && mat.items.length > 0) {
+      moduleHtml = mat.items.map(item => {
         const reqForThisMod = item.consumption * item.qty;
-        return `<span class="mod-badge" style="font-size:9px;padding:1px 5px;" title="${item.modName}: ${fmt2.format(item.qty)} modules × ${item.consumption.toFixed(4)} = ${fmt2.format(reqForThisMod)}">${escHtml(item.modName.split(' ')[0])}<br><span style="font-size:8px;color:var(--muted);">${fmt2.format(reqForThisMod)}</span></span>`;
+        return `<span class="mod-badge" style="font-size:9px;padding:1px 5px;" title="${item.modName}: ${fmt2.format(item.qty)} modules \u00D7 ${item.consumption.toFixed(4)} = ${fmt2.format(reqForThisMod)}">${escHtml(item.modName.split(' ')[0])}<br><span style="font-size:8px;color:var(--muted);">${fmt2.format(reqForThisMod)}</span></span>`;
       }).join(' ');
     }
 
@@ -6716,31 +6749,31 @@ function renderConsolidatedTable(consolidated) {
     }
     const matCodeHtml = matCodes.length > 0
       ? matCodes.map(c => `<span style="font-size:9px;padding:1px 5px;background:#f0f4f8;border:1px solid #e2eaf0;border-radius:3px;color:#3a4a56;font-family:'JetBrains Mono',monospace;display:inline-block;margin:1px 2px;">${escHtml(c)}</span>`).join('')
-      : '<span style="color:var(--muted);font-size:9px;">—</span>';
+      : '<span style="color:var(--muted);font-size:9px;">\u2014</span>';
 
     // Diff display
     const diff = mat.diff;
-    const diffStr = isDiscarded ? '—' : (diff >= 0 ? `<span style="color:#059669">+${fmt2.format(diff)}</span>` : `<span style="color:#dc2626;font-weight:800">${fmt2.format(diff)}</span>`);
+    const diffStr = isDiscarded ? '\u2014' : (diff >= 0 ? `<span style="color:#059669">+${fmt2.format(diff)}</span>` : `<span style="color:#dc2626;font-weight:800">${fmt2.format(diff)}</span>`);
 
-    // Escape materialKey for HTML attributes
-    const mkEsc = mk.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    // Escape baseMaterialKey for HTML attributes (discard/map use base key)
+    const bmkEsc = bmk.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
     html += `<tr class="${isDiscarded ? 'discarded' : ''}">
       <td class="group-cell">${escHtml(mat.group)}</td>
       <td class="spec">${escHtml(mat.spec)}</td>
       <td class="center" style="font-weight:600;color:var(--muted);font-size:11px">${escHtml(mat.uom)}</td>
       <td class="num" style="font-family:'JetBrains Mono',monospace;font-size:11px">${fmt(mat.perModule)}</td>
-      <td>${usedByHtml}</td>
+      <td>${moduleHtml}</td>
       <td style="padding:4px 6px">${matCodeHtml}</td>
       <td class="num" style="font-weight:700">${fmt2.format(mat.totalModules)}</td>
-      <td class="total-cell num" style="font-size:12px">${isDiscarded ? '—' : fmt2.format(mat.requiredQty)}</td>
+      <td class="total-cell num" style="font-size:12px">${isDiscarded ? '\u2014' : fmt2.format(mat.requiredQty)}</td>
       <td style="padding:4px 6px">${stockPillsHtml}</td>
-      <td class="num" style="font-weight:700;color:var(--solar-1)">${isDiscarded ? '—' : fmt2.format(mat.stockResult.total)}</td>
+      <td class="num" style="font-weight:700;color:var(--solar-1)">${isDiscarded ? '\u2014' : fmt2.format(mat.stockResult.total)}</td>
       <td class="num" style="font-weight:800">${diffStr} ${!isDiscarded ? statusBadge : ''}</td>
       <td class="center" style="padding:4px">
         <div style="display:flex;gap:4px;justify-content:center;align-items:center">
-          <button class="btn btn-sm" style="background-color: var(--danger); color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px;" onclick="toggleDiscard('${mkEsc}')" title="${isDiscarded ? 'Restore this material' : 'Discard this material'}">${isDiscarded ? '↺ Restore' : '❌ Discard'}</button>
-          <button class="map-btn" onclick="openStockMapModal('${mkEsc}')" title="Map stock items">🔗</button>
+          <button class="btn btn-sm" style="background-color: var(--danger); color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px;" onclick="toggleDiscard('${bmkEsc}')" title="${isDiscarded ? 'Restore this material' : 'Discard this material'}">${isDiscarded ? '\u21BA Restore' : '\u274C Discard'}</button>
+          <button class="map-btn" onclick="openStockMapModal('${bmkEsc}')" title="Map stock items">\u{1F517}</button>
         </div>
       </td>
     </tr>`;
@@ -6750,6 +6783,11 @@ function renderConsolidatedTable(consolidated) {
   refreshFilterOptions('consolidatedBody');
   enhanceTable('consolidatedBody');
 }
+
+
+
+
+
 
 // ── RENDER: Detailed Table ──────────────────────────────────────────
 function renderDetailedTable(plannedModules, consolidated) {
@@ -8420,10 +8458,11 @@ window.applyPlanFilters = function() {
     if (!mod) return;
     mod.rows.forEach(row => {
       const isLabel = labelGroups.some(lg => (row.group || '').toLowerCase().includes(lg));
-      const materialKey = `${row.group}|||${row.spec}`;
+      const materialKey = `${row.group}|||${row.spec}|||${mk}`;
+      const baseMaterialKey = `${row.group}|||${row.spec}`;
       const cons = row.qty * (1 + row.wastage / 100);
       if (!consolidated[materialKey]) {
-        consolidated[materialKey] = { group: row.group, spec: row.spec, uom: row.uom, perModule: cons, totalModules: 0, requiredQty: 0, usedBy: [], items: [], isLabel };
+        consolidated[materialKey] = { group: row.group, spec: row.spec, uom: row.uom, perModule: cons, totalModules: 0, requiredQty: 0, usedBy: [], items: [], isLabel, modKey: mk, modName: mod.name, baseMaterialKey };
       }
       consolidated[materialKey].totalModules += mq;
       consolidated[materialKey].requiredQty += cons * mq;
@@ -8433,15 +8472,28 @@ window.applyPlanFilters = function() {
   });
 
   // Map stock
+  const baseRequired = {};
   Object.keys(consolidated).forEach(mk => {
     const mat = consolidated[mk];
-    if (discardedMaterials.has(mk)) {
+    const bmk = mat.baseMaterialKey || mk;
+    if (!baseRequired[bmk]) baseRequired[bmk] = 0;
+    baseRequired[bmk] += mat.requiredQty;
+  });
+
+  const baseStockCache = {};
+  Object.keys(consolidated).forEach(mk => {
+    const mat = consolidated[mk];
+    const bmk = mat.baseMaterialKey || mk;
+    if (discardedMaterials.has(bmk) || discardedMaterials.has(mk)) {
       mat.stockResult = { total: 0, items: [], isManual: false }; mat.diff = 0; mat.status = 'discarded'; return;
     }
-    const stockResult = getStockForMaterial(mk, mat.group, mat.spec, mat.uom);
-    mat.stockResult = stockResult;
-    mat.diff = stockResult.total - mat.requiredQty;
-    mat.status = stockResult.total >= mat.requiredQty ? 'ok' : stockResult.total >= mat.requiredQty * 0.5 ? 'low' : 'short';
+    if (!baseStockCache[bmk]) {
+      baseStockCache[bmk] = getStockForMaterial(bmk, mat.group, mat.spec, mat.uom);
+    }
+    mat.stockResult = baseStockCache[bmk];
+    const totalReqForBase = baseRequired[bmk] || mat.requiredQty;
+    mat.diff = mat.stockResult.total - totalReqForBase;
+    mat.status = mat.stockResult.total >= totalReqForBase ? 'ok' : mat.stockResult.total >= totalReqForBase * 0.5 ? 'low' : 'short';
   });
 
   // Re-render all views with filtered data
@@ -9166,6 +9218,81 @@ loadAnalysisState();
   let deleteLog = []; // { type:'row'|'col', sheet, data, header?, colIdx?, user, time }
   let pendingDelete = null; // pending confirm callback
   let undoTimer = null;
+  let vendorSaveTimer = null;
+  let vendorCloudLoaded = false;
+
+  // ── Manual Save ──
+  window.vendorManualSave = function() {
+    if (vendorSaveTimer) { clearTimeout(vendorSaveTimer); vendorSaveTimer = null; }
+    const statusEl = document.getElementById('vendorSaveStatus');
+    if (statusEl) { statusEl.textContent = '⏳ Saving…'; statusEl.style.color = '#d97706'; }
+    _performVendorSave();
+  };
+
+  // ── Cloud Save (debounced) ──
+  function vendorSaveToCloud() {
+    if (vendorSaveTimer) clearTimeout(vendorSaveTimer);
+    const statusEl = document.getElementById('vendorSaveStatus');
+    if (statusEl) { statusEl.textContent = '⏳ Saving…'; statusEl.style.color = '#d97706'; }
+    vendorSaveTimer = setTimeout(_performVendorSave, 500); // 0.5s debounce
+  }
+
+  async function _performVendorSave() {
+      const statusEl = document.getElementById('vendorSaveStatus');
+      try {
+        const user = getVU();
+        // Get the user's password from the vendor login or gate login
+        const pw = sessionStorage.getItem('vendorPass') || sessionStorage.getItem('sitePass') || '';
+        const adminToken = sessionStorage.getItem('adminToken');
+        const headers = { 'Content-Type': 'application/json' };
+        if (adminToken) headers['Authorization'] = 'Bearer ' + adminToken;
+        const payload = { vendorHeaders, vendorData, userName: user || '', userPassword: pw };
+        const r = await fetch(_VW_URL + '/api/vendor-data', {
+          method: 'POST', headers, body: JSON.stringify(payload)
+        });
+        if (r.ok) {
+          if (statusEl) { statusEl.textContent = '✅ Saved'; statusEl.style.color = '#059669'; }
+          setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+        } else {
+          if (r.status === 401) {
+            alert('Your session has expired or is invalid. Please log in again to save changes.');
+            if (window.vendorLogout) window.vendorLogout();
+          }
+          const d = await r.json().catch(() => ({}));
+          console.warn('Vendor save failed:', d.error || r.status);
+          if (statusEl) { statusEl.textContent = '⚠ Save failed'; statusEl.style.color = '#dc2626'; }
+        }
+      } catch(e) {
+        console.warn('Vendor save error:', e);
+        if (statusEl) { statusEl.textContent = '⚠ Save failed'; statusEl.style.color = '#dc2626'; }
+      }
+  }
+
+  // ── Cloud Load ──
+  async function vendorLoadFromCloud() {
+    try {
+      const r = await fetch(_VW_URL + '/api/vendor-data');
+      if (!r.ok) return false;
+      const d = await r.json();
+      if (d.empty || !d.vendorHeaders || !d.vendorData) return false;
+      // Use cloud data
+      Object.keys(d.vendorHeaders).forEach(k => {
+        vendorHeaders[k] = d.vendorHeaders[k];
+      });
+      Object.keys(d.vendorData).forEach(k => {
+        vendorData[k] = d.vendorData[k];
+      });
+      vendorCloudLoaded = true;
+      if (d._user && d._ts) {
+        lastEditUser = d._user;
+        lastEditTime = d._ts;
+      }
+      return true;
+    } catch(e) {
+      console.warn('Could not load vendor data from cloud:', e);
+      return false;
+    }
+  }
 
   // ── Auth ──
   function getVU() { return sessionStorage.getItem('vendorUser'); }
@@ -9247,6 +9374,7 @@ loadAnalysisState();
       const d = await r.json();
       if (r.ok && d.user) {
         setVU(d.user);
+        sessionStorage.setItem('vendorPass', pw);
         vendorCloseLogin();
         updateAuthUI();
         if (!window._vendorInitialized) { initVendorSheet(); window._vendorInitialized = true; }
@@ -9263,6 +9391,7 @@ loadAnalysisState();
 
   window.vendorLogout = function() {
     clearVU();
+    sessionStorage.removeItem('vendorPass');
     updateAuthUI();
     renderVendorTable();
   };
@@ -9278,11 +9407,19 @@ loadAnalysisState();
   document.getElementById('vendorLoginOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) vendorCloseLogin(); });
 
   // ── Init ──
-  window.initVendorSheet = function() {
+  window.initVendorSheet = async function() {
+    // First load hardcoded defaults
     Object.keys(VENDOR_SHEETS).forEach(k => {
       vendorHeaders[k] = [...VENDOR_SHEETS[k].headers];
       vendorData[k] = VENDOR_SHEETS[k].data.map(row => [...row]);
     });
+    // Then try to load from cloud (overrides hardcoded if available)
+    const loaded = await vendorLoadFromCloud();
+    if (loaded) {
+      console.log('Vendor data loaded from cloud');
+      const statusEl = document.getElementById('vendorSaveStatus');
+      if (statusEl) { statusEl.textContent = '☁️ Cloud data loaded'; statusEl.style.color = '#059669'; setTimeout(() => { statusEl.textContent = ''; }, 3000); }
+    }
     updateCounts();
     updateAuthUI();
     renderVendorKpis();
@@ -9624,6 +9761,7 @@ loadAnalysisState();
       td.innerHTML = formatCell(nv, ci, activeSheet);
       lastEditUser = getVU(); lastEditTime = Date.now();
       updateLastEditInfo(); renderVendorKpis(); updateCounts();
+      vendorSaveToCloud();
     };
     input.addEventListener('blur', commit);
     input.addEventListener('keydown', e => {
@@ -9648,6 +9786,7 @@ loadAnalysisState();
     currentPage = Math.max(1, Math.ceil(data.length / pageSize));
     lastEditUser = getVU(); lastEditTime = Date.now();
     renderVendorTable(); renderVendorKpis(); updateCounts(); updateLastEditInfo();
+    vendorSaveToCloud();
     setTimeout(() => document.getElementById('vendorTableWrap').scrollTop = 999999, 100);
   };
 
@@ -9708,7 +9847,8 @@ loadAnalysisState();
         const entry = { type: 'row', sheet: activeSheet, data: [...removed], user: getVU(), time: Date.now(), idx: idx };
         deleteLog.unshift(entry);
         lastEditUser = getVU(); lastEditTime = Date.now();
-        renderVendorTable(); renderVendorKpis(); updateCounts(); updateLastEditInfo(); updateLogBadge();
+        renderVendorTable(); renderVendorKpis(); updateCounts(); updateLastEditInfo();
+        vendorSaveToCloud(); updateLogBadge();
         showUndoToast('Row deleted', function() { restoreEntry(0); });
       }
     );
@@ -9723,6 +9863,7 @@ loadAnalysisState();
     vendorData[activeSheet].forEach(row => row.push(''));
     lastEditUser = getVU(); lastEditTime = Date.now();
     renderVendorTable(); updateLastEditInfo();
+    vendorSaveToCloud();
   };
 
   // ── Delete Column (auth-gated, with confirm + log + undo) ──
@@ -9751,6 +9892,7 @@ loadAnalysisState();
         colFilters = newFilters;
         lastEditUser = getVU(); lastEditTime = Date.now();
         renderVendorTable(); updateLastEditInfo(); updateLogBadge();
+        vendorSaveToCloud();
         showUndoToast('Column "' + removedHeader + '" deleted', function() { restoreEntry(0); });
       }
     );
@@ -9804,6 +9946,7 @@ loadAnalysisState();
     deleteLog.splice(idx, 1);
     lastEditUser = getVU(); lastEditTime = Date.now();
     renderVendorTable(); renderVendorKpis(); updateCounts(); updateLastEditInfo(); updateLogBadge(); renderLogPanel();
+    vendorSaveToCloud();
   }
 
   window.vendorRestore = function(idx) { restoreEntry(idx); };
@@ -9848,6 +9991,7 @@ loadAnalysisState();
         data.splice(adjustedTo, 0, moved);
         lastEditUser = getVU(); lastEditTime = Date.now();
         renderVendorTable(); updateLastEditInfo();
+        vendorSaveToCloud();
       });
     });
 
@@ -9896,6 +10040,7 @@ loadAnalysisState();
         colFilters = {};
         lastEditUser = getVU(); lastEditTime = Date.now();
         renderVendorTable(); updateLastEditInfo();
+        vendorSaveToCloud();
       });
     });
   }
