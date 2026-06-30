@@ -2585,8 +2585,9 @@
             <thead>
               <tr class="group-row">
                 <th colspan="5" style="text-align:left">Material</th>
-                <th colspan="2" style="text-align:center">Stock</th>
+                <th colspan="3" style="text-align:center">Stock</th>
                 <th colspan="4" style="text-align:center;background:#78350f">⚡ Production Capacity from Stock</th>
+                <th style="background:#1a1a2e">Actions</th>
               </tr>
               <tr>
                 <th>Material Group</th>
@@ -2596,10 +2597,12 @@
                 <th style="font-size:10px">Material Code</th>
                 <th class="num">Stock Qty</th>
                 <th>Mapped Item(s)</th>
+                <th>Used By</th>
                 <th class="num">Modules Possible</th>
                 <th class="num">Watt (W)</th>
                 <th class="num">Kilowatt (kW)</th>
                 <th class="num">MW / GW</th>
+                <th class="center">🔗 Map</th>
               </tr>
               <tr class="filter-row" id="filterRow-capConsolidatedBody">
                 <th><div class="cf-wrap" data-col="0" data-tbody="capConsolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
@@ -2609,7 +2612,8 @@
                 <th><div class="cf-wrap" data-col="4" data-tbody="capConsolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
                 <th></th>
                 <th><div class="cf-wrap" data-col="6" data-tbody="capConsolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
-                <th></th><th></th><th></th><th></th>
+                <th><div class="cf-wrap" data-col="7" data-tbody="capConsolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+                <th></th><th></th><th></th><th></th><th></th>
               </tr>
             </thead>
             <tbody id="capConsolidatedBody"></tbody>
@@ -2630,9 +2634,11 @@
                 <th class="num">Per Module</th>
                 <th class="num">Module Wp</th>
                 <th style="font-size:10px">Material Code</th>
+                <th>Mapped Item(s)</th>
                 <th class="num">Stock Qty</th>
                 <th class="num">Modules Possible</th>
                 <th class="num">Power Capacity</th>
+                <th class="center">🔗 Map</th>
               </tr>
               <tr class="filter-row" id="filterRow-capDetailedBody">
                 <th><div class="cf-wrap" data-col="0" data-tbody="capDetailedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
@@ -2641,7 +2647,8 @@
                 <th><div class="cf-wrap" data-col="3" data-tbody="capDetailedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
                 <th></th><th></th>
                 <th><div class="cf-wrap" data-col="6" data-tbody="capDetailedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
-                <th></th><th></th><th></th>
+                <th></th>
+                <th></th><th></th><th></th><th></th>
               </tr>
             </thead>
             <tbody id="capDetailedBody"></tbody>
@@ -7288,6 +7295,13 @@ function renderStockCapacity(customerOrders, plannedModules, consolidated) {
     const matCodes = mat.stockResult.items.map(i => aggregatedStock[i.desc] ? aggregatedStock[i.desc].code : '').filter(Boolean);
     const codeHtml = matCodes.length > 0 ? matCodes.map(c => `<span style="font-size:9px;background:#e0f2fe;color:#0c4a6e;padding:1px 5px;border-radius:3px;display:inline-block;margin:1px;">${escHtml(c)}</span>`).join(' ') : '<span style="color:var(--muted);font-size:9px;">—</span>';
 
+    const bmk = mat.baseMaterialKey || mk;
+    const bmkEsc = bmk.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+    // Module badges (Used By)
+    const modNames = mat.usedBy || [];
+    const modBadges = modNames.length > 0 ? modNames.map(n => `<span class="mod-badge" style="font-size:8px;padding:1px 4px;">${escHtml(n.split(' ')[0])}</span>`).join(' ') : '<span style="color:var(--muted);font-size:9px;">—</span>';
+
     conHtml += `<tr>
       <td class="group-cell">${escHtml(mat.group)}</td>
       <td class="spec">${escHtml(mat.spec)}</td>
@@ -7296,10 +7310,12 @@ function renderStockCapacity(customerOrders, plannedModules, consolidated) {
       <td style="padding:4px 6px">${codeHtml}</td>
       <td class="num" style="font-weight:700">${fmt2.format(stockQty)}</td>
       <td style="padding:4px 6px">${stockPills}</td>
+      <td style="padding:4px 6px">${modBadges}</td>
       <td class="num" style="font-weight:700;color:var(--solar-1)">${fmt2.format(modulesPossible)}</td>
       <td class="num">${fmt2.format(Math.round(wattsCapacity))}</td>
       <td class="num">${kw.toFixed(2)}</td>
       <td class="num" style="font-weight:700;color:var(--amber)">${pwrFmt.val} ${pwrFmt.unit}</td>
+      <td class="center" style="padding:4px"><button class="map-btn" onclick="openStockMapModal('${bmkEsc}')" title="Map stock items">🔗</button></td>
     </tr>`;
   });
   document.getElementById('capConsolidatedBody').innerHTML = conHtml;
@@ -7337,6 +7353,13 @@ function renderStockCapacity(customerOrders, plannedModules, consolidated) {
       const detCodes = cData && cData.stockResult.items ? cData.stockResult.items.map(i => aggregatedStock[i.desc] ? aggregatedStock[i.desc].code : '').filter(Boolean) : [];
       const detCodeHtml = detCodes.length > 0 ? detCodes.map(c => `<span style="font-size:9px;background:#e0f2fe;color:#0c4a6e;padding:1px 5px;border-radius:3px;display:inline-block;margin:1px;">${escHtml(c)}</span>`).join(' ') : '<span style="color:var(--muted);font-size:9px;">—</span>';
 
+      // Stock pills for mapped items
+      const detStockPills = cData && cData.stockResult.items.length > 0
+        ? cData.stockResult.items.map(i => `<span class="stock-pill ${i.manual?'manual':'matched'}" style="font-size:9px;padding:1px 4px;" title="${escHtml(i.desc)}">${escHtml(i.desc.substring(0,22))}${i.desc.length>22?'…':''}</span>`).join(' ')
+        : '<span style="color:var(--muted);font-size:9px;">—</span>';
+
+      const matKeyEsc = matKey.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
       detHtml += `<tr>
         <td><span class="mod-badge">${escHtml(mod.name)}</span></td>
         <td class="group-cell">${escHtml(row.group)}</td>
@@ -7345,9 +7368,11 @@ function renderStockCapacity(customerOrders, plannedModules, consolidated) {
         <td class="num" style="font-family:'JetBrains Mono',monospace;font-size:11px">${cons.toFixed(6)}</td>
         <td class="num">${wp} Wp</td>
         <td style="padding:4px 6px">${detCodeHtml}</td>
+        <td style="padding:4px 6px">${detStockPills}</td>
         <td class="num" style="font-weight:700">${fmt2.format(stockQty)}</td>
         <td class="num" style="font-weight:700;color:var(--solar-1)">${fmt2.format(modulesPossible)}</td>
         <td class="num" style="font-weight:700;color:var(--amber)">${pwrFmt.val} ${pwrFmt.unit}</td>
+        <td class="center" style="padding:4px"><button class="map-btn" onclick="openStockMapModal('${matKeyEsc}')" title="Map stock items">🔗</button></td>
       </tr>`;
     });
   });
