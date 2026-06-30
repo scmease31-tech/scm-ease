@@ -7473,53 +7473,62 @@ function renderStockCapacity(customerOrders, plannedModules, consolidated) {
     }).forEach(mk => {
       const mat = custMaterials[mk];
       let stockQty;
+      let mappedItems = [];
+      let isCustMapping = false;
       if (custMappings[mk] && custMappings[mk].length > 0) {
         stockQty = 0;
-        custMappings[mk].forEach(d => { if (aggregatedStock[d]) stockQty += getStockQtyWithVariants(mk, d); });
+        isCustMapping = true;
+        custMappings[mk].forEach(d => { if (aggregatedStock[d]) { stockQty += getStockQtyWithVariants(mk, d); mappedItems.push(d); } });
       } else {
         const cbData = conByBase[mk];
         stockQty = cbData ? cbData.stockResult.total : 0;
+        if (cbData && cbData.stockResult.items) cbData.stockResult.items.forEach(i => mappedItems.push(i.desc));
       }
+      const hasMappedStock = mappedItems.length > 0;
       const modulesPossible = mat.perModule > 0 ? Math.floor(stockQty / mat.perModule) : 0;
       const wattsCapacity = modulesPossible * custAvgWp;
       const pwrFmt = fmtPower(wattsCapacity);
 
-      if (modulesPossible < custBottleneck && mat.perModule > 0) {
-        custBottleneck = modulesPossible;
-        custBottleneckName = mat.group;
-      }
-
-      // Get material codes for this material
+      // Removed bottleneck calculation here as per user request to not show single item bottleneck
+      
+      // Get material codes
       const custCData = conByBase[mk];
       const custMatCodes = custCData && custCData.stockResult.items ? custCData.stockResult.items.map(i => aggregatedStock[i.desc] ? aggregatedStock[i.desc].code : '').filter(Boolean) : [];
       const custCodeHtml = custMatCodes.length > 0 ? custMatCodes.map(c => `<span style="font-size:9px;background:#e0f2fe;color:#0c4a6e;padding:1px 4px;border-radius:3px;">${escHtml(c)}</span>`).join(' ') : '';
 
-      matRows += `<tr>
+      // Mapped items pills
+      const mappedPills = mappedItems.length > 0
+        ? mappedItems.map(d => `<span class="stock-pill ${isCustMapping?'manual':'matched'}" style="font-size:8px;padding:1px 3px;" title="${escHtml(d)}">${escHtml(d.substring(0,20))}${d.length>20?'\u2026':''}</span>`).join(' ')
+        : '<span style="color:var(--muted);font-size:9px;">\u2014</span>';
+      const mapSrc = isCustMapping ? '<span style="font-size:8px;color:#7c3aed;">\ud83d\udc64 Customer</span>' : (hasMappedStock ? '<span style="font-size:8px;color:var(--muted);">Global</span>' : '<span style="font-size:8px;color:var(--danger);">Not mapped</span>');
+
+      const mkEsc = mk.replace(/'/g, "\\\\'").replace(/"/g, '&quot;');
+      const cnEsc = custName.replace(/'/g, "\\\\'").replace(/"/g, '&quot;');
+
+      matRows += `<tr style="${!hasMappedStock ? 'opacity:0.5;' : ''}">
         <td class="group-cell">${escHtml(mat.group)}</td>
         <td class="spec" style="font-size:10px">${escHtml(mat.spec)}</td>
         <td style="font-size:9px;padding:3px 4px">${custCodeHtml}</td>
+        <td style="padding:3px 4px;max-width:120px;">${mappedPills}<br>${mapSrc}</td>
         <td class="num">${fmt2.format(stockQty)}</td>
         <td class="num">${fmt2.format(mat.reqQty)}</td>
         <td class="num" style="font-weight:700;color:var(--solar-1)">${fmt2.format(modulesPossible)}</td>
         <td class="num" style="font-weight:700;color:var(--amber)">${pwrFmt.val} ${pwrFmt.unit}</td>
+        <td class="center" style="padding:3px"><button class="map-btn" onclick="openCustomerMapModal('${cnEsc}','${mkEsc}')" title="Map stock for ${custName}" style="font-size:10px;">\ud83d\udd17</button></td>
       </tr>`;
     });
 
-    const custBottleneckPwr = fmtPower(custBottleneck === Infinity ? 0 : custBottleneck * custAvgWp);
     const totalPwr = fmtPower(data.totalMW * 1e6);
 
     custCapHtml += `<div style="background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px;">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
         <div style="font-size:15px;font-weight:700;flex:1;">${escHtml(custName)}</div>
-        <span style="font-size:11px;color:var(--muted);">Planned: ${fmt2.format(data.totalQty)} modules (${totalPwr.val} ${totalPwr.unit})</span>
-        <span style="font-size:11px;padding:3px 8px;border-radius:4px;background:${custBottleneck >= data.totalQty ? '#d1fae5' : '#fee2e2'};color:${custBottleneck >= data.totalQty ? '#065f46' : '#991b1b'};font-weight:600;">
-          ⚡ Capacity: ${fmt2.format(custBottleneck === Infinity ? 0 : custBottleneck)} modules (${custBottleneckPwr.val} ${custBottleneckPwr.unit}) — ${custBottleneckName}
-        </span>
+        <span style="font-size:11px;color:var(--muted);">Planned Requirement: <strong>${fmt2.format(data.totalQty)}</strong> modules (${totalPwr.val} ${totalPwr.unit})</span>
       </div>
-      <div class="table-wrap" style="max-height:250px;overflow-y:auto;">
+      <div class="table-wrap" style="max-height:300px;overflow-y:auto;">
         <table style="font-size:11px;">
           <thead><tr>
-            <th>Material</th><th>Specification</th><th style="font-size:10px">Code</th><th class="num">Stock</th><th class="num">Required</th><th class="num">Modules Possible</th><th class="num">Power Capacity</th>
+            <th>Material</th><th>Specification</th><th style="font-size:10px">Code</th><th>Mapped Item(s)</th><th class="num">Stock</th><th class="num">Required</th><th class="num">Modules Possible</th><th class="num">Power Capacity</th><th class="center">\ud83d\udd17</th>
           </tr></thead>
           <tbody id="capCustBody_${custCapIdx}">${matRows}</tbody>
         </table>
