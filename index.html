@@ -2430,7 +2430,7 @@
         <button class="plan-view-tab" data-planview="customerMaterials" onclick="switchPlanView('customerMaterials')">🔗 Customer Materials</button>
         <button class="plan-view-tab" data-planview="modules" onclick="switchPlanView('modules')">📦 Module Summary</button>
         <button class="plan-view-tab" data-planview="consolidated" onclick="switchPlanView('consolidated')">📋 Consolidated Materials</button>
-        <button class="plan-view-tab" data-planview="detailed" onclick="switchPlanView('detailed')">🔍 Detailed Breakdown</button>
+
         <button class="plan-view-tab" data-planview="capacity" onclick="switchPlanView('capacity')">⚡ Stock Capacity</button>
         <button class="plan-view-tab" data-planview="moduleMapping" onclick="switchPlanView('moduleMapping')">🏭 Module Type Mapping</button>
       </div>
@@ -2539,37 +2539,7 @@
       </div>
     </div>
 
-    <!-- Detailed Module-wise Breakdown -->
-    <div id="planViewDetailed" style="display:none;">
-      <div class="section-label" style="margin-top: 10px;">Detailed Material Breakdown per Customer (Waterfall)</div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Customer</th>
-              <th>Material Group</th>
-              <th>Technical Specifications</th>
-              <th class="center">UOM</th>
-              <th>Material Code</th>
-              <th class="num" style="background:#e6f7f1;color:var(--solar-1);">Required Qty</th>
-              <th class="num" style="background:#0d4f38;color:#fff;">Available Stock</th>
-              <th class="num" style="background:#991b1b;color:#fff;">Shortage (Buy)</th>
-              <th class="center">Status</th>
-            </tr>
-            <tr class="filter-row" id="filterRow-resultBodyPlan">
-              <th><div class="cf-wrap" data-col="0" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
-              <th><div class="cf-wrap" data-col="1" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
-              <th><div class="cf-wrap" data-col="2" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
-              <th><div class="cf-wrap" data-col="3" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
-              <th><div class="cf-wrap" data-col="4" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
-              <th></th><th></th><th></th>
-              <th><div class="cf-wrap" data-col="8" data-tbody="resultBodyPlan"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
-            </tr>
-          </thead>
-          <tbody id="resultBodyPlan"></tbody>
-        </table>
-      </div>
-    </div>
+
 
     <!-- Customer Materials Mapping View -->
     <div id="planViewCustomerMaterials" style="display:none;">
@@ -6400,8 +6370,7 @@ function runAnalysisAuto() {
   // D) Consolidated material table
   renderConsolidatedTable(consolidated);
 
-  // E) Detailed breakdown
-  renderDetailedTable(customerOrders, consolidated);
+
 
   // E2) Customer Materials mapping
   renderCustomerMaterials(customerOrders, consolidated);
@@ -6784,122 +6753,7 @@ function renderConsolidatedTable(consolidated) {
 
 
 
-// ── RENDER: Detailed Table ──────────────────────────────────────────
-function renderDetailedTable(customerOrders, consolidated) {
-  let html = '';
 
-  // Track remaining stock per base material — waterfall: each customer consumes from the pool
-  const remainingStock = {};
-  Object.keys(consolidated).forEach(mk => {
-    const cData = consolidated[mk];
-    const bmk = cData.baseMaterialKey || mk;
-    if (remainingStock[bmk] === undefined) {
-      remainingStock[bmk] = cData ? cData.stockResult.total : 0;
-    }
-  });
-
-  // Group orders by customer
-  const custMap = {};
-  customerOrders.forEach(ord => {
-    if (!custMap[ord.customer]) custMap[ord.customer] = { totalQty: 0, totalMW: 0, orders: [] };
-    custMap[ord.customer].totalQty += ord.qty;
-    custMap[ord.customer].totalMW += ord.qty * ord.wp / 1e6;
-    custMap[ord.customer].orders.push(ord);
-  });
-
-  const sortedCust = Object.entries(custMap).sort((a, b) => b[1].totalMW - a[1].totalMW);
-
-  sortedCust.forEach(([custName, data]) => {
-    const pwr = fmtPower(data.totalMW * 1e6);
-
-    // Customer header row
-    html += `<tr style="background:linear-gradient(90deg,#1a9e76 0%,#0f6e52 100%);">
-      <td colspan="9" style="color:#fff;font-weight:700;font-size:13px;padding:8px 12px;letter-spacing:0.5px;">
-        👤 ${escHtml(custName)} — ${fmt2.format(data.totalQty)} modules = ${pwr.val} ${pwr.unit}
-      </td>
-    </tr>`;
-
-    // Aggregate materials required by this customer
-    const custMaterials = {}; // bmk -> { group, spec, uom, reqQty, modBreakdown }
-    
-    data.orders.forEach(ord => {
-      const mod = modules.find(m => m.key === ord.modKey);
-      if (!mod) return;
-      mod.rows.forEach(row => {
-        const bmk = `${row.group}|||${row.spec}`;
-        if (discardedMaterials.has(bmk)) return;
-        
-        const cons = row.qty * (1 + row.wastage / 100);
-        const reqQty = cons * ord.qty;
-
-        if (!custMaterials[bmk]) {
-          custMaterials[bmk] = { group: row.group, spec: row.spec, uom: row.uom, reqQty: 0, modBreakdown: {} };
-        }
-        custMaterials[bmk].reqQty += reqQty;
-        if (!custMaterials[bmk].modBreakdown[mod.name]) custMaterials[bmk].modBreakdown[mod.name] = 0;
-        custMaterials[bmk].modBreakdown[mod.name] += reqQty;
-      });
-    });
-
-    Object.keys(custMaterials).sort((a,b) => custMaterials[b].reqQty - custMaterials[a].reqQty).forEach(bmk => {
-      const mat = custMaterials[bmk];
-      const isDiscarded = discardedMaterials.has(bmk);
-      
-      const cDataKey = Object.keys(consolidated).find(k => (consolidated[k].baseMaterialKey || k) === bmk);
-      const cData = cDataKey ? consolidated[cDataKey] : null;
-      
-      const totalStock = cData ? cData.stockResult.total : 0;
-      const available = remainingStock[bmk] !== undefined ? remainingStock[bmk] : 0;
-      const shortage = mat.reqQty - available;
-
-      if (!isDiscarded && remainingStock[bmk] !== undefined) {
-        remainingStock[bmk] = Math.max(0, available - mat.reqQty);
-      }
-
-      const wasConsumed = available < totalStock;
-
-      let statusBadge;
-      if (isDiscarded) statusBadge = '<span class="status-badge na">🚫</span>';
-      else if (available >= mat.reqQty) statusBadge = '<span class="status-badge ok">✅</span>';
-      else if (available >= mat.reqQty * 0.5) statusBadge = '<span class="status-badge low">⚠️</span>';
-      else statusBadge = '<span class="status-badge short">❌</span>';
-
-      const detailCodes = [];
-      if (cData && cData.stockResult && cData.stockResult.items.length > 0) {
-        cData.stockResult.items.forEach(item => {
-          const si = aggregatedStock[item.desc];
-          if (si && si.code && !detailCodes.includes(si.code)) detailCodes.push(si.code);
-        });
-      }
-      const detailCodeHtml = detailCodes.length > 0
-        ? detailCodes.map(c => `<span style="font-size:8px;padding:1px 4px;background:#f0f4f8;border:1px solid #e2eaf0;border-radius:3px;color:#3a4a56;font-family:'JetBrains Mono',monospace;display:inline-block;margin:1px;word-break:break-all;">${escHtml(c)}</span>`).join('')
-        : '<span style="color:var(--muted);font-size:9px;">—</span>';
-        
-      const modBreakdownHtml = Object.entries(mat.modBreakdown).map(([mName, rq]) => 
-        `<span class="mod-badge" style="font-size:8px;padding:1px 4px;" title="${mName}: ${fmt2.format(rq)}">${escHtml(mName.split(' ')[0])}</span>`
-      ).join(' ');
-
-      html += `<tr class="${isDiscarded ? 'discarded' : ''}">
-        <td style="white-space:nowrap;"><span style="font-size:11px;font-weight:600;color:var(--ink);">${escHtml(custName)}</span><br>${modBreakdownHtml}</td>
-        <td class="group-cell">${escHtml(mat.group)}</td>
-        <td class="spec">${escHtml(mat.spec)}</td>
-        <td class="center" style="font-weight:600;color:var(--muted);font-size:11px">${escHtml(mat.uom)}</td>
-        <td style="padding:4px 6px;max-width:90px;">${detailCodeHtml}</td>
-        <td class="num" style="background:#e6f7f1;color:var(--solar-1);font-weight:bold;">${fmt2.format(mat.reqQty)}</td>
-        <td class="num" style="color:${available < mat.reqQty ? 'var(--danger)' : 'var(--solar-1)'};font-weight:bold;">
-          ${fmt2.format(available)}<br>
-          <span style="font-size:9px;color:var(--muted);font-weight:normal;">${cData && cData.stockResult.isManual ? '🔗 Manual' : 'Auto'}${wasConsumed ? ' (after prior use)' : ''}</span>
-        </td>
-        <td class="num" style="color:${shortage > 0 ? 'var(--danger)' : '#333'};font-weight:bold;">${shortage > 0 ? fmt2.format(shortage) : '—'}</td>
-        <td class="center">${statusBadge}</td>
-      </tr>`;
-    });
-  });
-
-  document.getElementById('resultBodyPlan').innerHTML = html;
-  refreshFilterOptions('resultBodyPlan');
-  enhanceTable('resultBodyPlan');
-}
 
 // ── RENDER: Customer Materials Mapping ───────────────────────────────
 function renderCustomerMaterials(customerOrders, consolidated) {
@@ -8265,21 +8119,211 @@ function _activeView() {
 
 const _PLAN_SPECS = [
   { tbodyId: 'planOrderBody', sheetName: 'Customer Orders', title: 'Customer Orders' },
-  { tbodyId: 'consolidatedBody', sheetName: 'Consolidated Materials', title: 'Consolidated Material Requirements vs Stock' },
-  { tbodyId: 'resultBodyPlan', sheetName: 'Detailed Breakdown', title: 'Detailed Material Breakdown per Module' }
+  { tbodyId: 'consolidatedBody', sheetName: 'Consolidated Materials', title: 'Consolidated Material Requirements vs Stock' }
 ];
 
 window.exportActiveExcel = function() {
   const stamp = new Date().toISOString().slice(0, 10);
   const view = _activeView();
-  if (view === 'plan') _exportWorkbook(_PLAN_SPECS, `SCM-Ease_Planning_${stamp}.xlsx`);
+  if (view === 'plan') exportPlanningReport();
   else if (view === 'cell') _exportWorkbook([{ tbodyId: 'cellBody', sheetName: 'Cell Pricing', title: 'Cell INV — Amount-wise Pricing' }], `SCM-Ease_CellINV_${stamp}.xlsx`);
   else _exportWorkbook([{ tbodyId: 'resultBody', sheetName: 'RM Consumption', title: 'RM Consumption Requirement' }], `SCM-Ease_RM-Consumption_${stamp}.xlsx`);
 };
 
+// ── Professional Color-Coded Planning Excel Export ──────────────────
 window.exportPlanningReport = function() {
+  const XS = _XS();
+  if (!XS || !XS.utils || !XS.write) { alert('Excel library is still loading — please try again.'); return; }
+  if (!lastAnalysis) { alert('No analysis data. Run analysis first.'); return; }
+  const { customerOrders, plannedModules, consolidated } = lastAnalysis;
   const stamp = new Date().toISOString().slice(0, 10);
-  _exportWorkbook(_PLAN_SPECS, `SCM-Ease_Planning_${stamp}.xlsx`);
+  const wb = XS.utils.book_new();
+  const freezeRows = [];
+  const _B = { top:{style:'thin',color:{rgb:'D1D5DB'}}, bottom:{style:'thin',color:{rgb:'D1D5DB'}}, left:{style:'thin',color:{rgb:'D1D5DB'}}, right:{style:'thin',color:{rgb:'D1D5DB'}} };
+  const _sTitle = { font:{name:'Calibri',sz:14,bold:true,color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'0B6E4F'}}, alignment:{horizontal:'left',vertical:'center'} };
+  const _sHeader = { font:{name:'Calibri',sz:11,bold:true,color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'1A5E4A'}}, alignment:{horizontal:'center',vertical:'center',wrapText:true}, border:_B };
+  const _sHeaderBlue = { font:{name:'Calibri',sz:11,bold:true,color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'1E3A5F'}}, alignment:{horizontal:'center',vertical:'center',wrapText:true}, border:_B };
+  const _sHeaderAmber = { font:{name:'Calibri',sz:11,bold:true,color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'92400E'}}, alignment:{horizontal:'center',vertical:'center',wrapText:true}, border:_B };
+  const _sHeaderRed = { font:{name:'Calibri',sz:11,bold:true,color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'991B1B'}}, alignment:{horizontal:'center',vertical:'center',wrapText:true}, border:_B };
+  const _sCustHeader = { font:{name:'Calibri',sz:12,bold:true,color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'1A9E76'}}, alignment:{horizontal:'left',vertical:'center'}, border:_B };
+  const _sOk = { font:{name:'Calibri',sz:10.5,bold:true,color:{rgb:'065F46'}}, fill:{fgColor:{rgb:'D1FAE5'}}, alignment:{horizontal:'center',vertical:'center'}, border:_B };
+  const _sLow = { font:{name:'Calibri',sz:10.5,bold:true,color:{rgb:'92400E'}}, fill:{fgColor:{rgb:'FEF3C7'}}, alignment:{horizontal:'center',vertical:'center'}, border:_B };
+  const _sShort = { font:{name:'Calibri',sz:10.5,bold:true,color:{rgb:'991B1B'}}, fill:{fgColor:{rgb:'FEE2E2'}}, alignment:{horizontal:'center',vertical:'center'}, border:_B };
+  const _sNum = (stripe) => ({ font:{name:'Calibri',sz:10.5,color:{rgb:'1F2A33'}}, fill:{fgColor:{rgb:stripe}}, alignment:{horizontal:'right',vertical:'center'}, border:_B });
+  const _sTxt = (stripe) => ({ font:{name:'Calibri',sz:10.5,color:{rgb:'1F2A33'}}, fill:{fgColor:{rgb:stripe}}, alignment:{horizontal:'left',vertical:'center',wrapText:false}, border:_B });
+  const _sReq = (stripe) => ({ font:{name:'Calibri',sz:10.5,bold:true,color:{rgb:'0B6E4F'}}, fill:{fgColor:{rgb:stripe}}, alignment:{horizontal:'right',vertical:'center'}, border:_B });
+  const _sDiff = (v,stripe) => ({ font:{name:'Calibri',sz:10.5,bold:true,color:{rgb:v<0?'991B1B':'047857'}}, fill:{fgColor:{rgb:stripe}}, alignment:{horizontal:'right',vertical:'center'}, border:_B });
+  const _fmt2e = v => typeof v==='number' ? Math.round(v*100)/100 : v;
+
+  // Helper: build conByBase lookup
+  const conByBase = {};
+  Object.keys(consolidated).forEach(ck => { const m=consolidated[ck]; const bmk=m.baseMaterialKey||ck; if(!conByBase[bmk]) conByBase[bmk]=m; });
+
+  // ═══ SHEET 1: Customer Orders ═══
+  const s1data = _collectTableExport('planOrderBody');
+  if (s1data && s1data.rows.some(r=>r.type==='data')) {
+    XS.utils.book_append_sheet(wb, _sheetFromExport(s1data, 'Customer Orders', _TABLE_FORMULAS['planOrderBody']), 'Customer Orders');
+    freezeRows.push(2);
+  }
+
+  // ═══ SHEET 2: Consolidated Materials ═══
+  const s2data = _collectTableExport('consolidatedBody');
+  if (s2data && s2data.rows.some(r=>r.type==='data')) {
+    XS.utils.book_append_sheet(wb, _sheetFromExport(s2data, 'Consolidated Material Requirements vs Stock', _TABLE_FORMULAS['consolidatedBody']), 'Consolidated Materials');
+    freezeRows.push(2);
+  }
+
+  // ═══ SHEET 3: Customer-wise Material Breakdown ═══
+  const custMap = {};
+  customerOrders.forEach(ord => {
+    if (!custMap[ord.customer]) custMap[ord.customer] = {totalQty:0,totalMW:0,orders:[]};
+    custMap[ord.customer].totalQty += ord.qty;
+    custMap[ord.customer].totalMW += ord.qty*ord.wp/1e6;
+    custMap[ord.customer].orders.push(ord);
+  });
+  const sortedCust = Object.entries(custMap).sort((a,b)=>b[1].totalMW-a[1].totalMW);
+
+  const cwHeaders = ['Customer','Material Group','Specification','UOM','Material Code','Module Types','Required Qty','Stock Available','Diff (+/-)','Status'];
+  const cwAoa = [['SCM Ease — Customer-wise Material Breakdown  |  Generated: '+stamp], cwHeaders];
+  const cwStyles = []; // {r, c, s}
+
+  // Track remaining stock — waterfall across customers
+  const remainingStock = {};
+  Object.keys(consolidated).forEach(ck => { const m=consolidated[ck]; const bmk=m.baseMaterialKey||ck; if(remainingStock[bmk]===undefined) remainingStock[bmk]=m.stockResult.total; });
+
+  sortedCust.forEach(([custName, data]) => {
+    const pwr = fmtPower(data.totalMW*1e6);
+    const custLabel = custName+' — '+fmt2.format(data.totalQty)+' modules = '+pwr.val+' '+pwr.unit;
+    cwAoa.push([custLabel,'','','','','','','','','']);
+    const custHeaderRow = cwAoa.length-1;
+    for(let c=0;c<10;c++) cwStyles.push({r:custHeaderRow,c,s:_sCustHeader});
+
+    // Aggregate materials for this customer
+    const custMats = {};
+    data.orders.forEach(ord => {
+      const mod = modules.find(m=>m.key===ord.modKey);
+      if(!mod) return;
+      mod.rows.forEach(row => {
+        const bmk = row.group+'|||'+row.spec;
+        if(discardedMaterials.has(bmk)) return;
+        const cons = row.qty*(1+row.wastage/100);
+        if(!custMats[bmk]) custMats[bmk]={group:row.group,spec:row.spec,uom:row.uom,reqQty:0,mods:new Set()};
+        custMats[bmk].reqQty += cons*ord.qty;
+        custMats[bmk].mods.add(mod.name.split(' ')[0]);
+      });
+    });
+
+    Object.keys(custMats).sort((a,b)=>custMats[b].reqQty-custMats[a].reqQty).forEach(bmk => {
+      const mat = custMats[bmk];
+      const cData = conByBase[bmk];
+      const totalStock = cData ? cData.stockResult.total : 0;
+      const available = remainingStock[bmk]!==undefined ? remainingStock[bmk] : 0;
+      const diff = available - mat.reqQty;
+      let status = 'SHORT';
+      if(available>=mat.reqQty) status='OK';
+      else if(available>=mat.reqQty*0.5) status='LOW';
+
+      // Deduct from pool
+      if(remainingStock[bmk]!==undefined) remainingStock[bmk]=Math.max(0,available-mat.reqQty);
+
+      // Material codes
+      const codes = [];
+      if(cData&&cData.stockResult&&cData.stockResult.items) cData.stockResult.items.forEach(i=>{const si=aggregatedStock[i.desc]; if(si&&si.code&&!codes.includes(si.code)) codes.push(si.code);});
+
+      const ri = cwAoa.length;
+      cwAoa.push([custName, mat.group, mat.spec, mat.uom, codes.join(', '), [...mat.mods].join(', '), _fmt2e(mat.reqQty), _fmt2e(available), _fmt2e(diff), status]);
+      const stripe = ri%2===0 ? 'F4FAF7' : 'FFFFFF';
+      cwStyles.push({r:ri,c:0,s:_sTxt(stripe)},{r:ri,c:1,s:_sTxt(stripe)},{r:ri,c:2,s:_sTxt(stripe)},{r:ri,c:3,s:_sTxt(stripe)},{r:ri,c:4,s:_sTxt(stripe)},{r:ri,c:5,s:_sTxt(stripe)});
+      cwStyles.push({r:ri,c:6,s:_sReq(stripe)},{r:ri,c:7,s:_sNum(stripe)});
+      cwStyles.push({r:ri,c:8,s:_sDiff(diff,stripe)});
+      if(status==='OK') cwStyles.push({r:ri,c:9,s:_sOk});
+      else if(status==='LOW') cwStyles.push({r:ri,c:9,s:_sLow});
+      else cwStyles.push({r:ri,c:9,s:_sShort});
+    });
+    cwAoa.push([]); // blank row between customers
+  });
+
+  const ws3 = XS.utils.aoa_to_sheet(cwAoa);
+  // Title row
+  const t3 = ws3[XS.utils.encode_cell({r:0,c:0})]; if(t3) t3.s = _sTitle;
+  ws3['!merges'] = [{s:{r:0,c:0},e:{r:0,c:9}}];
+  // Header row
+  const hdrStyles = [_sHeader,_sHeader,_sHeader,_sHeader,_sHeaderBlue,_sHeaderBlue,_sHeaderAmber,_sHeaderAmber,_sHeaderRed,_sHeader];
+  for(let c=0;c<10;c++){const ref=XS.utils.encode_cell({r:1,c}); if(!ws3[ref]) ws3[ref]={t:'s',v:''}; ws3[ref].s=hdrStyles[c];}
+  // Data styles
+  cwStyles.forEach(si => { const ref=XS.utils.encode_cell({r:si.r,c:si.c}); if(ws3[ref]) ws3[ref].s=si.s; else ws3[ref]={t:'s',v:'',s:si.s}; if(typeof ws3[ref].v==='number') ws3[ref].z='#,##0.##'; });
+  // Column widths
+  ws3['!cols'] = [{wch:22},{wch:18},{wch:40},{wch:6},{wch:16},{wch:16},{wch:14},{wch:14},{wch:14},{wch:10}];
+  ws3['!rows'] = cwAoa.map((_,i) => i===0?{hpt:26}:(i===1?{hpt:22}:{hpt:16}));
+  const lastR3 = cwAoa.length-1, lastC3 = 9;
+  ws3['!autofilter'] = {ref:XS.utils.encode_range({s:{r:1,c:0},e:{r:lastR3,c:lastC3}})};
+  XS.utils.book_append_sheet(wb, ws3, 'Customer-wise Materials');
+  freezeRows.push(2);
+
+  // ═══ SHEET 4: Color Legend ═══
+  const lgAoa = [
+    ['SCM Ease — Report Color Legend'],
+    [],
+    ['Color','Meaning','Description'],
+    ['','✅ OK','Stock is sufficient to fulfill the full requirement'],
+    ['','⚠️ LOW','Stock covers 50-99% of requirement — needs attention'],
+    ['','❌ SHORT','Stock is below 50% — urgent procurement needed'],
+    [],
+    ['Column Colors','',''],
+    ['Green Header','Required Qty','The total quantity needed based on BOM × planned modules'],
+    ['Dark Green Header','Stock Available','Current warehouse stock mapped to this material'],
+    ['Red Header','Diff / Shortage','Positive = surplus, Negative = shortage (need to buy)'],
+    ['Blue Header','Material Code / Module','Reference codes and module types from the system'],
+    [],
+    ['Row Colors','',''],
+    ['Light Green Row','OK Status Row','Material is fully stocked'],
+    ['Light Yellow Row','Low Status Row','Material partially available — monitor closely'],
+    ['Light Red Row','Short Status Row','Material critically short — immediate action required'],
+    ['Teal Banner Row','Customer Header','Shows customer name, total modules, and total power'],
+    [],
+    ['Waterfall Logic','',''],
+    ['','Customer-wise sheet uses waterfall stock deduction.',''],
+    ['','First customer (by MW) consumes from the stock pool.',''],
+    ['','Each subsequent customer sees only remaining stock.',''],
+    ['','This ensures no double-counting of available materials.',''],
+    [],
+    ['Generated by SCM Ease  |  '+stamp,'','']
+  ];
+  const ws4 = XS.utils.aoa_to_sheet(lgAoa);
+  ws4['!merges'] = [{s:{r:0,c:0},e:{r:0,c:2}}];
+  const lt = ws4[XS.utils.encode_cell({r:0,c:0})]; if(lt) lt.s = { font:{name:'Calibri',sz:16,bold:true,color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'1E3A5F'}}, alignment:{horizontal:'left',vertical:'center'} };
+  // Legend header
+  for(let c=0;c<3;c++){const ref=XS.utils.encode_cell({r:2,c}); if(ws4[ref]) ws4[ref].s = { font:{name:'Calibri',sz:11,bold:true,color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'334155'}}, alignment:{horizontal:'center',vertical:'center'}, border:_B };}
+  // Status legend rows
+  [{r:3,s:_sOk},{r:4,s:_sLow},{r:5,s:_sShort}].forEach(({r,s}) => {
+    for(let c=0;c<3;c++){const ref=XS.utils.encode_cell({r,c}); if(ws4[ref]) ws4[ref].s = s; else ws4[ref]={t:'s',v:'',s};}
+  });
+  // Column header legend
+  [{r:8,bg:'0B6E4F'},{r:9,bg:'0D4F38'},{r:10,bg:'991B1B'},{r:11,bg:'1E3A5F'}].forEach(({r,bg}) => {
+    const ref0=XS.utils.encode_cell({r,c:0}); if(ws4[ref0]) ws4[ref0].s={font:{name:'Calibri',sz:10.5,bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:bg}},alignment:{horizontal:'left',vertical:'center'},border:_B};
+    for(let c=1;c<3;c++){const ref=XS.utils.encode_cell({r,c}); if(ws4[ref]) ws4[ref].s=_sTxt('FFFFFF');}
+  });
+  // Row color legend
+  [{r:14,bg:'D1FAE5',fg:'065F46'},{r:15,bg:'FEF3C7',fg:'92400E'},{r:16,bg:'FEE2E2',fg:'991B1B'},{r:17,bg:'1A9E76',fg:'FFFFFF'}].forEach(({r,bg,fg}) => {
+    for(let c=0;c<3;c++){const ref=XS.utils.encode_cell({r,c}); if(ws4[ref]) ws4[ref].s={font:{name:'Calibri',sz:10.5,bold:c===0,color:{rgb:fg}},fill:{fgColor:{rgb:bg}},alignment:{horizontal:'left',vertical:'center'},border:_B};}
+  });
+  ws4['!cols'] = [{wch:22},{wch:48},{wch:48}];
+  ws4['!rows'] = lgAoa.map((_,i) => i===0?{hpt:30}:{hpt:18});
+  XS.utils.book_append_sheet(wb, ws4, 'Legend');
+  freezeRows.push(0);
+
+  // ═══ Write & Download ═══
+  try {
+    const buf = XS.write(wb, {bookType:'xlsx',type:'array',compression:false});
+    const entries = _unzipStored(buf);
+    if(!entries.length||entries.some(e=>e.method!==0)) throw new Error('zip-store-unavailable');
+    _injectFreeze(entries, freezeRows);
+    const blob = new Blob([_zipStore(entries)], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`SCM-Ease_Planning_Report_${stamp}.xlsx`; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  } catch(err) {
+    XS.writeFile(wb, `SCM-Ease_Planning_Report_${stamp}.xlsx`, {bookType:'xlsx'});
+  }
 };
 
 function _csvCell(v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }
@@ -8534,7 +8578,7 @@ window.applyPlanFilters = function() {
   renderOrdersTable(filtered);
   renderModuleSummary(plannedModules);
   renderConsolidatedTable(consolidated);
-  renderDetailedTable(plannedModules, consolidated);
+
   renderCustomerMaterials(filtered, consolidated);
   renderStockCapacity(filtered, plannedModules, consolidated);
   renderModuleTypeMappings(plannedModules, consolidated);
@@ -8748,7 +8792,7 @@ async function loadAnalysisState() {
     });
     
     renderConsolidatedTable(lastAnalysis.consolidated);
-    renderDetailedTable(lastAnalysis.plannedModules, lastAnalysis.consolidated);
+
     renderCustomerMaterials(lastAnalysis.customerOrders, lastAnalysis.consolidated);
     renderStockCapacity(lastAnalysis.customerOrders, lastAnalysis.plannedModules, lastAnalysis.consolidated);
     
