@@ -5253,7 +5253,7 @@ let globalStockMappings = {}; // { materialKey: [stockItemDesc1, ...] }
 // Fetch planning config from KV on load (customer overrides + global stock mappings)
 (async function loadPlanningConfig() {
   try {
-    const r = await fetch('https://scm-ease-admin.scm-ease.workers.dev/api/planning-config');
+    const r = await fetch('https://scm-ease-admin.scmease31.workers.dev/api/planning-config');
     if (r.ok) {
       const data = await r.json();
       customerModuleOverrides = data.customerModuleOverrides || {};
@@ -5325,7 +5325,7 @@ function savePlanOverrides() {
 }
 
 // ── Cloud persistence for customer mappings via Cloudflare KV ─────────
-const _KV_URL = 'https://scm-ease-admin.scm-ease.workers.dev';
+const _KV_URL = 'https://scm-ease-admin.scmease31.workers.dev';
 
 function syncCustomerDataToCloud() {
   // Only sync if user has plan_changes permission or is admin
@@ -5398,7 +5398,7 @@ window.deployPlanningData = async function() {
     const headers = { 'Content-Type': 'application/json' };
     const token = sessionStorage.getItem('adminToken');
     if (token) headers['Authorization'] = 'Bearer ' + token;
-    const r = await fetch('https://scm-ease-admin.scm-ease.workers.dev/api/shared-planning', {
+    const r = await fetch('https://scm-ease-admin.scmease31.workers.dev/api/shared-planning', {
       method: 'POST', headers, body: JSON.stringify(shareBody)
     });
     if (r.ok) {
@@ -6566,7 +6566,7 @@ window.saveCustomerModuleOverrides = async function() {
       payload.userName = sessionStorage.getItem('siteUser') || '';
       payload.userPassword = sessionStorage.getItem('sitePass') || '';
     }
-    const r = await fetch('https://scm-ease-admin.scm-ease.workers.dev/api/planning-config', {
+    const r = await fetch('https://scm-ease-admin.scmease31.workers.dev/api/planning-config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -6604,7 +6604,7 @@ window.saveGlobalStockMappings = async function() {
       payload.userName = sessionStorage.getItem('siteUser') || '';
       payload.userPassword = sessionStorage.getItem('sitePass') || '';
     }
-    const r = await fetch('https://scm-ease-admin.scm-ease.workers.dev/api/planning-config', {
+    const r = await fetch('https://scm-ease-admin.scmease31.workers.dev/api/planning-config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -8638,7 +8638,7 @@ async function loadAnalysisState() {
   if (!data || !data.lastAnalysis || !data.aggregatedStock) {
     // No local data — try loading shared planning data from server
     try {
-      const r = await fetch('https://scm-ease-admin.scm-ease.workers.dev/api/shared-planning');
+      const r = await fetch('https://scm-ease-admin.scmease31.workers.dev/api/shared-planning');
       if (r.ok) {
         const shared = await r.json();
         if (!shared.empty && shared.analysisState && shared.analysisState.lastAnalysis) {
@@ -9019,7 +9019,7 @@ loadAnalysisState();
 <script>
 // ── ADMIN SYSTEM ─────────────────────────────────────────────────────────
 (function(){
-  const _WORKER_URL = 'https://scm-ease-admin.scm-ease.workers.dev';
+  const _WORKER_URL = 'https://scm-ease-admin.scmease31.workers.dev';
 
   const overlay = document.getElementById('adminOverlay');
   const toolbar = document.getElementById('adminToolbar');
@@ -9357,7 +9357,7 @@ loadAnalysisState();
     document.getElementById('vendorLoginOverlay').classList.remove('open');
   };
 
-  const _VW_URL = 'https://scm-ease-admin.scm-ease.workers.dev';
+  const _VW_URL = 'https://scm-ease-admin.scmease31.workers.dev';
 
   window.vendorDoLogin = async function() {
     const id = document.getElementById('vlIdInput').value.trim();
@@ -10349,7 +10349,7 @@ loadAnalysisState();
 <!-- SITE-WIDE LOGIN GATE SCRIPT -->
 <script>
 (function(){
-  const WORKER_URL = 'https://scm-ease-admin.scm-ease.workers.dev';
+  const WORKER_URL = 'https://scm-ease-admin.scmease31.workers.dev';
   const gate = document.getElementById('siteGate');
   const gateIdInput = document.getElementById('gateIdInput');
   const gatePwInput = document.getElementById('gatePwInput');
@@ -10583,7 +10583,7 @@ loadAnalysisState();
 <!-- ACTIVITY LOG SCRIPT -->
 <script>
 (function(){
-  const WORKER_URL = 'https://scm-ease-admin.scm-ease.workers.dev';
+  const WORKER_URL = 'https://scm-ease-admin.scmease31.workers.dev';
   let allLogs = [];
   let activeFilter = 'all';
 
@@ -10696,7 +10696,7 @@ loadAnalysisState();
 <!-- USER MANAGEMENT SCRIPT (admin only) -->
 <script>
 (function(){
-  const WORKER_URL = 'https://scm-ease-admin.scm-ease.workers.dev';
+  const WORKER_URL = 'https://scm-ease-admin.scmease31.workers.dev';
   let users = [];
 
   function getToken() { return sessionStorage.getItem('adminToken') || ''; }
@@ -10882,7 +10882,7 @@ window.umSwitchTab = function(tab) {
 
 // ── Permissions Management ──
 (function(){
-  const WORKER_URL = 'https://scm-ease-admin.scm-ease.workers.dev';
+  const WORKER_URL = 'https://scm-ease-admin.scmease31.workers.dev';
   const TAB_KEYS = ['calc', 'calc_changes', 'plan', 'plan_edit', 'plan_changes', 'cell', 'vendor', 'vendor_edit', 'explorer'];
   const TAB_LABELS = {
     calc: 'Calculator',
@@ -10999,7 +10999,7 @@ window.umSwitchTab = function(tab) {
 
 // ── Apply tab permissions after gate login ──
 (function(){
-  const WORKER_URL = 'https://scm-ease-admin.scm-ease.workers.dev';
+  const WORKER_URL = 'https://scm-ease-admin.scmease31.workers.dev';
   const TAB_MAP = {
     calc: 'modeCalc',
     plan: 'modePlan',
@@ -11124,7 +11124,7 @@ window.umSwitchTab = function(tab) {
 <!-- CONSUMPTION DEFAULTS MANAGEMENT -->
 <script>
 (function(){
-  const WORKER = 'https://scm-ease-admin.scm-ease.workers.dev';
+  const WORKER = 'https://scm-ease-admin.scmease31.workers.dev';
 
   // Save current consumption values as default (admin only)
   document.getElementById('saveDefaultsBtn').addEventListener('click', async function() {

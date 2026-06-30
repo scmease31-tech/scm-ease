@@ -4,7 +4,7 @@ compatibility_date = "2024-01-01"
 
 [[kv_namespaces]]
 binding = "LOGS"
-id = "188b44193859467f9264a787b1da53e4"
+id = "425c72a7ec4b4055aac62f00deb2947f"
 
 # After deploying, set these secrets via:
 #   npx wrangler secret put ADMIN_ID
