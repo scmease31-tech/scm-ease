@@ -27,30 +27,33 @@
 <style>
 
   :root {
-    --bg: #f0f4f8;
+    --bg: #f3f5f1;         /* warm-neutral app background */
     --panel: #ffffff;
-    --ink: #0f1923;
-    --ink2: #3a4a56;
-    --muted: #7a8e9c;
-    --line: #e2eaf0;
-    --line2: #c8d8e4;
-    --solar-1: #0b6e4f;    /* deep emerald */
-    --solar-2: #1a9e72;    /* mid green */
-    --solar-3: #25d19a;    /* accent mint */
-    --solar-bg: #e6f7f1;
-    --amber: #f59e0b;
-    --amber-bg: #fef3c7;
+    --ink: #16201a;        /* warm near-black */
+    --ink2: #44514a;       /* secondary text */
+    --muted: #7c8a80;      /* warm muted gray */
+    --line: #e7ebe3;       /* subtle warm border */
+    --line2: #d7ded2;      /* stronger border */
+    --solar-1: #0b6e4f;    /* deep emerald (primary) */
+    --solar-2: #158a5f;    /* mid green */
+    --solar-3: #2fb083;    /* accent green */
+    --solar-bg: #e5f3ea;   /* soft green pill bg */
+    --amber: #d98a1f;      /* material/warn */
+    --amber-bg: #fbf1d8;
+    --terra: #c05f3c;      /* terracotta accent (highlights) */
+    --terra-2: #d97a52;    /* lighter terracotta */
+    --terra-bg: #f7e9e1;
     --blue: #1d6fbf;
     --blue-bg: #dbeafe;
     --danger: #dc2626;
-    --danger-bg: #fee2e2;
-    --purple: #7c3aed;
-    --purple-bg: #ede9fe;
-    --shadow-sm: 0 1px 3px rgba(15,25,35,0.08);
-    --shadow: 0 4px 16px rgba(15,25,35,0.10);
-    --shadow-lg: 0 8px 32px rgba(15,25,35,0.14);
-    --radius: 10px;
-    --radius-sm: 6px;
+    --danger-bg: #fdecec;
+    --purple: #6d5efc;     /* violet progress */
+    --purple-bg: #ece9ff;
+    --shadow-sm: 0 1px 2px rgba(20,32,25,0.05);
+    --shadow: 0 2px 10px rgba(20,32,25,0.06);
+    --shadow-lg: 0 12px 32px rgba(20,32,25,0.10);
+    --radius: 13px;
+    --radius-sm: 8px;
   }
 
   /* Remove 300ms mobile tap delay */
@@ -75,16 +78,20 @@
     line-height: 1.5;
     min-height: 100vh;
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.005em;
   }
 
   /* ── HEADER ── */
   header {
-    background: linear-gradient(135deg, var(--solar-1) 0%, #0d4f38 100%);
+    background: #ffffff;
     padding: 0 24px;
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: 0 2px 12px rgba(11,110,79,0.3);
+    box-shadow: 0 1px 3px rgba(20,32,25,0.04);
+    border-bottom: 1px solid var(--line);
     overflow-x: hidden;
     width: 100%;
   }
@@ -280,11 +287,13 @@
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    padding: 12px 14px;
+    padding: 15px 16px;
     box-shadow: var(--shadow-sm);
     position: relative;
     overflow: hidden;
+    transition: box-shadow 0.15s, border-color 0.15s;
   }
+  .kpi:hover { box-shadow: var(--shadow); }
   .kpi::before {
     content: ''; position: absolute; left: 0; top: 0; bottom: 0;
     width: 3px; border-radius: 3px 0 0 3px;
@@ -295,9 +304,9 @@
   .kpi.purple::before { background: var(--purple); }
   .kpi.teal::before { background: var(--solar-3); }
 
-  .kpi-label { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
-  .kpi-val { font-size: 20px; font-weight: 800; color: var(--ink); line-height: 1; }
-  .kpi-sub { font-size: 10px; color: var(--muted); margin-top: 3px; }
+  .kpi-label { font-size: 10px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
+  .kpi-val { font-size: 22px; font-weight: 800; color: var(--ink); line-height: 1; letter-spacing: -0.02em; }
+  .kpi-sub { font-size: 10px; color: var(--muted); margin-top: 5px; }
 
   /* ── TOOLBAR ── */
   .toolbar {
@@ -350,12 +359,12 @@
   }
 
   thead th {
-    background: linear-gradient(180deg, #e8f5ef 0%, #dff0e8 100%);
-    color: var(--solar-1); font-size: 10.5px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.05em;
+    background: #f6f8f4;
+    color: var(--muted); font-size: 10.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.06em;
     padding: 9px 10px;
-    border-bottom: 2px solid #b8dfc8;
-    border-right: 1px solid #cde8d8;
+    border-bottom: 1px solid var(--line2);
+    border-right: 1px solid var(--line);
     position: sticky; top: 0; z-index: 10;
     white-space: nowrap;
   }
@@ -366,10 +375,10 @@
 
   /* ── EXCEL-LIKE COLUMN FILTERS (Checkbox Multi-Select) ── */
   thead tr.filter-row th {
-    background: #f0f7f3;
+    background: #f1f4ef;
     padding: 4px 3px;
-    border-bottom: 2px solid #b8dfc8;
-    border-right: 1px solid #cde8d8;
+    border-bottom: 1px solid var(--line2);
+    border-right: 1px solid var(--line);
     position: sticky;
     top: 36px;            /* freeze just below a single column-header row */
     z-index: 9;           /* below header rows (10-12), above body content */
@@ -521,19 +530,39 @@
 
   /* ── Universal Table Management ─────────────────────────────────── */
   .tbl-mgr-bar {
-    display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap;
+    display: flex; align-items: center; gap: 5px; margin-bottom: 6px; flex-wrap: wrap;
   }
+  /* Compact icon-only buttons — name shown on hover via [data-label] tooltip */
   .tbl-mgr-btn {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 3px 10px; border-radius: 5px; border: 1px solid var(--line2);
-    background: #fff; color: var(--ink2); font: 600 10px 'Inter', sans-serif;
-    cursor: pointer; transition: all 0.12s; user-select: none; white-space: nowrap;
+    position: relative;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 28px; padding: 0;
+    border-radius: 7px; border: 1px solid var(--line2);
+    background: #fff; color: var(--ink2);
+    cursor: pointer; transition: all 0.12s; user-select: none;
   }
-  .tbl-mgr-btn:hover { border-color: var(--solar-2); background: #f0f7f3; }
+  .tbl-mgr-btn svg { width: 15px; height: 15px; pointer-events: none; }
+  .tbl-mgr-btn:hover { border-color: var(--solar-2); background: #f0f7f3; color: var(--solar-1); }
   .tbl-mgr-btn.active { border-color: var(--solar-2); background: #e6f7f1; color: var(--solar-1); }
+  .tbl-mgr-btn.tbl-mgr-del { border-color: #fca5a5; color: #dc2626; }
+  .tbl-mgr-btn.tbl-mgr-del:hover { border-color: #dc2626; background: #fef2f2; color: #dc2626; }
   .tbl-mgr-btn .mgr-badge {
-    font-size: 8px; padding: 1px 5px; border-radius: 8px;
-    background: var(--danger); color: #fff; font-weight: 700; min-width: 14px; text-align: center;
+    position: absolute; top: -6px; right: -6px;
+    font-size: 8px; line-height: 14px; height: 14px; min-width: 14px; padding: 0 3px;
+    border-radius: 7px; background: var(--danger); color: #fff; font-weight: 700;
+    text-align: center; box-shadow: 0 0 0 2px #fff;
+  }
+  .tbl-mgr-btn[data-label]:hover::after {
+    content: attr(data-label);
+    position: absolute; top: calc(100% + 8px); left: 0;
+    background: var(--ink); color: #fff; font: 600 10px 'Inter', sans-serif;
+    padding: 4px 8px; border-radius: 5px; white-space: nowrap; z-index: 3000;
+    pointer-events: none; box-shadow: 0 4px 12px rgba(20,32,25,0.22);
+  }
+  .tbl-mgr-btn[data-label]:hover::before {
+    content: ''; position: absolute; top: calc(100% + 3px); left: 11px;
+    border: 5px solid transparent; border-bottom-color: var(--ink);
+    z-index: 3000; pointer-events: none;
   }
   .col-mgr-panel {
     display: none; position: absolute; z-index: 1001; top: calc(100% + 4px); left: 0;
@@ -1080,12 +1109,124 @@
   .cost-cell.has-value { background: linear-gradient(90deg, #fef3c7, #fefce8); }
 
   /* Planning Mode Styles */
-  .mode-switch { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-  .mode-btn {
-    padding: 6px 14px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.2);
-    background: rgba(0,0,0,0.1); color: #fff; font: 600 12px 'Inter', sans-serif; cursor: pointer;
+  /* ── APP SHELL: LEFT ICON SIDEBAR + TOP BAR (MAKORO-style) ── */
+  :root { --sbw: 226px; --sbw-open: 226px; --sbw-collapsed: 64px; }
+  body { padding-left: var(--sbw); transition: padding-left 0.18s ease; }
+  body.sb-collapsed { padding-left: var(--sbw-collapsed); }
+
+  .app-sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0; width: var(--sbw);
+    background: #ffffff; border-right: 1px solid var(--line);
+    z-index: 500; display: flex; flex-direction: column;
+    padding: 0 0 12px; overflow: hidden;
+    transition: width 0.18s ease;
   }
-  .mode-btn.active { background: #fff; color: var(--solar-1); border-color: #fff; }
+  /* ── Collapsed sidebar (icon rail) ── */
+  body.sb-collapsed .app-sidebar { width: var(--sbw-collapsed); }
+  body.sb-collapsed .sb-logo-text,
+  body.sb-collapsed .nav-label { display: none; }
+  body.sb-collapsed .sb-submenu { display: none !important; }
+  body.sb-collapsed .sb-logo { justify-content: center; padding: 0; gap: 0; }
+  body.sb-collapsed .sb-nav { padding: 0 8px; }
+  body.sb-collapsed .mode-btn.nav-item { justify-content: center; padding: 0; gap: 0; }
+
+  /* Sidebar collapse toggle — rides the sidebar's right edge */
+  .sb-edge-toggle {
+    position: fixed; top: 66px; left: calc(var(--sbw) - 13px);
+    width: 26px; height: 26px; border-radius: 50%;
+    background: #fff; border: 1px solid var(--line2); color: var(--ink2);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    z-index: 501; box-shadow: var(--shadow-sm);
+    transition: left 0.18s ease, border-color 0.15s, color 0.15s;
+  }
+  .sb-edge-toggle:hover { border-color: var(--solar-2); color: var(--solar-1); }
+  .sb-edge-toggle svg { width: 15px; height: 15px; transition: transform 0.2s; }
+  body.sb-collapsed .sb-edge-toggle { left: calc(var(--sbw-collapsed) - 13px); }
+  body.sb-collapsed .sb-edge-toggle svg { transform: rotate(180deg); }
+  @media print { .sb-edge-toggle { display: none; } }
+
+  .sb-logo {
+    display: flex; align-items: center; gap: 11px;
+    height: 56px; padding: 0 18px; flex-shrink: 0;
+    border-bottom: 1px solid var(--line); margin-bottom: 10px;
+  }
+  .sb-logo-mark {
+    width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--solar-1), var(--solar-2));
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(11,110,79,0.25);
+  }
+  .sb-logo-mark svg { width: 19px; height: 19px; }
+  .sb-logo-text {
+    font-weight: 800; font-size: 15px; color: var(--ink);
+    white-space: nowrap; letter-spacing: -0.02em;
+  }
+
+  .sb-nav {
+    display: flex; flex-direction: column; gap: 3px;
+    padding: 0 12px; flex: 1; overflow-y: auto; overflow-x: hidden;
+  }
+  .sb-nav::-webkit-scrollbar { width: 6px; }
+  .sb-nav::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 6px; }
+
+  .mode-btn.nav-item {
+    display: flex; align-items: center; gap: 13px;
+    width: 100%; height: 44px; padding: 0 12px; flex-shrink: 0;
+    border: none; background: transparent; color: var(--ink2);
+    border-radius: 11px; cursor: pointer;
+    font: 600 12.5px 'Inter', sans-serif; text-align: left;
+    white-space: nowrap; overflow: hidden;
+    transition: background 0.12s, color 0.12s;
+  }
+  .mode-btn.nav-item .nav-ico { width: 21px; height: 21px; flex-shrink: 0; }
+  .mode-btn.nav-item svg, .mode-btn.nav-item .nav-label { pointer-events: none; }
+  .mode-btn.nav-item:hover { background: var(--solar-bg); color: var(--solar-1); }
+  .mode-btn.nav-item.active { background: var(--solar-1); color: #fff; box-shadow: 0 2px 8px rgba(11,110,79,0.2); }
+  .mode-btn.nav-item.active:hover { background: var(--solar-1); color: #fff; }
+
+  /* Nested sidebar sub-menus (in-page sub-tabs relocated here) */
+  .sb-submenu {
+    display: flex; flex-direction: column; gap: 2px;
+    max-height: 0; overflow: hidden;
+    transition: max-height 0.24s ease, margin 0.2s ease;
+  }
+  .sb-submenu.open { max-height: 360px; margin: 3px 0 6px; }
+  .sb-subitem {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%; height: 33px; padding: 0 10px 0 30px; flex-shrink: 0;
+    border: none; background: transparent; color: var(--muted);
+    border-radius: 9px; cursor: pointer; position: relative;
+    font: 600 11.5px 'Inter', sans-serif; text-align: left; white-space: nowrap;
+    transition: background 0.12s, color 0.12s;
+  }
+  .sb-subitem::before {
+    content: ''; position: absolute; left: 15px; top: 50%; transform: translateY(-50%);
+    width: 5px; height: 5px; border-radius: 50%; background: var(--line2); transition: background 0.12s;
+  }
+  .sb-subitem:hover { background: var(--solar-bg); color: var(--solar-1); }
+  .sb-subitem:hover::before { background: var(--solar-2); }
+  .sb-subitem.active { background: var(--solar-bg); color: var(--solar-1); font-weight: 700; }
+  .sb-subitem.active::before { background: var(--solar-1); }
+  .sb-sub-badge {
+    margin-left: auto; font-size: 9.5px; font-weight: 700; color: var(--muted);
+    background: var(--line); padding: 1px 6px; border-radius: 999px; min-width: 14px; text-align: center;
+  }
+  .sb-subitem.active .sb-sub-badge { background: #d3efe0; color: var(--solar-1); }
+
+  /* Top bar (formerly green header) restyled for a white surface */
+  header .header-title h1 { color: var(--ink); }
+  header .header-title .sub { color: var(--muted); }
+  header .btn-ghost { background: #f4f6f2; color: var(--ink2); border-color: var(--line2); }
+  header .btn-ghost:hover { background: var(--solar-bg); color: var(--solar-1); border-color: #bfe0cf; }
+  header .admin-btn { background: var(--solar-1); color: #fff; border: 1px solid var(--solar-1); }
+  header .admin-btn:hover { background: var(--solar-2); border-color: var(--solar-2); }
+  header #siteLogoutBtn { background: #fff; color: var(--danger); border: 1px solid #f0cccc; }
+  header #siteLogoutBtn:hover { background: var(--danger-bg); border-color: #e6a9a9; }
+
+  @media print {
+    body, body.sb-collapsed { padding-left: 0; }
+    .app-sidebar { display: none; }
+  }
 
   /* ── Cell INV — Amount-wise Pricing ── */
   .cell-master-strip {
@@ -1182,13 +1323,13 @@
     overflow: hidden; transition: box-shadow 0.2s;
   }
   .cust-card:hover { box-shadow: var(--shadow); }
-  .cust-card::before { content: ''; position: absolute; left:0; top:0; bottom:0; width:3px; background: var(--blue); border-radius: 3px 0 0 3px; }
+  .cust-card::before { content: ''; position: absolute; left:0; top:0; bottom:0; width:3px; background: var(--solar-2); border-radius: 3px 0 0 3px; }
   .cust-card-name { font-size: 13px; font-weight: 800; color: var(--ink); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .cust-card-detail { font-size: 11px; color: var(--muted); line-height: 1.6; }
   .cust-card-detail strong { color: var(--ink2); }
-  .cust-card-mw { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 800; color: var(--blue); margin-top: 4px; }
+  .cust-card-mw { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 800; color: var(--solar-1); margin-top: 4px; }
   .cust-card-mw span { font-size: 11px; font-weight: 600; color: var(--muted); }
-  .cust-order-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--blue-bg); color: var(--blue); font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; margin: 2px 2px 0 0; }
+  .cust-order-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--solar-bg); color: var(--solar-1); font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 999px; margin: 2px 2px 0 0; }
 
   /* Collapsible customer material sections */
   .cust-mat-open .cust-mat-arrow { transform: rotate(90deg); }
@@ -1199,16 +1340,16 @@
   .consolidated-wrap .table-wrap { max-height: 70vh; overflow-y: auto; }
 
   /* Status badges */
-  .status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
-  .status-badge.ok { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
-  .status-badge.low { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
-  .status-badge.short { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
-  .status-badge.na { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
+  .status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 700; white-space: nowrap; letter-spacing: 0.01em; }
+  .status-badge.ok { background: var(--solar-bg); color: var(--solar-1); border: 1px solid #c2e3d0; }
+  .status-badge.low { background: var(--amber-bg); color: #8a5a12; border: 1px solid #ecd9a8; }
+  .status-badge.short { background: var(--danger-bg); color: #b3261e; border: 1px solid #f3c4c4; }
+  .status-badge.na { background: #f1f3ef; color: #6b746a; border: 1px solid #dde1d8; }
   .status-badge svg { width: 12px; height: 12px; }
 
   /* Stock mapping pills */
   .stock-pills { display: flex; flex-wrap: wrap; gap: 4px; max-width: 280px; }
-  .stock-pill { display: inline-flex; align-items: center; gap: 3px; background: #eff6ff; color: #1e40af; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; border: 1px solid #bfdbfe; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stock-pill { display: inline-flex; align-items: center; gap: 3px; background: #f1f3ef; color: var(--ink2); font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 999px; border: 1px solid var(--line2); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .stock-pill.matched { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
   .stock-pill.manual { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
 
@@ -1310,24 +1451,24 @@
   @keyframes splashFadeUp{0%{opacity:0;transform:translateY(24px)}100%{opacity:1;transform:translateY(0)}}
 
   /* ── SITE-WIDE LOGIN GATE ───────────────────────────────────────────── */
-  .site-gate{position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f172a 100%);display:flex;align-items:center;justify-content:center;transition:opacity .4s;width:100%;height:100%}
+  .site-gate{position:fixed;inset:0;z-index:99999;background:radial-gradient(1100px 560px at 50% -8%, #e7f2ec 0%, #f3f5f1 55%, #eef1ea 100%);display:flex;align-items:center;justify-content:center;transition:opacity .4s;width:100%;height:100%}
   .site-gate.hidden{opacity:0;pointer-events:none;visibility:hidden}
-  .site-gate-card{background:rgba(30,41,59,.95);border:1px solid rgba(99,102,241,.25);border-radius:20px;padding:40px 36px;width:380px;max-width:92vw;box-shadow:0 24px 80px rgba(0,0,0,.6);text-align:center}
-  .site-gate-card .gate-logo{margin-bottom:20px}
-  .site-gate-card .gate-logo svg{width:48px;height:48px}
-  .site-gate-card h2{color:#e2e8f0;font-size:22px;font-weight:800;margin:0 0 4px;letter-spacing:.5px}
-  .site-gate-card .gate-sub{color:#64748b;font-size:12px;margin-bottom:24px}
+  .site-gate-card{background:#ffffff;border:1px solid var(--line);border-radius:22px;padding:40px 36px;width:390px;max-width:92vw;box-shadow:0 24px 70px rgba(20,32,25,.14);text-align:center}
+  .site-gate-card .gate-logo{margin-bottom:18px;display:flex;justify-content:center}
+  .site-gate-card .gate-logo svg{width:44px;height:44px;background:linear-gradient(135deg,var(--solar-1),var(--solar-2));border-radius:12px;padding:9px;stroke:#eafff5;box-shadow:0 6px 18px rgba(11,110,79,.28)}
+  .site-gate-card h2{color:var(--ink);font-size:23px;font-weight:800;margin:0 0 4px;letter-spacing:-.02em}
+  .site-gate-card .gate-sub{color:var(--muted);font-size:12.5px;margin-bottom:26px}
   .gate-field{margin-bottom:14px;text-align:left}
-  .gate-field label{display:block;font-size:11px;color:#94a3b8;margin-bottom:4px;letter-spacing:1px;text-transform:uppercase;font-weight:600}
-  .gate-field input{width:100%;padding:11px 14px;background:#0f172a;border:1px solid rgba(99,102,241,.3);border-radius:10px;color:#e2e8f0;font-size:14px;outline:none;box-sizing:border-box;transition:.2s}
-  .gate-field input:focus{border-color:#818cf8;box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+  .gate-field label{display:block;font-size:10.5px;color:var(--muted);margin-bottom:5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700}
+  .gate-field input{width:100%;padding:11px 14px;background:#f7f9f6;border:1px solid var(--line2);border-radius:10px;color:var(--ink);font-size:14px;outline:none;box-sizing:border-box;transition:.2s}
+  .gate-field input:focus{border-color:var(--solar-2);background:#fff;box-shadow:0 0 0 3px rgba(21,138,95,.14)}
   .gate-pw-wrap{position:relative}
   .gate-pw-wrap input{padding-right:40px}
-  .gate-pw-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:#64748b;cursor:pointer;padding:4px}
-  .gate-login-btn{width:100%;padding:12px;background:linear-gradient(135deg,#0b6e4f,#1a9e72);border:none;border-radius:10px;color:#fff;font-weight:700;font-size:14px;cursor:pointer;letter-spacing:.5px;margin-top:8px;transition:.2s}
-  .gate-login-btn:hover{filter:brightness(1.1);transform:translateY(-1px)}
+  .gate-pw-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;padding:4px}
+  .gate-login-btn{width:100%;padding:12px;background:linear-gradient(135deg,var(--solar-1),var(--solar-2));border:none;border-radius:10px;color:#fff;font-weight:700;font-size:14px;cursor:pointer;letter-spacing:.02em;margin-top:8px;transition:.2s}
+  .gate-login-btn:hover{filter:brightness(1.05);transform:translateY(-1px);box-shadow:0 8px 20px rgba(11,110,79,.25)}
   .gate-login-btn:disabled{opacity:.6;cursor:wait}
-  .gate-error{color:#f87171;font-size:12px;margin-top:10px;min-height:18px}
+  .gate-error{color:var(--danger);font-size:12px;margin-top:10px;min-height:18px}
 
   /* ── ACTIVITY LOG TAB ───────────────────────────────────────────────── */
   #logMain{display:none;padding:20px}
@@ -1508,7 +1649,8 @@
   .admin-close:hover{color:#e2e8f0}
 
   /* admin toolbar */
-  .admin-toolbar{display:none;position:fixed;bottom:0;left:0;right:0;width:100%;height:48px;background:linear-gradient(135deg,#1e1b4b,#312e81);border-top:1px solid rgba(99,102,241,.4);z-index:9999;align-items:center;justify-content:center;gap:12px;padding:0 20px;overflow-x:auto}
+  .admin-toolbar{display:none;position:fixed;bottom:0;left:var(--sbw);right:0;width:auto;height:48px;background:linear-gradient(135deg,#1e1b4b,#312e81);border-top:1px solid rgba(99,102,241,.4);z-index:9999;align-items:center;justify-content:center;gap:12px;padding:0 20px;overflow-x:auto;transition:left .18s ease}
+  body.sb-collapsed .admin-toolbar{left:var(--sbw-collapsed)}
   .admin-toolbar.show{display:flex}
   .admin-toolbar .atb-label{color:#a5b4fc;font-size:12px;letter-spacing:1px;margin-right:auto}
   .admin-toolbar .atb-btn{padding:8px 18px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;letter-spacing:.5px;transition:.2s}
@@ -2089,7 +2231,7 @@
     <div class="gate-error" id="gateError"></div>
     <div style="margin-top:14px;text-align:center"><a id="gateForgotLink" style="color:#64748b;font-size:11px;cursor:pointer;text-decoration:underline">Forgot ID / Password?</a></div>
     <!-- Forgot request sub-form (hidden by default) -->
-    <div id="gateForgotForm" style="display:none;margin-top:18px;border-top:1px solid rgba(255,255,255,.08);padding-top:16px">
+    <div id="gateForgotForm" style="display:none;margin-top:18px;border-top:1px solid var(--line);padding-top:16px">
       <div style="font-size:12px;color:#94a3b8;margin-bottom:12px;text-align:center">Tell us who you are &mdash; Sohil will reach you soon</div>
       <div class="gate-field">
         <label>Your Name</label>
@@ -2098,7 +2240,7 @@
       <div class="gate-field">
         <label>Selfie</label>
         <input type="file" id="gateForgotSelfie" accept="image/*" capture="user" style="display:none">
-        <button type="button" id="gateForgotCamBtn" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#94a3b8;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+        <button type="button" id="gateForgotCamBtn" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line2);background:#f7f9f6;color:var(--ink2);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
           Open Camera &amp; Take Selfie
         </button>
@@ -2165,11 +2307,75 @@
 })();
 </script>
 
-<!-- HEADER -->
-<header>
-  <div class="header-inner">
-    <div class="logo-mark">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#0b6e4f" stroke-width="2.5" stroke-linecap="round">
+<!-- ═══ UNIFIED IN-PAGE SUB-NAVIGATION + CONTROL BARS (MAKORO) ═══ -->
+<style>
+  /* One consistent segmented-pill style for EVERY in-page tab group:
+     Planning views, Stock-Capacity sub-tabs, Vendor sheets, User-Mgmt
+     tabs, Activity-Log filters and Calc module tabs — plus clean neutral
+     filter/date toolbars. Declared after the base CSS so it wins ties. */
+
+  /* tab-group containers */
+  .plan-view-tabs, .vendor-sub-tabs, .log-filters, .um-subtabs, .tabs {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  }
+  .um-subtabs { border-bottom: none !important; margin-bottom: 16px; padding-bottom: 0; }
+
+  /* the canonical pill */
+  .plan-view-tab, .cap-sub-tab, .vendor-sub-tab, .um-subtab, .log-filter-btn, .tab {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 34px; padding: 0 14px; margin: 0;
+    border: 1px solid var(--line2); border-radius: 9px;
+    background: var(--panel); color: var(--ink2);
+    font: 600 12px 'Inter', sans-serif; line-height: 1; letter-spacing: 0;
+    cursor: pointer; white-space: nowrap; box-shadow: none;
+    transition: background .14s, color .14s, border-color .14s, box-shadow .14s;
+  }
+  .cap-sub-tab { height: 34px !important; padding: 0 14px !important; font-size: 12px !important; }
+  .plan-view-tab svg, .um-subtab svg, .vendor-sub-tab svg, .log-filter-btn svg { width: 14px; height: 14px; }
+
+  /* hover */
+  .plan-view-tab:hover, .cap-sub-tab:hover, .vendor-sub-tab:hover,
+  .um-subtab:hover, .log-filter-btn:hover, .tab:hover {
+    border-color: var(--solar-2); color: var(--solar-1); background: var(--solar-bg);
+  }
+
+  /* active */
+  .plan-view-tab.active, .cap-sub-tab.active, .vendor-sub-tab.active,
+  .um-subtab.active, .log-filter-btn.active, .tab.active {
+    background: var(--solar-1); color: #fff; border-color: var(--solar-1);
+    box-shadow: 0 2px 8px rgba(11,110,79,.18);
+  }
+  .plan-view-tab.active:hover, .cap-sub-tab.active:hover, .vendor-sub-tab.active:hover,
+  .um-subtab.active:hover, .log-filter-btn.active:hover, .tab.active:hover {
+    background: var(--solar-1); color: #fff;
+  }
+
+  /* vendor sheet count badge — legible in both states */
+  .vendor-sub-tab .vst-count { font-size: 10px; font-weight: 700; opacity: .65; }
+  .vendor-sub-tab.active .vst-count { opacity: .9; }
+
+  /* clean, consistent Planning filter / date-range toolbars
+     (replaces the loud blue & purple gradient bars) */
+  #dateRangeBar, #planFilterBar {
+    background: #f7f9f6 !important;
+    border: 1px solid var(--line2) !important;
+    border-radius: 10px !important;
+  }
+  #dateRangeBar > span, #planFilterBar > span { color: var(--ink2) !important; }
+  #dateRangeBar input, #planFilterBar select, #planFilterBar input {
+    border: 1px solid var(--line2) !important; border-radius: 6px; background: #fff;
+    font-family: 'Inter', sans-serif;
+  }
+  #dateRangeBar input:focus, #planFilterBar select:focus, #planFilterBar input:focus {
+    outline: none; border-color: var(--solar-2) !important;
+  }
+</style>
+
+<!-- SIDEBAR (MAKORO-style icon rail, expands on hover) -->
+<aside class="app-sidebar" id="appSidebar">
+  <div class="sb-logo">
+    <div class="sb-logo-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#eafff5" stroke-width="2.5" stroke-linecap="round">
         <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
         <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
         <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
@@ -2177,6 +2383,107 @@
         <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
       </svg>
     </div>
+    <span class="sb-logo-text">SCM Ease</span>
+  </div>
+  <nav class="sb-nav">
+    <button class="mode-btn nav-item active" id="modeCalc" title="Consumption Calculator">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="18" x2="16" y2="18"/><path d="M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01"/></svg>
+      <span class="nav-label">Consumption</span>
+    </button>
+    <div class="sb-submenu" data-parent="modeCalc" id="sbCalcSubmenu"></div>
+    <button class="mode-btn nav-item" id="modePlan" title="Planning vs Stock Analysis">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <span class="nav-label">Planning vs Stock</span>
+    </button>
+    <div class="sb-submenu" data-parent="modePlan">
+      <button class="sb-subitem active" data-pv="customers" onclick="switchPlanView('customers');sbSetActive(this)">Customer Orders</button>
+      <button class="sb-subitem" data-pv="customerMaterials" onclick="switchPlanView('customerMaterials');sbSetActive(this)">Customer Materials</button>
+      <button class="sb-subitem" data-pv="modules" onclick="switchPlanView('modules');sbSetActive(this)">Module Summary</button>
+      <button class="sb-subitem" data-pv="consolidated" onclick="switchPlanView('consolidated');sbSetActive(this)">Consolidated Materials</button>
+      <button class="sb-subitem" data-pv="capacity" onclick="switchPlanView('capacity');sbSetActive(this)">Stock Capacity</button>
+      <button class="sb-subitem" data-pv="moduleMapping" onclick="switchPlanView('moduleMapping');sbSetActive(this)">Module Type Mapping</button>
+    </div>
+    <button class="mode-btn nav-item" id="modeCell" title="Cell INV — Amount-wise Pricing">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+      <span class="nav-label">Cell INV Pricing</span>
+    </button>
+    <button class="mode-btn nav-item" id="modeVendor" title="Vendor Sheet">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      <span class="nav-label">Vendor Sheet</span>
+    </button>
+    <div class="sb-submenu" data-parent="modeVendor">
+      <button class="sb-subitem active" data-vs="vendors" onclick="sbVendorSheet('vendors',this)">Vendors<span class="sb-sub-badge" id="sbVcVendors"></span></button>
+      <button class="sb-subitem" data-vs="approved" onclick="sbVendorSheet('approved',this)">Approved<span class="sb-sub-badge" id="sbVcApproved"></span></button>
+      <button class="sb-subitem" data-vs="allcodes" onclick="sbVendorSheet('allcodes',this)">All Codes<span class="sb-sub-badge" id="sbVcAllcodes"></span></button>
+      <button class="sb-subitem" data-vs="revision" onclick="sbVendorSheet('revision',this)">Revision History<span class="sb-sub-badge" id="sbVcRevision"></span></button>
+    </div>
+    <button class="mode-btn nav-item" id="mode3D" title="3D Module Explorer">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+      <span class="nav-label">3D Explorer</span>
+    </button>
+    <button class="mode-btn nav-item" id="modeLog" style="display:none" title="Activity Log">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      <span class="nav-label">Activity Log</span>
+    </button>
+    <div class="sb-submenu" data-parent="modeLog">
+      <button class="sb-subitem active" data-lf="all" onclick="sbLogFilter('all',this)">All</button>
+      <button class="sb-subitem" data-lf="login" onclick="sbLogFilter('login',this)">Logins</button>
+      <button class="sb-subitem" data-lf="deploy" onclick="sbLogFilter('deploy',this)">Deploys</button>
+      <button class="sb-subitem" data-lf="change" onclick="sbLogFilter('change',this)">Changes</button>
+    </div>
+    <button class="mode-btn nav-item" id="modeUsers" style="display:none" title="User Management">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span class="nav-label">User Management</span>
+    </button>
+    <div class="sb-submenu" data-parent="modeUsers">
+      <button class="sb-subitem active" data-um="users" onclick="umSwitchTab('users');sbSetActive(this)">Users</button>
+      <button class="sb-subitem" data-um="perms" onclick="umSwitchTab('perms');sbSetActive(this)">Permissions</button>
+    </div>
+  </nav>
+</aside>
+
+<!-- Sidebar collapse / expand toggle -->
+<button class="sb-edge-toggle" id="sbToggle" onclick="toggleSidebar()" title="Collapse / expand sidebar" aria-label="Toggle sidebar">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+</button>
+<script>
+  window.toggleSidebar = function(){
+    var collapsed = document.body.classList.toggle('sb-collapsed');
+    try { localStorage.setItem('sbCollapsed', collapsed ? '1' : '0'); } catch(e){}
+  };
+  try { if (localStorage.getItem('sbCollapsed') === '1') document.body.classList.add('sb-collapsed'); } catch(e){}
+</script>
+
+<style>
+  /* Primary sub-navigation now lives in the sidebar — hide the old horizontal rows */
+  .plan-view-tabs, .vendor-sub-tabs, .um-subtabs, #tabs, #logFilters { display: none !important; }
+
+  /* Sidebar calc-tab delete handle (admin only) */
+  .sb-sub-del { display: none; margin-left: auto; color: rgba(220,38,38,.7); font-weight: 700; cursor: pointer; padding: 0 4px; font-size: 14px; line-height: 1; }
+  body.admin-active .sb-sub-del { display: inline; }
+  .sb-subitem:hover .sb-sub-del { color: #dc2626; }
+
+  /* Consistent emerald info banner — replaces the off-palette amber/green inline banners */
+  .info-banner { display: flex; align-items: center; gap: 10px; background: var(--solar-bg); border: 1px solid #c2e3d0; border-radius: var(--radius-sm); padding: 9px 14px; margin-bottom: 10px; font-size: 12px; color: var(--ink2); }
+  .info-banner strong { color: var(--solar-1); }
+
+  /* Unified deploy / save buttons (was repeated inline gradients) */
+  .btn-deploy, .btn-save { display: inline-flex; align-items: center; gap: 5px; border: none; border-radius: var(--radius-sm); padding: 6px 16px; font: 600 11.5px 'Inter', sans-serif; color: #fff; cursor: pointer; white-space: nowrap; transition: filter .15s, background .15s, transform .15s, box-shadow .15s; }
+  .btn-deploy { background: linear-gradient(135deg, var(--solar-2), var(--solar-1)); }
+  .btn-deploy:hover { filter: brightness(1.06); transform: translateY(-1px); box-shadow: 0 6px 16px rgba(11,110,79,.22); }
+  .btn-save { background: var(--solar-1); }
+  .btn-save:hover { background: var(--solar-2); }
+  .btn-deploy:disabled, .btn-save:disabled { opacity: .6; cursor: wait; transform: none; box-shadow: none; }
+
+  /* Resizable table columns — drag a header's right edge to stretch/shrink.
+     Content is clipped cleanly once a table is in fixed-resize mode. */
+  table.tbl-resizable td { overflow: hidden; }
+  table.tbl-resizable > thead > tr:not(.group-row):not(.filter-row):not(.vcf-row) > th { position: relative; }
+</style>
+
+<!-- HEADER -->
+<header>
+  <div class="header-inner">
     <div class="header-title">
       <h1>SCM Ease</h1>
       <div class="sub">Consumption · Planning vs Stock · Cell INV Pricing</div>
@@ -2202,21 +2509,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         <span>Admin</span>
       </button>
-      <button class="admin-btn" id="siteLogoutBtn" title="Logout" style="border-color:rgba(239,68,68,.5);color:#fca5a5">
+      <button class="admin-btn" id="siteLogoutBtn" title="Logout">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         <span id="siteUserLabel"></span>
       </button>
-    </div>
-  </div>
-  <div class="header-inner" style="height:auto; min-height:48px; border-top: 1px solid rgba(255,255,255,0.1); padding: 8px 0;">
-    <div class="mode-switch">
-      <button class="mode-btn active" id="modeCalc">Consumption Calculator</button>
-      <button class="mode-btn" id="modePlan">Planning vs Stock Analysis</button>
-      <button class="mode-btn" id="modeCell">Cell INV — Amount-wise Pricing</button>
-      <button class="mode-btn" id="modeVendor">📦 Vendor Sheet</button>
-      <button class="mode-btn" id="mode3D">🔬 3D Module Explorer</button>
-      <button class="mode-btn" id="modeLog" style="display:none">📋 Activity Log</button>
-      <button class="mode-btn" id="modeUsers" style="display:none">👥 User Management</button>
     </div>
   </div>
 </header>
@@ -2286,7 +2582,7 @@
   </div>
 
   <!-- INFO BANNER -->
-  <div style="background:linear-gradient(90deg,#dbeafe,#e0f2fe);border:1px solid #93c5fd;border-radius:8px;padding:9px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:12px;color:#1e3a5f;">
+  <div style="background:#f4f7f3;border:1px solid var(--line2);border-radius:8px;padding:9px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:12px;color:#1e3a5f;">
     <span style="font-size:16px">⇄</span>
     <span><strong>Three ways to calculate:</strong> (1) Set Module Qty → all rows auto-calculate. (2) Type <em>Required Qty</em> → back-calculates Module Qty + Power. (3) Type <em>Generation</em> value + unit → back-calculates Module Qty + Required Qty. Each row is <strong>independent</strong>. Click <strong>↺</strong> to reset any row.</span>
   </div>
@@ -2372,55 +2668,41 @@
     <!-- KPI Summary -->
     <div class="summary-grid" id="planKpi"></div>
 
-    <!-- Shortage/Surplus Bar -->
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
-      <div id="shortageBar" style="flex:1;"></div>
-      <button class="btn" id="deployPlanningBtn" onclick="deployPlanningData()"
-        style="display:none;background:linear-gradient(135deg,#10b981,#059669);color:#fff;padding:6px 18px;border-radius:6px;font-size:12px;font-weight:600;white-space:nowrap;">
+    <!-- Deploy row (shortage bar removed — Short/Low counts already shown in the KPI cards above) -->
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-bottom:4px;">
+      <div id="shortageBar" style="display:none;"></div>
+      <button class="btn btn-deploy" id="deployPlanningBtn" onclick="deployPlanningData()" style="display:none;">
         🚀 Deploy Planning (for all users)
       </button>
     </div>
 
-    <!-- Date Range Selector -->
-    <div id="dateRangeBar" style="background:linear-gradient(90deg,#f0f9ff,#e0f2fe); border:1px solid #7dd3fc; border-radius:8px; padding:10px 16px; margin-bottom:10px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
-      <span style="font-size:16px">📅</span>
-      <span style="font-size:12px; font-weight:600; color:#0c4a6e;">Planning Period:</span>
-      <div style="display:flex; align-items:center; gap:6px;">
-        <label style="font-size:11px; color:#64748b; font-weight:600;">From</label>
-        <input type="date" id="planDateFrom" style="padding:4px 8px; border:1px solid #94a3b8; border-radius:5px; font-size:12px; font-family:inherit;" onchange="onDateRangeChange()">
-      </div>
-      <div style="display:flex; align-items:center; gap:6px;">
-        <label style="font-size:11px; color:#64748b; font-weight:600;">To</label>
-        <input type="date" id="planDateTo" style="padding:4px 8px; border:1px solid #94a3b8; border-radius:5px; font-size:12px; font-family:inherit;" onchange="onDateRangeChange()">
-      </div>
-      <button class="btn btn-outline" style="font-size:11px; padding:4px 10px;" onclick="resetDateRange()">↺ Reset to All</button>
-      <span id="planDateRange" style="font-size:11px; color:#64748b; margin-left:auto;"></span>
-    </div>
-
-    <!-- Filter Bar: Customer / Module / Line -->
-    <div id="planFilterBar" style="background:linear-gradient(90deg,#faf5ff,#f3e8ff); border:1px solid #c4b5fd; border-radius:8px; padding:10px 16px; margin-bottom:10px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
-      <span style="font-size:16px">🔍</span>
-      <span style="font-size:12px; font-weight:600; color:#5b21b6;">Filter By:</span>
-      <div style="display:flex; align-items:center; gap:6px;">
-        <label style="font-size:11px; color:#64748b; font-weight:600;">Customer</label>
-        <select id="planFilterCustomer" onchange="applyPlanFilters()" style="padding:4px 8px; border:1px solid #a78bfa; border-radius:5px; font-size:12px; font-family:inherit; min-width:140px;">
-          <option value="">All Customers</option>
-        </select>
-      </div>
-      <div style="display:flex; align-items:center; gap:6px;">
-        <label style="font-size:11px; color:#64748b; font-weight:600;">Module</label>
-        <select id="planFilterModule" onchange="applyPlanFilters()" style="padding:4px 8px; border:1px solid #a78bfa; border-radius:5px; font-size:12px; font-family:inherit; min-width:140px;">
-          <option value="">All Modules</option>
-        </select>
-      </div>
-      <div style="display:flex; align-items:center; gap:6px;">
-        <label style="font-size:11px; color:#64748b; font-weight:600;">Line</label>
-        <select id="planFilterLine" onchange="applyPlanFilters()" style="padding:4px 8px; border:1px solid #a78bfa; border-radius:5px; font-size:12px; font-family:inherit; min-width:100px;">
-          <option value="">All Lines</option>
-        </select>
-      </div>
-      <button class="btn btn-outline" style="font-size:11px; padding:4px 10px;" onclick="resetPlanFilters()">↺ Clear Filters</button>
-      <span id="planFilterInfo" style="font-size:11px; color:#64748b; margin-left:auto;"></span>
+    <!-- Planning Period + Filters (compact single control bar) -->
+    <div id="planControlBar" style="background:#f7f9f6; border:1px solid var(--line2); border-radius:10px; padding:8px 12px; margin-bottom:10px; display:flex; align-items:center; gap:8px 12px; flex-wrap:wrap; font-size:12px;">
+      <span style="display:inline-flex; align-items:center; gap:5px; font-weight:700; color:var(--ink2);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Period
+      </span>
+      <input type="date" id="planDateFrom" onchange="onDateRangeChange()" style="padding:4px 8px; border:1px solid var(--line2); border-radius:6px; font-size:12px; font-family:inherit; background:#fff; color:var(--ink);">
+      <span style="color:var(--muted);">→</span>
+      <input type="date" id="planDateTo" onchange="onDateRangeChange()" style="padding:4px 8px; border:1px solid var(--line2); border-radius:6px; font-size:12px; font-family:inherit; background:#fff; color:var(--ink);">
+      <span style="width:1px; height:22px; background:var(--line2); margin:0 3px;"></span>
+      <span style="display:inline-flex; align-items:center; gap:5px; font-weight:700; color:var(--ink2);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        Filter
+      </span>
+      <select id="planFilterCustomer" onchange="applyPlanFilters()" style="padding:4px 8px; border:1px solid var(--line2); border-radius:6px; font-size:12px; font-family:inherit; background:#fff; color:var(--ink); min-width:130px;">
+        <option value="">All Customers</option>
+      </select>
+      <select id="planFilterModule" onchange="applyPlanFilters()" style="padding:4px 8px; border:1px solid var(--line2); border-radius:6px; font-size:12px; font-family:inherit; background:#fff; color:var(--ink); min-width:120px;">
+        <option value="">All Modules</option>
+      </select>
+      <select id="planFilterLine" onchange="applyPlanFilters()" style="padding:4px 8px; border:1px solid var(--line2); border-radius:6px; font-size:12px; font-family:inherit; background:#fff; color:var(--ink); min-width:100px;">
+        <option value="">All Lines</option>
+      </select>
+      <button class="btn btn-outline" style="font-size:11px; padding:4px 9px;" onclick="resetDateRange()" title="Reset date range to full period">↺ Dates</button>
+      <button class="btn btn-outline" style="font-size:11px; padding:4px 9px;" onclick="resetPlanFilters()" title="Clear customer / module / line filters">✕ Filters</button>
+      <span id="planDateRange" style="font-size:11px; color:var(--muted);"></span>
+      <span id="planFilterInfo" style="font-size:11px; color:var(--muted); margin-left:auto;"></span>
     </div>
 
     <!-- View Tabs + Global Search -->
@@ -2489,7 +2771,7 @@
       </div>
 
 
-      <div style="background:linear-gradient(90deg,#dbeafe,#e0f2fe);border:1px solid #93c5fd;border-radius:8px;padding:9px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:12px;color:#1e3a5f;">
+      <div style="background:#f4f7f3;border:1px solid var(--line2);border-radius:8px;padding:9px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:12px;color:#1e3a5f;">
         <span style="font-size:16px">🔗</span>
         <span><strong>Smart Stock Mapping:</strong> Materials are auto-matched to stock items using keywords, dimensions & specs. Click the <strong>🔗</strong> button on any row to manually override the mapping. Click the <strong>❌</strong> button to discard materials you don't need.</span>
       </div>
@@ -2544,12 +2826,11 @@
     <!-- Customer Materials Mapping View -->
     <div id="planViewCustomerMaterials" style="display:none;">
       <div class="section-label">Customer-wise Material Requirements & Stock Mapping</div>
-      <div style="background:linear-gradient(90deg,#dbeafe,#e0f2fe);border:1px solid #93c5fd;border-radius:8px;padding:9px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:12px;color:#1e3a5f;">
+      <div style="background:#f4f7f3;border:1px solid var(--line2);border-radius:8px;padding:9px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:12px;color:#1e3a5f;">
         <span style="font-size:16px">🔗</span>
         <span><strong>Customer Stock Mapping:</strong> Map specific stock items to each customer. If not mapped, the global/default mapping is used. Click <strong>🔗 Map</strong> on any material to assign specific stock items for that customer.</span>
         <span style="flex:1"></span>
-        <button class="btn" id="deployCustMappingsBtn" onclick="deployCustomerMappings()"
-          style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;padding:5px 16px;border-radius:6px;font-size:11px;font-weight:600;white-space:nowrap;">
+        <button class="btn btn-deploy" id="deployCustMappingsBtn" onclick="deployCustomerMappings()">
           🚀 Deploy Mappings (for all users)
         </button>
       </div>
@@ -2559,7 +2840,7 @@
     <!-- Stock Capacity View -->
     <div id="planViewCapacity" style="display:none;">
       <div class="section-label">⚡ Stock Capacity — Materials in Watt / kW / MW / GW</div>
-      <div style="background:linear-gradient(90deg,#fef3c7,#fffbeb);border:1px solid #f59e0b;border-radius:8px;padding:9px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:12px;color:#78350f;">
+      <div class="info-banner">
         <span style="font-size:16px">⚡</span>
         <span><strong>Stock Capacity:</strong> Shows how many modules and how much power (W/kW/MW/GW) your current stock can support for each material. The bottleneck material limits actual production capacity.</span>
       </div>
@@ -2570,8 +2851,7 @@
         <button class="btn btn-sm cap-sub-tab" data-captab="individual" onclick="switchCapTab('individual')" style="font-size:11px;padding:4px 12px;">📦 Individual Items</button>
         <button class="btn btn-sm cap-sub-tab" data-captab="customerCap" onclick="switchCapTab('customerCap')" style="font-size:11px;padding:4px 12px;">👥 Customer-wise</button>
         <span style="flex:1"></span>
-        <button class="btn" id="saveStockMappingsBtn" onclick="saveGlobalStockMappings()"
-          style="background:var(--solar-1);color:#fff;padding:4px 14px;border-radius:6px;font-size:11px;font-weight:600;">
+        <button class="btn btn-save" id="saveStockMappingsBtn" onclick="saveGlobalStockMappings()">
           💾 Save Stock Mappings (for all users)
         </button>
       </div>
@@ -2696,12 +2976,11 @@
     <!-- Module Type Mapping View -->
     <div id="planViewModuleMapping" style="display:none;">
       <div class="section-label">🏭 Module Type Based Stock Mapping — Universal Pre-filter</div>
-      <div style="background:linear-gradient(90deg,#f0fdf4,#ecfdf5);border:1px solid #86efac;border-radius:8px;padding:9px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:12px;color:#14532d;">
+      <div class="info-banner">
         <span style="font-size:16px">🏭</span>
         <span><strong>Module Type Mapping:</strong> Map specific stock items per module type (e.g. which solar cells are for G12R vs M10R). This acts as a <strong>universal pre-filter</strong> — only items mapped here will appear in Customer Materials mapping. Auto-populated from smart mapping on first use.</span>
         <span style="flex:1"></span>
-        <button class="btn" id="deployModTypeMappingsBtn" onclick="deployCustomerMappings()"
-          style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;padding:5px 16px;border-radius:6px;font-size:11px;font-weight:600;white-space:nowrap;">
+        <button class="btn btn-deploy" id="deployModTypeMappingsBtn" onclick="deployCustomerMappings()">
           🚀 Deploy Mappings (for all users)
         </button>
       </div>
@@ -2740,7 +3019,7 @@
   </div>
 
   <!-- INFO BANNER -->
-  <div style="background:linear-gradient(90deg,#dbeafe,#e0f2fe);border:1px solid #93c5fd;border-radius:8px;padding:9px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:12px;color:#1e3a5f;">
+  <div style="background:#f4f7f3;border:1px solid var(--line2);border-radius:8px;padding:9px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:12px;color:#1e3a5f;">
     <span style="font-size:16px">⇄</span>
     <span><strong>Every value is editable &amp; calculates the rest:</strong> Cell Size + Eff% auto-fill Wp/Cell. Edit <em>Total Wp</em>, <em>$/Wp</em>, <em>$/Cell</em> or <em>Amount</em> on any row to back-calculate the others. Global controls above overwrite all row pricing at once.</span>
   </div>
@@ -3710,6 +3989,16 @@ window.tblDeleteCol = function(tbodyId, colIdx) {
     const cell = tr.children[colIdx];
     if (cell) cell.remove();
   });
+  // Drop the matching resize colgroup <col> and shrink the fixed table width
+  const _cg = table.querySelector('colgroup.tbl-cg');
+  if (_cg && _cg.children[colIdx]) {
+    const _cw = parseFloat(_cg.children[colIdx].style.width) || 0;
+    _cg.children[colIdx].remove();
+    if (table.style.tableLayout === 'fixed') {
+      const _tw = parseFloat(table.style.width) || 0;
+      if (_tw && _cw) table.style.width = (_tw - _cw) + 'px';
+    }
+  }
   // Re-index dragcol attributes
   if (hdrRow) {
     Array.from(hdrRow.children).forEach((h, i) => {
@@ -3738,6 +4027,21 @@ function _applyColVisibility(tbodyId) {
     tfoot.querySelectorAll('tr').forEach(tr => {
       tr.querySelectorAll('td').forEach((cell, i) => { cell.style.display = hidden.has(i) ? 'none' : ''; });
     });
+  }
+  // Keep the resize colgroup (if the table is in fixed-resize mode) in sync with hidden columns
+  const _cg = table.querySelector('colgroup.tbl-cg');
+  if (_cg) {
+    let _tot = 0;
+    Array.prototype.forEach.call(_cg.children, (col, i) => {
+      if (hidden.has(i)) {
+        if (col.style.width !== '0px') col.dataset.w = col.style.width || '';
+        col.style.width = '0px';
+      } else {
+        if (col.dataset.w) col.style.width = col.dataset.w;
+        _tot += parseFloat(col.style.width) || 0;
+      }
+    });
+    if (table.style.tableLayout === 'fixed') table.style.width = _tot + 'px';
   }
 }
 
@@ -4050,12 +4354,18 @@ function injectTableToolbar(tbodyId) {
 
   const bar = document.createElement('div');
   bar.className = 'tbl-mgr-bar';
+  const _svg = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+  const icoCols   = '<svg ' + _svg + '><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>';
+  const icoEye    = '<svg ' + _svg + '><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const icoEyeOff = '<svg ' + _svg + '><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+  const icoTrash  = '<svg ' + _svg + '><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+  const icoBin    = '<svg ' + _svg + '><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5" rx="1"/><line x1="10" y1="12" x2="14" y2="12"/></svg>';
   bar.innerHTML =
-    '<button class="tbl-mgr-btn" onclick="tblShowColManager(\'' + tbodyId + '\',this)">📋 Columns <span class="mgr-badge" data-mgr-colbadge="' + tbodyId + '" style="display:none">0</span></button>' +
-    '<button class="tbl-mgr-btn" onclick="tblUnhideAll(\'' + tbodyId + '\')">👁️ Unhide Rows <span class="mgr-badge" data-mgr-rowbadge="' + tbodyId + '" style="display:none">0</span></button>' +
-    '<button class="tbl-mgr-btn sel-act" onclick="tblHideSelected(\'' + tbodyId + '\')">🙈 Hide Selected <span class="mgr-badge" data-sel-count style="display:none">0</span></button>' +
-    '<button class="tbl-mgr-btn sel-act" style="border-color:#fca5a5;" onclick="tblDeleteSelected(\'' + tbodyId + '\')">🗑️ Delete Selected</button>' +
-    '<button class="tbl-mgr-btn" onclick="tblRbinToggle()">♻️ Recycle Bin <span class="mgr-badge tbl-rbin-badge" style="display:' + (_tableRecycleBin.length > 0 ? '' : 'none') + '">' + _tableRecycleBin.length + '</span></button>';
+    '<button class="tbl-mgr-btn" data-label="Columns" onclick="tblShowColManager(\'' + tbodyId + '\',this)">' + icoCols + '<span class="mgr-badge" data-mgr-colbadge="' + tbodyId + '" style="display:none">0</span></button>' +
+    '<button class="tbl-mgr-btn" data-label="Unhide Rows" onclick="tblUnhideAll(\'' + tbodyId + '\')">' + icoEye + '<span class="mgr-badge" data-mgr-rowbadge="' + tbodyId + '" style="display:none">0</span></button>' +
+    '<button class="tbl-mgr-btn sel-act" data-label="Hide Selected" onclick="tblHideSelected(\'' + tbodyId + '\')">' + icoEyeOff + '<span class="mgr-badge" data-sel-count style="display:none">0</span></button>' +
+    '<button class="tbl-mgr-btn sel-act tbl-mgr-del" data-label="Delete Selected" onclick="tblDeleteSelected(\'' + tbodyId + '\')">' + icoTrash + '</button>' +
+    '<button class="tbl-mgr-btn" data-label="Recycle Bin" onclick="tblRbinToggle()">' + icoBin + '<span class="mgr-badge tbl-rbin-badge" style="display:' + (_tableRecycleBin.length > 0 ? '' : 'none') + '">' + _tableRecycleBin.length + '</span></button>';
   wrap.insertBefore(bar, table);
 }
 
@@ -4216,6 +4526,13 @@ function _moveColumn(table, fromIdx, toIdx, insertBefore) {
     if (insertBefore) tr.insertBefore(fromCell, toCell);
     else tr.insertBefore(fromCell, toCell.nextSibling);
   });
+  // Move the matching resize colgroup <col> so widths follow the reordered column
+  const _cg = table.querySelector('colgroup.tbl-cg');
+  if (_cg) {
+    const _cols = Array.from(_cg.children);
+    const _fc = _cols[fromIdx], _tc = _cols[toIdx];
+    if (_fc && _tc) { if (insertBefore) _cg.insertBefore(_fc, _tc); else _cg.insertBefore(_fc, _tc.nextSibling); }
+  }
 }
 
 // ── Auto-enhance ──────────────────────────────────────────────────────
@@ -4496,21 +4813,22 @@ function renderPricingSummary() {
   el.innerHTML = cards.join("");
 }
 
-// ── TABS ──────────────────────────────────────────────────────────────────
+// ── TABS (module-type filter now lives in the sidebar sub-menu under "Consumption") ──
 function renderTabs() {
-  const tabs = document.getElementById("tabs");
+  const box = document.getElementById("sbCalcSubmenu");
+  if (!box) return;
   const isAdmin = document.body.classList.contains('admin-active');
   const opts = [{ key: "all", name: "All Types" }, ...modules];
-  tabs.innerHTML = opts.map(item =>
-    `<button class="tab ${activeModule === item.key ? "active" : ""}" data-tab="${item.key}">${item.name}${isAdmin && item.key !== 'all' ? '<span class="tab-del" data-del-module="' + item.key + '" title="Delete module type">×</span>' : ''}</button>`
+  box.innerHTML = opts.map(item =>
+    `<button class="sb-subitem ${activeModule === item.key ? "active" : ""}" data-tab="${item.key}">${escHtml(item.name)}${isAdmin && item.key !== 'all' ? '<span class="sb-sub-del" data-del-module="' + item.key + '" title="Delete module type">×</span>' : ''}</button>`
   ).join("");
-  document.querySelectorAll("[data-tab]").forEach(btn => {
+  box.querySelectorAll("[data-tab]").forEach(btn => {
     btn.addEventListener("click", (e) => {
-      if (e.target.classList.contains('tab-del')) return;
+      if (e.target.classList.contains('sb-sub-del')) return;
       activeModule = btn.dataset.tab; saveState(); render();
     });
   });
-  document.querySelectorAll("[data-del-module]").forEach(btn => {
+  box.querySelectorAll("[data-del-module]").forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       deleteModuleType(btn.dataset.delModule);
@@ -5538,9 +5856,25 @@ function processExcelPlan(file, callback, onError) {
           sheetStats.push({name, rows, cols, status: 'skipped-empty'});
           return;
         }
+        // Excel frequently reports a bloated/phantom used-range (e.g. down to row
+        // 1,048,576) even when only a few rows have data. sheet_to_json over that
+        // range would build a massive array and freeze the page on "Reading…".
+        // SheetJS only stores non-empty cells, so derive the REAL last data row from
+        // the actual cell addresses and read only up to there.
+        let realLastRow = range.s.r;
+        Object.keys(ws).forEach(k => {
+          if (k.charCodeAt(0) === 33) return; // skip '!ref', '!merges', … meta keys
+          const rr = XLSX.utils.decode_cell(k).r;
+          if (rr > realLastRow) realLastRow = rr;
+        });
+        // Hard cap as a final safety net against a stray cell far down the sheet.
+        const effLastRow = Math.min(range.e.r, Math.max(realLastRow, range.s.r + 1), range.s.r + 100000);
+        const clampedRef = XLSX.utils.encode_range({ s: { r: range.s.r, c: range.s.c }, e: { r: effLastRow, c: range.e.c } });
         // Fill merged cells so values propagate to all cells in the merge range
         if (ws['!merges']) {
           ws['!merges'].forEach(merge => {
+            // Skip pathological merges spanning a huge area (would hang this fill loop)
+            if ((merge.e.r - merge.s.r + 1) * (merge.e.c - merge.s.c + 1) > 50000) return;
             const startAddr = XLSX.utils.encode_cell(merge.s);
             const startCell = ws[startAddr];
             if (!startCell) return;
@@ -5553,8 +5887,8 @@ function processExcelPlan(file, callback, onError) {
             }
           });
         }
-        let raw2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: true, defval: ''});
-        let fmt2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: false, defval: ''});
+        let raw2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: true, defval: '', range: clampedRef});
+        let fmt2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: false, defval: '', range: clampedRef});
         // Cap columns to prevent memory bloat from wide sheets
         if (cols > MAX_COLS) {
           raw2d = raw2d.map(r => r.slice(0, MAX_COLS));
@@ -5613,8 +5947,14 @@ function checkAndRunAnalysis() {
     document.getElementById('loadingIndicator').style.display = 'block';
     document.getElementById('analysisResults').style.display = 'none';
     setTimeout(() => {
-      runAnalysisAuto();
-      document.getElementById('loadingIndicator').style.display = 'none';
+      try {
+        runAnalysisAuto();
+      } catch (err) {
+        console.error('[Analysis Error]', err);
+        alert('Analysis failed: ' + (err && err.message ? err.message : err) + '\n\nPlease check the file format and try again.');
+      } finally {
+        document.getElementById('loadingIndicator').style.display = 'none';
+      }
     }, 100);
   }
 }
@@ -6502,8 +6842,7 @@ function renderCustomerSummary(orders) {
 
   // Save overrides button
   html += `<div style="grid-column:1/-1;text-align:right;padding-top:8px;">
-    <button class="btn" id="saveModOverridesBtn" onclick="saveCustomerModuleOverrides()"
-      style="background:var(--solar-1);color:#fff;padding:6px 18px;border-radius:6px;font-size:12px;font-weight:600;">
+    <button class="btn btn-save" id="saveModOverridesBtn" onclick="saveCustomerModuleOverrides()">
       💾 Save Module Type Overrides (for all users)
     </button>
   </div>`;
@@ -11308,6 +11647,181 @@ window.umSwitchTab = function(tab) {
       alert('Network error');
       btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Reset to Default'; btn.disabled = false;
     }
+  });
+})();
+</script>
+
+<!-- ── SIDEBAR NESTED SUB-NAVIGATION: accordion + active sync (MAKORO) ── -->
+<script>
+(function(){
+  // Highlight a sidebar sub-item within its own group
+  window.sbSetActive = function(el){
+    if(!el) return;
+    var menu = el.closest ? el.closest('.sb-submenu') : null;
+    if(menu) menu.querySelectorAll('.sb-subitem').forEach(function(b){ b.classList.remove('active'); });
+    el.classList.add('active');
+  };
+
+  // Vendor sheets are login-gated — guard clicks while the lock screen is visible
+  window.sbVendorSheet = function(sheet, el){
+    var lock = document.getElementById('vendorLockScreen');
+    var locked = lock && lock.offsetParent !== null;
+    if(locked){ if(typeof vendorShowLogin === 'function') vendorShowLogin(); return; }
+    if(typeof switchVendorSheet === 'function') switchVendorSheet(sheet);
+    window.sbSetActive(el);
+  };
+
+  // Activity-log filters relocated to the sidebar — drive the (now hidden) in-page filter buttons
+  window.sbLogFilter = function(f, el){
+    var src = document.querySelector('#logFilters .log-filter-btn[data-filter="' + f + '"]');
+    if(src) src.click();
+    window.sbSetActive(el);
+  };
+
+  function openSubmenuFor(btnId){
+    document.querySelectorAll('.sb-submenu').forEach(function(m){
+      m.classList.toggle('open', m.getAttribute('data-parent') === btnId);
+    });
+    syncActive(btnId);
+  }
+
+  // Mirror the currently-active in-page tab onto the sidebar sub-items
+  function syncActive(btnId){
+    if(btnId === 'modePlan'){
+      var t = document.querySelector('.plan-view-tab.active');
+      setGroupActive('modePlan', 'data-pv', t ? t.getAttribute('data-planview') : null);
+    } else if(btnId === 'modeVendor'){
+      var t2 = document.querySelector('.vendor-sub-tab.active');
+      setGroupActive('modeVendor', 'data-vs', t2 ? t2.getAttribute('data-vsheet') : null);
+      mirrorVendorCounts();
+    } else if(btnId === 'modeUsers'){
+      var permsOn = document.getElementById('umTabPerms') && document.getElementById('umTabPerms').classList.contains('active');
+      setGroupActive('modeUsers', 'data-um', permsOn ? 'perms' : 'users');
+    }
+  }
+
+  function setGroupActive(parentId, attr, val){
+    var menu = document.querySelector('.sb-submenu[data-parent="' + parentId + '"]');
+    if(!menu) return;
+    var items = menu.querySelectorAll('.sb-subitem');
+    var matched = false;
+    items.forEach(function(b){
+      var on = (val != null && b.getAttribute(attr) === val);
+      b.classList.toggle('active', on);
+      if(on) matched = true;
+    });
+    if(!matched && items[0]) items[0].classList.add('active');
+  }
+
+  function mirrorVendorCounts(){
+    [['vcVendors','sbVcVendors'],['vcApproved','sbVcApproved'],['vcAllcodes','sbVcAllcodes'],['vcRevision','sbVcRevision']].forEach(function(p){
+      var src = document.getElementById(p[0]), dst = document.getElementById(p[1]);
+      if(src && dst){ var v = (src.textContent || '').trim(); dst.textContent = v; dst.style.display = v ? '' : 'none'; }
+    });
+  }
+
+  function wire(){
+    ['modeCalc','modePlan','modeCell','modeVendor','mode3D','modeLog','modeUsers'].forEach(function(id){
+      var btn = document.getElementById(id);
+      if(btn && !btn._sbWired){
+        btn._sbWired = true;
+        btn.addEventListener('click', function(){ openSubmenuFor(id); });
+      }
+    });
+    var act = document.querySelector('.mode-btn.nav-item.active');
+    if(act) openSubmenuFor(act.id);
+    mirrorVendorCounts();
+    setTimeout(mirrorVendorCounts, 1200);
+  }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
+  else wire();
+})();
+</script>
+
+<!-- ── Resizable table columns (delegated — works on every data table) ── -->
+<script>
+(function(){
+  var EDGE = 7, cur = null;
+  function isTable(t){ return !!(t && t.tagName === 'TABLE' && t.querySelector('thead') && t.closest('.table-wrap, .vendor-table-wrap, .um-table-card, .perm-table-card')); }
+  function headerRow(t){
+    var rows = t.querySelectorAll('thead > tr');
+    for (var i = 0; i < rows.length; i++){
+      var r = rows[i];
+      if (!r.classList.contains('group-row') && !r.classList.contains('filter-row') && !r.classList.contains('vcf-row')) return r;
+    }
+    return rows[rows.length - 1] || null;
+  }
+  function isCtrl(el){ return el && el.closest && el.closest('.col-ctrl-icons, .cf-wrap, .col-ctrl-btn, .v-col-del, button, input, select, a, .sort-arrow'); }
+  // Build a colgroup capturing current column widths, then lock the table to fixed layout.
+  window._tblEnsureColgroup = function(t, hr){
+    hr = hr || headerRow(t);
+    if (!hr) return null;
+    var ths = hr.children, cg = t.querySelector('colgroup.tbl-cg');
+    if (cg && cg.children.length === ths.length) return cg;
+    if (cg) cg.remove();
+    cg = document.createElement('colgroup'); cg.className = 'tbl-cg';
+    var total = 0;
+    for (var i = 0; i < ths.length; i++){
+      var w = Math.round(ths[i].getBoundingClientRect().width);
+      if (w < 1) w = 0;                 // hidden column → collapse
+      total += w;
+      var c = document.createElement('col');
+      if (w) c.style.width = w + 'px';
+      cg.appendChild(c);
+    }
+    t.insertBefore(cg, t.firstChild);
+    t.style.tableLayout = 'fixed';
+    t.style.width = total + 'px';
+    t.style.minWidth = '0';
+    t.classList.add('tbl-resizable');
+    return cg;
+  };
+  document.addEventListener('mousemove', function(e){
+    if (cur){
+      var w = cur.w0 + (e.clientX - cur.x0); if (w < 40) w = 40;
+      cur.col.style.width = w + 'px';
+      cur.table.style.width = (cur.tw0 - cur.w0 + w) + 'px';
+      e.preventDefault(); return;
+    }
+    var th = e.target && e.target.closest ? e.target.closest('th') : null;
+    if (!th) return;
+    var t = th.closest('table');
+    if (!isTable(t)) return;
+    var hr = headerRow(t);
+    if (!hr || th.parentElement !== hr || isCtrl(e.target)) { if (th.style.cursor === 'col-resize') th.style.cursor = ''; return; }
+    var r = th.getBoundingClientRect();
+    th.style.cursor = (e.clientX > r.right - EDGE) ? 'col-resize' : '';
+  });
+  document.addEventListener('mousedown', function(e){
+    var th = e.target && e.target.closest ? e.target.closest('th') : null;
+    if (!th || isCtrl(e.target)) return;
+    var t = th.closest('table');
+    if (!isTable(t)) return;
+    var hr = headerRow(t);
+    if (!hr || th.parentElement !== hr) return;
+    var r = th.getBoundingClientRect();
+    if (e.clientX <= r.right - EDGE) return;      // only grab near the right edge
+    var ths = Array.prototype.slice.call(hr.children);
+    var idx = ths.indexOf(th); if (idx < 0) return;
+    var cg = window._tblEnsureColgroup(t, hr); if (!cg) return;
+    var col = cg.children[idx]; if (!col) return;
+    cur = { table: t, col: col, x0: e.clientX,
+            w0: parseFloat(col.style.width) || Math.round(th.getBoundingClientRect().width),
+            tw0: parseFloat(t.style.width) || Math.round(t.getBoundingClientRect().width) };
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+    e.preventDefault(); e.stopPropagation();
+  }, true);
+  document.addEventListener('mouseup', function(){
+    if (!cur) return;
+    cur = null;
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+    // swallow the click that immediately follows a resize drag (prevents header sort etc.)
+    var swallow = function(ev){ ev.stopPropagation(); ev.preventDefault(); document.removeEventListener('click', swallow, true); };
+    document.addEventListener('click', swallow, true);
+    setTimeout(function(){ document.removeEventListener('click', swallow, true); }, 0);
   });
 })();
 </script>
