@@ -92,10 +92,19 @@ async function handleLogin(body, env) {
 }
 
 async function handleSave(body, env, authHeader) {
-  // validate JWT
+  // Auth: admin JWT, OR gate-user credentials with calc_changes permission
+  // (mirrors handleSaveConsumptionDefaults so permitted non-admin users can deploy)
   const token = (authHeader || '').replace('Bearer ', '');
   const payload = await verifyToken(token, env.JWT_SECRET);
-  if (!payload) return jsonResp({ error: 'Unauthorized' }, 401);
+  let actingUser = 'admin';
+  if (!payload) {
+    const { userName, userPassword } = body;
+    const verified = await verifyUserCredentials(env, userName, userPassword);
+    if (!verified) return jsonResp({ error: 'Unauthorized' }, 401);
+    const hasPerm = await userHasPermission(env, verified, 'calc_changes');
+    if (!hasPerm) return jsonResp({ error: 'No calc_changes permission' }, 403);
+    actingUser = verified;
+  }
 
   const { baseModules: newModules } = body;
   if (!newModules) return jsonResp({ error: 'Missing baseModules' }, 400);
@@ -149,7 +158,7 @@ async function handleSave(body, env, authHeader) {
   await ghPut('index.html', encoded, file.sha, `Admin update: modules & version ${newVersion}`, env.GITHUB_TOKEN);
 
   // Log the deploy event
-  await appendLog(env, { type: 'deploy', user: 'admin', ts: new Date().toISOString(), detail: `Deployed ${newModules.length} modules, version ${newVersion}` });
+  await appendLog(env, { type: 'deploy', user: actingUser, ts: new Date().toISOString(), detail: `Deployed ${newModules.length} modules, version ${newVersion}` });
 
   return jsonResp({ ok: true, version: newVersion });
 }
