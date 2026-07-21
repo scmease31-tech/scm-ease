@@ -3215,7 +3215,22 @@ const VENDOR_SHEETS = {
   function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function num(v){ const n = parseFloat(String(v==null?'':v).replace(/[, ]/g,'')); return isNaN(n)?null:n; }
   // Representative Wp per module by module type (for material -> production-equivalent power)
+  // Live access to the Calculator's module BOM (reflects edited / deployed consumption), with safe fallback
+  function poModules(){
+    try { if (typeof modules !== 'undefined' && Array.isArray(modules) && modules.length) return modules; } catch(e){}
+    try { if (typeof baseModules !== 'undefined' && Array.isArray(baseModules) && baseModules.length) return baseModules; } catch(e){}
+    return null;
+  }
+  function moduleKeyFor(mt){
+    const s = String(mt==null?'':mt).toLowerCase();
+    if(s.indexOf('g12r') >= 0) return 'g12r';
+    if(s.indexOf('m10r') >= 0) return 'm10r';
+    if(s.indexOf('m10') >= 0 || s.indexOf('perc') >= 0 || s.indexOf('poly') >= 0) return 'm10';
+    return null;
+  }
   function wpForType(mt){
+    const key = moduleKeyFor(mt);
+    try { if(key && typeof moduleWp !== 'undefined' && moduleWp && Number(moduleWp[key]) > 0) return Number(moduleWp[key]); } catch(e){}
     const s = String(mt==null?'':mt).toLowerCase();
     if(s.indexOf('g12r') >= 0) return 630;
     if(s.indexOf('m10r') >= 0) return 590;
@@ -3254,9 +3269,64 @@ const VENDOR_SHEETS = {
     [/fixation tape|fixing tape|cell fixation/, 0.0053],
     [/teflon/, 0.005]
   ];
-  function consumptionPerModule(r){
+  // Map a PO material -> the Calculator BOM row "group" it corresponds to (regex tested against the group name)
+  const PO_GROUP = [
+    [/edge seal|glass hole|sealing tape/, /edge sealing tape/],
+    [/glass/, /solar glass|glass/],
+    [/eva patch|\bpatch\b/, /eva patch|patch/],
+    [/\bepe\b|solar epe/, /epe/],
+    [/\beva\b|solar eva/, /\beva\b/],
+    [/back ?sheet/, /back ?sheet/],
+    [/interconnect|cell connector/, /cell connector|ribbon/],
+    [/busbar|string connector/, /string connector|busbar/],
+    [/junction box|\bjb\b/, /junction box/],
+    [/potting/, /potting/],
+    [/\brtv\b|silicon sealant|silicone|sealant/, /rtv/],
+    [/frame|alumin/, /frame/],
+    [/corrugated corner/, /corrugated corner/],
+    [/plastic corner/, /plastic corner/],
+    [/edge board/, /edge board/],
+    [/retainer strip/, /retainer/],
+    [/corrugated box|carton|\bbox\b/, /corrugated box/],
+    [/wooden pallet|pallet/, /wooden pallet/],
+    [/pet strap|\bstrap\b/, /pet strap/],
+    [/stretch|wrapping film/, /stretch/],
+    [/backlabel|back label/, /back label/],
+    [/barcode|label|sticker/, /barcode|grading sticker|label/],
+    [/rfid/, /rfid/],
+    [/flux/, /flux/],
+    [/fixation tape|fixing tape|cell fixation/, /fixing tape|fixation/],
+    [/teflon/, /teflon/]
+  ];
+  // Authentic per-module consumption pulled LIVE from the Calculator BOM — auto-updates if that sheet changes
+  function consFromModules(r){
+    const M = poModules(); if(!M) return null;
     const d = (String(r.desc==null?'':r.desc) + ' ' + String(r.itemCode==null?'':r.itemCode)).toLowerCase();
-    for(let i=0;i<PO_CONS.length;i++){ if(PO_CONS[i][0].test(d)) return PO_CONS[i][1]; }
+    let grpRe = null;
+    for(let i=0;i<PO_GROUP.length;i++){ if(PO_GROUP[i][0].test(d)){ grpRe = PO_GROUP[i][1]; break; } }
+    if(!grpRe) return null;
+    const key = moduleKeyFor(r.moduleType);
+    const ordered = [];
+    if(key) M.forEach(function(m){ if(m && m.key===key) ordered.push(m); });
+    M.forEach(function(m){ if(m && (!key || m.key!==key)) ordered.push(m); });
+    for(let i=0;i<ordered.length;i++){
+      const rows = ordered[i].rows || [];
+      for(let j=0;j<rows.length;j++){
+        const g = String(rows[j].group==null?'':rows[j].group).toLowerCase();
+        if(grpRe.test(g)){
+          let c = Number(rows[j].consumption);
+          if(!isFinite(c) || c <= 0) c = (Number(rows[j].qty)||0) * (1 + (Number(rows[j].wastage)||0)/100);
+          if(c > 0) return c;
+        }
+      }
+    }
+    return null;
+  }
+  function consumptionPerModule(r){
+    const live = consFromModules(r);         // authentic, from the module consumption sheet
+    if(live != null) return live;
+    const d = (String(r.desc==null?'':r.desc) + ' ' + String(r.itemCode==null?'':r.itemCode)).toLowerCase();
+    for(let i=0;i<PO_CONS.length;i++){ if(PO_CONS[i][0].test(d)) return PO_CONS[i][1]; }  // fallback only
     return null;
   }
   // Power for a PO line. {w: watts|null, est: true when derived from BOM usage (approx), false when exact (cell/module Wp)}
