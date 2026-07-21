@@ -1130,20 +1130,33 @@
   body.sb-collapsed .sb-nav { padding: 0 8px; }
   body.sb-collapsed .mode-btn.nav-item { justify-content: center; padding: 0; gap: 0; }
 
-  /* Sidebar collapse toggle — rides the sidebar's right edge */
-  .sb-edge-toggle {
-    position: fixed; top: 66px; left: calc(var(--sbw) - 13px);
-    width: 26px; height: 26px; border-radius: 50%;
-    background: #fff; border: 1px solid var(--line2); color: var(--ink2);
-    display: flex; align-items: center; justify-content: center; cursor: pointer;
-    z-index: 501; box-shadow: var(--shadow-sm);
-    transition: left 0.18s ease, border-color 0.15s, color 0.15s;
+  /* Sidebar collapse toggle — pinned footer button (never overlaps nav icons) */
+  .sb-foot {
+    flex-shrink: 0; margin-top: 6px; padding: 8px 12px 2px;
+    border-top: 1px solid var(--line);
   }
-  .sb-edge-toggle:hover { border-color: var(--solar-2); color: var(--solar-1); }
-  .sb-edge-toggle svg { width: 15px; height: 15px; transition: transform 0.2s; }
-  body.sb-collapsed .sb-edge-toggle { left: calc(var(--sbw-collapsed) - 13px); }
-  body.sb-collapsed .sb-edge-toggle svg { transform: rotate(180deg); }
-  @media print { .sb-edge-toggle { display: none; } }
+  body.sb-collapsed .sb-foot { padding: 8px 8px 2px; }
+  .sb-collapse-btn {
+    display: flex; align-items: center; gap: 13px;
+    width: 100%; height: 40px; padding: 0 10px;
+    border: none; background: transparent; color: var(--ink2);
+    border-radius: 11px; cursor: pointer;
+    font: 600 12.5px 'Inter', sans-serif; text-align: left;
+    white-space: nowrap; overflow: hidden;
+    transition: background 0.12s, color 0.12s;
+  }
+  .sb-collapse-btn:hover { background: var(--solar-bg); color: var(--solar-1); }
+  .sb-collapse-ico {
+    width: 26px; height: 26px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 8px; background: var(--solar-bg); color: var(--solar-1);
+    transition: transform 0.28s cubic-bezier(.4,0,.2,1), background 0.12s;
+  }
+  .sb-collapse-btn:hover .sb-collapse-ico { background: #fff; }
+  .sb-collapse-ico svg { width: 16px; height: 16px; }
+  body.sb-collapsed .sb-collapse-btn { justify-content: center; padding: 0; gap: 0; }
+  body.sb-collapsed .sb-collapse-ico { transform: rotate(180deg); }
+  @media print { .sb-foot { display: none; } }
 
   .sb-logo {
     display: flex; align-items: center; gap: 11px;
@@ -2440,12 +2453,14 @@
       <button class="sb-subitem" data-um="perms" onclick="umSwitchTab('perms');sbSetActive(this)">Permissions</button>
     </div>
   </nav>
+  <!-- Sidebar collapse / expand toggle (pinned footer — never overlaps nav icons) -->
+  <div class="sb-foot">
+    <button class="sb-collapse-btn" id="sbToggle" onclick="toggleSidebar()" title="Collapse / expand sidebar" aria-label="Toggle sidebar">
+      <span class="sb-collapse-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></span>
+      <span class="nav-label">Collapse</span>
+    </button>
+  </div>
 </aside>
-
-<!-- Sidebar collapse / expand toggle -->
-<button class="sb-edge-toggle" id="sbToggle" onclick="toggleSidebar()" title="Collapse / expand sidebar" aria-label="Toggle sidebar">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-</button>
 <script>
   window.toggleSidebar = function(){
     var collapsed = document.body.classList.toggle('sb-collapsed');
