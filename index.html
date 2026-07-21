@@ -62,7 +62,7 @@
   }
 
   /* Reduce layout cost for hidden views */
-  #calcMain, #planningMain, #cellInvMain, #vendorMain, #explorerMain, #logMain, #usersMain {
+  #calcMain, #planningMain, #cellInvMain, #vendorMain, #explorerMain, #logMain, #usersMain, #poMain {
     contain: layout style paint;
   }
 
@@ -2430,6 +2430,10 @@
       <button class="sb-subitem" data-vs="allcodes" onclick="sbVendorSheet('allcodes',this)">All Codes<span class="sb-sub-badge" id="sbVcAllcodes"></span></button>
       <button class="sb-subitem" data-vs="revision" onclick="sbVendorSheet('revision',this)">Revision History<span class="sb-sub-badge" id="sbVcRevision"></span></button>
     </div>
+    <button class="mode-btn nav-item" id="modePO" title="Pending / Open Purchase Orders">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2V3a1 1 0 0 1 1-1z"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="13" y2="15"/><path d="M9 4h6"/></svg>
+      <span class="nav-label">Pending PO</span>
+    </button>
     <button class="mode-btn nav-item" id="mode3D" title="3D Module Explorer">
       <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
       <span class="nav-label">3D Explorer</span>
@@ -3116,6 +3120,459 @@ const VENDOR_SHEETS = {
   }
 };
 </script>
+<!-- ═══════════════ PENDING / OPEN PURCHASE ORDERS ═══════════════ -->
+<main id="poMain" style="display:none; max-width: 1680px; margin: 0 auto; padding: 18px 24px 40px;">
+  <style>
+    #poMain .po-intro{background:#f4f7f3;border:1px solid var(--line2);border-radius:8px;padding:9px 14px;margin-bottom:12px;font-size:12px;color:#1e3a5f;display:flex;align-items:center;gap:10px}
+    #poMain .po-badge{display:inline-block;padding:1px 8px;border-radius:20px;font-size:10px;font-weight:700;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;white-space:nowrap}
+    #poMain .po-type{display:inline-block;padding:1px 7px;border-radius:6px;font-size:10px;font-weight:700}
+    #poMain .po-type.rm{background:#eff6ff;color:#1d4ed8}
+    #poMain .po-type.pm{background:#f0fdf4;color:#15803d}
+    #poMain td[contenteditable]:focus{outline:2px solid var(--solar-2);outline-offset:-2px;background:#fffef5}
+    #poMain .po-del{border:none;background:none;color:var(--danger);cursor:pointer;font-size:13px;line-height:1;padding:2px 4px;border-radius:4px}
+    #poMain .po-del:hover{background:#fee2e2}
+    #poMain .po-lbl{cursor:pointer;user-select:none}
+    #poMain .po-lbl:hover{text-decoration:underline}
+    #poMain .po-ctrls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    #poMain .po-ctrls input[type=text],#poMain .po-ctrls select{height:32px;border:1px solid var(--line2);border-radius:8px;padding:0 10px;font-size:12px;background:#fff;color:var(--ink)}
+    #poMain .po-pg{display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-top:10px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+    #poMain .po-pg button{height:28px;min-width:30px;border:1px solid var(--line2);background:#fff;border-radius:7px;cursor:pointer;color:var(--ink)}
+    #poMain .po-pg button:disabled{opacity:.4;cursor:default}
+    #poMain .po-pg select{height:28px;border:1px solid var(--line2);border-radius:7px;background:#fff;color:var(--ink)}
+  </style>
+
+  <div class="po-intro"><span style="font-size:16px">&#128229;</span><span><strong>Pending / Open Purchase Orders.</strong> Upload one or both Purchase Record files &mdash; the app reads the <strong>&ldquo;BOM&rdquo;</strong> sheet and lists only PO lines that are <strong>not yet received</strong> (open/pending). Every cell is editable; add / delete rows &amp; columns, filter, sort, resize columns and export.</span></div>
+
+  <div id="poUploadContainer" style="display:flex; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
+    <div class="upload-zone" id="poUploadA" style="flex:1; min-width:250px;">
+      <input type="file" id="poFileA" accept=".xlsx,.xls" style="display:none">
+      <h3>&#128196; Purchase Record &mdash; File 1</h3>
+      <p id="poFileAName">Click or drop an .xlsx (reads the &ldquo;BOM&rdquo; sheet)</p>
+    </div>
+    <div class="upload-zone" id="poUploadB" style="flex:1; min-width:250px;">
+      <input type="file" id="poFileB" accept=".xlsx,.xls" style="display:none">
+      <h3>&#128196; Purchase Record &mdash; File 2 (optional)</h3>
+      <p id="poFileBName">Click or drop a second .xlsx</p>
+    </div>
+  </div>
+
+  <div class="summary-grid" id="poKpi" style="display:none; margin-bottom:14px;"></div>
+
+  <div class="toolbar" id="poToolbar" style="display:none; flex-wrap:wrap; gap:8px;">
+    <div class="section-label" style="margin:0; flex:1; min-width:180px;">Open &amp; Pending PO Lines</div>
+    <div class="po-ctrls">
+      <input type="text" id="poSearch" placeholder="&#128269; Search…" oninput="poApplyFilters()">
+      <select id="poTypeFilter" onchange="poApplyFilters()"><option value="">All Types</option><option value="RM">RM</option><option value="PM">PM</option></select>
+      <select id="poSourceFilter" onchange="poApplyFilters()"><option value="">All Files</option></select>
+      <button class="btn btn-primary" onclick="poAddRow()">+ Row</button>
+      <button class="btn btn-outline" onclick="poAddColumn()">+ Column</button>
+      <button class="btn btn-outline" onclick="poExport()">&#8681; Export</button>
+      <button class="btn btn-ghost" onclick="poClear()">Clear</button>
+    </div>
+  </div>
+
+  <div class="table-wrap" id="poTableWrap" style="display:none;">
+    <table id="poTable">
+      <thead><tr id="poHeadRow"></tr></thead>
+      <tbody id="poBody"></tbody>
+    </table>
+  </div>
+  <div class="po-pg" id="poPager" style="display:none;"></div>
+
+  <div id="poEmpty" style="text-align:center;color:var(--muted);padding:44px 10px;font-size:13px;">Upload a Purchase Record file above to list open / pending purchase orders (from its &ldquo;BOM&rdquo; sheet).</div>
+</main>
+
+<script>
+(function(){
+  const LSKEY = 'poDataV1';
+  const BASECOLS = [
+    {k:'status',      label:'PO Status',    cls:'',       badge:'status'},
+    {k:'pendingQty',  label:'Pending Qty',  cls:'num'},
+    {k:'_power',      label:'Pending Power',cls:'num', computed:true},
+    {k:'vendor',      label:'Vendor',       cls:''},
+    {k:'itemType',    label:'Type',         cls:'center', badge:'type'},
+    {k:'moduleType',  label:'Module Type',  cls:''},
+    {k:'itemCode',    label:'Item Code',    cls:''},
+    {k:'desc',        label:'Description',  cls:''},
+    {k:'variant',     label:'Variant',      cls:''},
+    {k:'project',     label:'Project Code', cls:''},
+    {k:'uom',         label:'UOM',          cls:'center'},
+    {k:'price',       label:'Price',        cls:'num'},
+    {k:'currency',    label:'Currency',     cls:'center'},
+    {k:'poNo',        label:'PO No',        cls:'center'},
+    {k:'poDate',      label:'PO Date',      cls:'center'},
+    {k:'paymentTerm', label:'Payment Term', cls:''},
+    {k:'coo',         label:'COO',          cls:'center'},
+    {k:'source',      label:'Source',       cls:'center'}
+  ];
+  const CLOSED = ['received','short close','shortclose','short-close','shortclosed','cancelled','canceled','closed','complete','completed','paid','rejected','done'];
+
+  let poRows = [], extraCols = [], poBySlot = {}, poNames = {a:'',b:''};
+  let view = [], page = 1, pageSize = 100, sortKey = '', sortAsc = true;
+  let headerBuilt = false, inited = false, saveTimer = null;
+
+  function cols(){ return BASECOLS.concat(extraCols); }
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function num(v){ const n = parseFloat(String(v==null?'':v).replace(/[, ]/g,'')); return isNaN(n)?null:n; }
+  // Watt-peak per unit: "###Wp" for modules, "W#.##" token for solar cells; null if not power-bearing
+  function wattPerUnit(r){
+    const d = String(r.desc==null?'':r.desc);
+    let m = d.match(/(\d+(?:\.\d+)?)\s*Wp\b/i);
+    if(m) return parseFloat(m[1]);
+    if(/cell/i.test(d) || /cell/i.test(String(r.moduleType==null?'':r.moduleType))){
+      m = d.match(/\bW\s?(\d+(?:\.\d+)?)\b/);
+      if(m) return parseFloat(m[1]);
+    }
+    return null;
+  }
+  function rowPowerW(r){ const wpu = wattPerUnit(r); if(wpu===null) return null; const q = num(r.pendingQty); if(q===null) return null; return q * wpu; }
+  function fmtPow(w){
+    if(w===null || !isFinite(w)) return '—';
+    const a = Math.abs(w);
+    if(a >= 1e9) return (w/1e9).toFixed(2) + ' GW';
+    if(a >= 1e6) return (w/1e6).toFixed(2) + ' MW';
+    if(a >= 1e3) return (w/1e3).toFixed(2) + ' kW';
+    return (Math.round(w*100)/100) + ' W';
+  }
+
+  function findCol(H, pats, excl){
+    for(let i=0;i<H.length;i++){
+      const h = String(H[i]==null?'':H[i]).trim().toLowerCase();
+      if(!h) continue;
+      if(excl && excl.some(x=>h.includes(x))) continue;
+      if(pats.some(p=>h.includes(p))) return i;
+    }
+    return -1;
+  }
+  function sourceTag(fname){
+    if(/26[-_ ]?27/.test(fname)) return '26-27';
+    if(/25[-_ ]?26/.test(fname)) return '25-26';
+    return (fname||'File').replace(/\.xlsx?$/i,'').slice(0,18);
+  }
+
+  function parseAOA(aoa, tag){
+    if(!aoa || !aoa.length) return [];
+    let hi = 0;
+    for(let i=0;i<Math.min(aoa.length,8);i++){
+      const j = (aoa[i]||[]).map(c=>String(c==null?'':c).toLowerCase()).join('|');
+      if(j.includes('material description') || j.includes('name of supplier') || (j.includes('po no') && j.includes('qty'))){ hi = i; break; }
+    }
+    const H = (aoa[hi]||[]).map(c=>String(c==null?'':c));
+    const idx = {
+      itemType:findCol(H,['category']),
+      poNo:findCol(H,['po no','po number']),
+      poDate:findCol(H,['po date']),
+      vendor:findCol(H,['name of supplier','supplier','vendor']),
+      moduleType:findCol(H,['module type','module']),
+      itemCode:findCol(H,['item code']),
+      desc:findCol(H,['material description','description']),
+      variant:findCol(H,['variant']),
+      qty:findCol(H,['qty','quantity']),
+      uom:findCol(H,['uom','unit']),
+      status:findCol(H,['status'],['payment','qc']),
+      project:findCol(H,['project']),
+      coo:findCol(H,['coo','country of origin']),
+      paymentTerm:findCol(H,['payment term']),
+      currency:findCol(H,['currency']),
+      price:findCol(H,['basic rate','rate','price'])
+    };
+    const g = (r,i)=> (i>=0 && i<r.length) ? String(r[i]==null?'':r[i]).trim() : '';
+    const out = [];
+    for(let i=hi+1;i<aoa.length;i++){
+      const r = aoa[i]||[];
+      const vendor = g(r,idx.vendor), desc = g(r,idx.desc), poNo = g(r,idx.poNo);
+      if(!vendor && !desc && !poNo) continue;
+      const status = g(r,idx.status);
+      if(CLOSED.indexOf(status.toLowerCase()) >= 0) continue;
+      out.push({
+        status: status || 'Pending',
+        pendingQty: g(r,idx.qty),
+        vendor: vendor,
+        itemType: g(r,idx.itemType),
+        moduleType: g(r,idx.moduleType),
+        itemCode: g(r,idx.itemCode),
+        desc: desc,
+        variant: g(r,idx.variant),
+        project: g(r,idx.project),
+        uom: g(r,idx.uom),
+        price: g(r,idx.price),
+        currency: g(r,idx.currency) || (tag==='25-26' ? 'INR' : ''),
+        poNo: poNo,
+        poDate: g(r,idx.poDate),
+        paymentTerm: g(r,idx.paymentTerm),
+        coo: g(r,idx.coo),
+        source: tag
+      });
+    }
+    return out;
+  }
+
+  function readFile(file, slot){
+    if(!file) return;
+    if(typeof XLSX === 'undefined'){ alert('Excel library still loading — please try again in a moment.'); return; }
+    const nameEl = document.getElementById(slot==='a' ? 'poFileAName' : 'poFileBName');
+    if(nameEl) nameEl.textContent = '⏳ Reading ' + file.name + ' …';
+    const reader = new FileReader();
+    reader.onload = function(e){
+      try{
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, {type:'array'});
+        let sheet = wb.SheetNames.find(n=>String(n).trim().toLowerCase()==='bom')
+                 || wb.SheetNames.find(n=>String(n).toLowerCase().includes('bom'));
+        if(!sheet){ alert('No "BOM" sheet found in ' + file.name); if(nameEl) nameEl.textContent = '⚠ No BOM sheet found'; return; }
+        const ws = wb.Sheets[sheet];
+        const aoa = XLSX.utils.sheet_to_json(ws, {header:1, raw:false, defval:''});
+        const tag = sourceTag(file.name);
+        const rows = parseAOA(aoa, tag);
+        poBySlot[slot] = rows;
+        poNames[slot] = file.name;
+        if(nameEl) nameEl.textContent = '✅ ' + file.name + ' — ' + rows.length + ' open PO line' + (rows.length===1?'':'s') + ' (sheet: ' + sheet + ')';
+        rebuild();
+      }catch(err){
+        console.error('[PO parse]', err);
+        alert('Error reading ' + file.name + ': ' + (err.message || err));
+        if(nameEl) nameEl.textContent = '⚠ Error reading file';
+      }
+    };
+    reader.onerror = function(){ alert('Failed to read ' + file.name); };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function rebuild(){
+    poRows = [].concat(poBySlot.a||[], poBySlot.b||[]);
+    save(); populateSourceFilter(); renderAll();
+  }
+  function save(){
+    if(saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(function(){
+      try{ localStorage.setItem(LSKEY, JSON.stringify({rows:poRows, extraCols:extraCols, names:poNames})); }catch(e){}
+    }, 300);
+  }
+  function load(){
+    try{
+      const raw = localStorage.getItem(LSKEY); if(!raw) return false;
+      const d = JSON.parse(raw);
+      poRows = Array.isArray(d.rows) ? d.rows : [];
+      extraCols = Array.isArray(d.extraCols) ? d.extraCols : [];
+      poNames = d.names || {a:'',b:''};
+      return poRows.length > 0;
+    }catch(e){ return false; }
+  }
+  function populateSourceFilter(){
+    const sel = document.getElementById('poSourceFilter'); if(!sel) return;
+    const cur = sel.value;
+    const srcs = Array.from(new Set(poRows.map(r=>r.source).filter(Boolean)));
+    sel.innerHTML = '<option value="">All Files</option>' + srcs.map(s=>'<option value="'+esc(s)+'">'+esc(s)+'</option>').join('');
+    sel.value = cur;
+  }
+
+  function buildHeader(){
+    const tr = document.getElementById('poHeadRow'); if(!tr) return;
+    tr.innerHTML = cols().map(function(c){
+      return '<th class="'+(c.cls||'')+'" data-key="'+esc(c.k)+'"><span class="po-lbl" onclick="poSort(\''+c.k+'\')">'+esc(c.label)+'</span><span class="po-arrow" data-arrow="'+esc(c.k)+'"></span></th>';
+    }).join('') + '<th class="center">&#10005;</th>';
+    headerBuilt = true;
+    updateArrows();
+  }
+  function updateArrows(){
+    document.querySelectorAll('#poHeadRow .po-arrow').forEach(function(sp){
+      const k = sp.getAttribute('data-arrow');
+      sp.textContent = (sortKey===k) ? (sortAsc ? ' ▲' : ' ▼') : '';
+    });
+  }
+
+  function applyFilters(){
+    const q = (document.getElementById('poSearch').value||'').trim().toLowerCase();
+    const t = document.getElementById('poTypeFilter').value;
+    const src = document.getElementById('poSourceFilter').value;
+    const CC = cols();
+    view = poRows.filter(function(r){
+      if(t && String(r.itemType||'').toUpperCase() !== t) return false;
+      if(src && r.source !== src) return false;
+      if(q){
+        const hay = CC.map(c=>String(r[c.k]==null?'':r[c.k])).join(' ').toLowerCase();
+        if(hay.indexOf(q) < 0) return false;
+      }
+      return true;
+    });
+    if(sortKey){
+      view.sort(function(a,b){
+        let x, y;
+        if(sortKey==='_power'){
+          x = rowPowerW(a); y = rowPowerW(b);
+          if(x===null) x = -Infinity; if(y===null) y = -Infinity;
+        } else {
+          x = a[sortKey]; y = b[sortKey];
+          const nx = num(x), ny = num(y);
+          if(nx!==null && ny!==null){ x = nx; y = ny; } else { x = String(x==null?'':x).toLowerCase(); y = String(y==null?'':y).toLowerCase(); }
+        }
+        if(x < y) return sortAsc ? -1 : 1;
+        if(x > y) return sortAsc ? 1 : -1;
+        return 0;
+      });
+    }
+    page = 1;
+    renderBody();
+  }
+
+  function renderKpis(){
+    const box = document.getElementById('poKpi'); if(!box) return;
+    if(!poRows.length){ box.style.display = 'none'; return; }
+    let qty = 0; const vend = new Set(); let rm = 0, pm = 0; let powerW = 0, powerRows = 0;
+    poRows.forEach(function(r){
+      const n = num(r.pendingQty); if(n!==null) qty += n;
+      if(r.vendor) vend.add(String(r.vendor).toLowerCase());
+      const tp = String(r.itemType||'').toUpperCase();
+      if(tp==='RM') rm++; else if(tp==='PM') pm++;
+      const pw = rowPowerW(r); if(pw!==null){ powerW += pw; powerRows++; }
+    });
+    const fmt = new Intl.NumberFormat('en-IN', {maximumFractionDigits:2});
+    box.style.display = '';
+    box.innerHTML =
+      kpi('Open PO Lines', fmt.format(poRows.length), 'pending / not received') +
+      kpi('Pending Power', fmtPow(powerW), powerRows + ' cell / module line' + (powerRows===1?'':'s')) +
+      kpi('Total Pending Qty', fmt.format(qty), 'across all UOM') +
+      kpi('Vendors', vend.size, 'distinct suppliers') +
+      kpi('RM / PM', rm + ' / ' + pm, 'raw vs packing material');
+  }
+  function kpi(l,v,s){ return '<div class="kpi"><div class="kpi-label">'+esc(l)+'</div><div class="kpi-val">'+esc(v)+'</div><div class="kpi-sub">'+esc(s)+'</div></div>'; }
+
+  function renderBody(){
+    const tb = document.getElementById('poBody'); if(!tb) return;
+    const CC = cols();
+    const gmap = new Map(); poRows.forEach(function(r,i){ gmap.set(r,i); });
+    const total = view.length;
+    const size = pageSize===0 ? (total||1) : pageSize;
+    const pages = Math.max(1, Math.ceil(total/size));
+    if(page > pages) page = pages;
+    const start = (page-1)*size;
+    const slice = view.slice(start, start+size);
+    tb.innerHTML = slice.map(function(r){
+      const gi = gmap.get(r);
+      const tds = CC.map(function(c){
+        if(c.computed){ const pw = fmtPow(rowPowerW(r)); return '<td class="'+(c.cls||'')+'" data-key="'+esc(c.k)+'" data-computed="1" style="font-weight:600;color:var(--solar-1)" title="Pending qty × Wp per unit">'+esc(pw)+'</td>'; }
+        const val = r[c.k]==null ? '' : r[c.k];
+        if(c.badge==='status') return '<td data-key="'+esc(c.k)+'" contenteditable="true"><span class="po-badge">'+esc(val||'Pending')+'</span></td>';
+        if(c.badge==='type'){ const tp = String(val).toLowerCase(); return '<td class="center" data-key="'+esc(c.k)+'" contenteditable="true"><span class="po-type '+(tp==='rm'?'rm':(tp==='pm'?'pm':''))+'">'+esc(val)+'</span></td>'; }
+        return '<td class="'+(c.cls||'')+'" data-key="'+esc(c.k)+'" contenteditable="true">'+esc(val)+'</td>';
+      }).join('');
+      return '<tr data-gi="'+gi+'">'+tds+'<td class="center"><button class="po-del" title="Delete row" onclick="poDeleteRow('+gi+')">&#128465;</button></td></tr>';
+    }).join('');
+    const pg = document.getElementById('poPager');
+    if(pg){
+      if(total){
+        pg.style.display = 'flex';
+        let html = 'Showing ' + (start+1) + '–' + Math.min(start+size,total) + ' of ' + total + ' &nbsp; ';
+        html += '<button onclick="poPage(1)" '+(page<=1?'disabled':'')+'>&laquo;</button>';
+        html += '<button onclick="poPage('+(page-1)+')" '+(page<=1?'disabled':'')+'>&lsaquo;</button>';
+        html += '<span>Page '+page+' / '+pages+'</span>';
+        html += '<button onclick="poPage('+(page+1)+')" '+(page>=pages?'disabled':'')+'>&rsaquo;</button>';
+        html += '<button onclick="poPage('+pages+')" '+(page>=pages?'disabled':'')+'>&raquo;</button>';
+        html += ' &nbsp; <select onchange="poSetPageSize(this.value)">' +
+          [50,100,200,500].map(n=>'<option value="'+n+'" '+(n===pageSize?'selected':'')+'>'+n+'/page</option>').join('') +
+          '<option value="0" '+(pageSize===0?'selected':'')+'>All</option></select>';
+        pg.innerHTML = html;
+      } else { pg.style.display='none'; pg.innerHTML=''; }
+    }
+  }
+
+  function renderAll(){
+    const has = poRows.length > 0;
+    var el;
+    if((el=document.getElementById('poKpi'))) el.style.display = has ? '' : 'none';
+    if((el=document.getElementById('poToolbar'))) el.style.display = has ? '' : 'none';
+    if((el=document.getElementById('poTableWrap'))) el.style.display = has ? '' : 'none';
+    if((el=document.getElementById('poPager'))) el.style.display = has ? '' : 'none';
+    if((el=document.getElementById('poEmpty'))) el.style.display = has ? 'none' : '';
+    if(has){ if(!headerBuilt) buildHeader(); renderKpis(); applyFilters(); }
+  }
+
+  function onCellEdit(e){
+    const td = e.target.closest ? e.target.closest('td[contenteditable]') : null; if(!td) return;
+    const tr = td.closest('tr'); if(!tr) return;
+    const gi = parseInt(tr.getAttribute('data-gi'), 10);
+    const key = td.getAttribute('data-key');
+    if(isNaN(gi) || !key || !poRows[gi]) return;
+    poRows[gi][key] = td.textContent.trim();
+    if(key==='pendingQty' || key==='desc' || key==='moduleType'){
+      const pc = tr.querySelector('td[data-computed]');
+      if(pc) pc.textContent = fmtPow(rowPowerW(poRows[gi]));
+      renderKpis();
+    }
+    save();
+  }
+
+  window.poApplyFilters = function(){ applyFilters(); };
+  window.poSort = function(k){ if(sortKey===k) sortAsc = !sortAsc; else { sortKey = k; sortAsc = true; } updateArrows(); applyFilters(); };
+  window.poPage = function(p){ page = p; renderBody(); };
+  window.poSetPageSize = function(v){ pageSize = parseInt(v,10) || 0; page = 1; renderBody(); };
+  window.poDeleteRow = function(gi){ if(poRows[gi]){ poRows.splice(gi,1); save(); renderKpis(); applyFilters(); } };
+  window.poAddRow = function(){
+    const o = {}; cols().forEach(function(c){ o[c.k] = ''; });
+    o.status = 'Pending'; o.source = 'manual';
+    poRows.unshift(o); save(); renderKpis(); applyFilters();
+  };
+  window.poAddColumn = function(){
+    const name = prompt('New column name:'); if(!name || !name.trim()) return;
+    const key = 'x_' + Date.now().toString(36);
+    extraCols.push({k:key, label:name.trim()});
+    poRows.forEach(function(r){ if(r[key]==null) r[key] = ''; });
+    const tr = document.getElementById('poHeadRow');
+    if(tr){
+      const th = document.createElement('th');
+      th.setAttribute('data-key', key);
+      th.innerHTML = '<span class="po-lbl" onclick="poSort(\''+key+'\')">'+esc(name.trim())+'</span><span class="po-arrow" data-arrow="'+key+'"></span>';
+      tr.insertBefore(th, tr.lastElementChild);
+    }
+    save(); renderBody();
+  };
+  window.poExport = function(){
+    if(typeof XLSX === 'undefined'){ alert('Excel library not loaded'); return; }
+    const CC = cols();
+    const head = CC.map(c=>c.label);
+    const body = view.map(function(r){ return CC.map(function(c){ return c.computed ? fmtPow(rowPowerW(r)) : (r[c.k]==null ? '' : r[c.k]); }); });
+    const ws = XLSX.utils.aoa_to_sheet([head].concat(body));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Pending PO');
+    const stamp = new Date().toISOString().slice(0,10);
+    try{ XLSX.writeFile(wb, 'SCM-Ease_Pending-PO_' + stamp + '.xlsx'); }
+    catch(e){ (window.XLSX_STYLE||XLSX).writeFile(wb, 'SCM-Ease_Pending-PO_' + stamp + '.xlsx'); }
+  };
+  window.poClear = function(){
+    if(!confirm('Clear all loaded PO data from this tab? (Your source files are not affected.)')) return;
+    poRows = []; poBySlot = {}; extraCols = []; poNames = {a:'',b:''};
+    try{ localStorage.removeItem(LSKEY); }catch(e){}
+    const a = document.getElementById('poFileAName'), b = document.getElementById('poFileBName');
+    if(a) a.textContent = 'Click or drop an .xlsx (reads the "BOM" sheet)';
+    if(b) b.textContent = 'Click or drop a second .xlsx';
+    const fa = document.getElementById('poFileA'), fb = document.getElementById('poFileB');
+    if(fa) fa.value = ''; if(fb) fb.value = '';
+    const hr = document.getElementById('poHeadRow'); if(hr){ hr.innerHTML=''; headerBuilt=false; }
+    renderAll();
+  };
+
+  function setupZone(zoneId, inputId, slot){
+    const zone = document.getElementById(zoneId), input = document.getElementById(inputId);
+    if(!zone || !input) return;
+    zone.addEventListener('click', function(){ input.click(); });
+    zone.addEventListener('dragover', function(e){ e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', function(){ zone.classList.remove('dragover'); });
+    zone.addEventListener('drop', function(e){ e.preventDefault(); zone.classList.remove('dragover'); if(e.dataTransfer.files.length){ input.files = e.dataTransfer.files; readFile(e.dataTransfer.files[0], slot); } });
+    input.addEventListener('change', function(e){ if(e.target.files.length) readFile(e.target.files[0], slot); });
+  }
+
+  window.initPOTab = function(){
+    if(inited) return;
+    inited = true;
+    setupZone('poUploadA', 'poFileA', 'a');
+    setupZone('poUploadB', 'poFileB', 'b');
+    const tb = document.getElementById('poBody'); if(tb) tb.addEventListener('input', onCellEdit);
+    if(load()) populateSourceFilter();
+    renderAll();
+  };
+})();
+</script>
+
 <main id="vendorMain" style="display:none; max-width: 1680px; margin: 0 auto; padding: 18px 24px 40px;">
 
   <!-- VENDOR LOCK SCREEN (login-to-view gate) -->
@@ -5799,11 +6256,14 @@ document.getElementById('modeLog').addEventListener('click', (e) => {
 document.getElementById('modeUsers').addEventListener('click', (e) => {
   cellShowView('users', e.target);
 });
+document.getElementById('modePO').addEventListener('click', (e) => {
+  cellShowView('po', e.target);
+});
 
 function cellShowView(which, btn) {
   document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  const views = {calc:'calcMain',plan:'planningMain',cell:'cellInvMain',vendor:'vendorMain',explorer:'explorerMain',log:'logMain',users:'usersMain'};
+  const views = {calc:'calcMain',plan:'planningMain',cell:'cellInvMain',vendor:'vendorMain',explorer:'explorerMain',log:'logMain',users:'usersMain',po:'poMain'};
   for (const [k,id] of Object.entries(views)) {
     document.getElementById(id).style.display = k === which ? 'block' : 'none';
   }
@@ -5836,6 +6296,7 @@ function cellShowView(which, btn) {
     }
     if (which === 'log') { if (typeof loadActivityLogs === 'function') loadActivityLogs(); }
     if (which === 'users') { if (typeof loadUsers === 'function') loadUsers(); }
+    if (which === 'po') { if (window.initPOTab) window.initPOTab(); }
   });
 }
 
