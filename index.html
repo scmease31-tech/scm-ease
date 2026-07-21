@@ -3214,18 +3214,67 @@ const VENDOR_SHEETS = {
   function cols(){ return BASECOLS.concat(extraCols); }
   function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function num(v){ const n = parseFloat(String(v==null?'':v).replace(/[, ]/g,'')); return isNaN(n)?null:n; }
-  // Watt-peak per unit: "###Wp" for modules, "W#.##" token for solar cells; null if not power-bearing
-  function wattPerUnit(r){
-    const d = String(r.desc==null?'':r.desc);
-    let m = d.match(/(\d+(?:\.\d+)?)\s*Wp\b/i);
-    if(m) return parseFloat(m[1]);
-    if(/cell/i.test(d) || /cell/i.test(String(r.moduleType==null?'':r.moduleType))){
-      m = d.match(/\bW\s?(\d+(?:\.\d+)?)\b/);
-      if(m) return parseFloat(m[1]);
-    }
+  // Representative Wp per module by module type (for material -> production-equivalent power)
+  function wpForType(mt){
+    const s = String(mt==null?'':mt).toLowerCase();
+    if(s.indexOf('g12r') >= 0) return 630;
+    if(s.indexOf('m10r') >= 0) return 590;
+    if(s.indexOf('m10') >= 0 || s.indexOf('perc') >= 0) return 575;
+    if(s.indexOf('topcon') >= 0) return 615;
+    return 600;
+  }
+  // Per-module usage lookup for raw/packing materials (units of material per 1 module) — specific rules first
+  const PO_CONS = [
+    [/edge seal|glass hole|sealing tape/, 0.0047],
+    [/glass/, 1],
+    [/eva patch|\bpatch\b/, 0.0036],
+    [/\bepe\b|solar epe/, 2.68],
+    [/\beva\b|solar eva/, 2.55],
+    [/\bpoe\b|solar poe/, 2.66],
+    [/back ?sheet/, 2.58],
+    [/interconnect|cell connector/, 0.2],
+    [/busbar|string connector/, 0.045],
+    [/junction box|\bjb\b/, 1],
+    [/potting/, 0.026],
+    [/\brtv\b/, 0.4],
+    [/silicon sealant|silicone|sealant/, 0.34],
+    [/frame|alumin/, 2],
+    [/corrugated corner/, 2.1],
+    [/plastic corner/, 0.56],
+    [/edge board/, 0.11],
+    [/retainer strip/, 0.056],
+    [/corrugated box|corrugated sheet|carton|\bbox\b/, 0.03],
+    [/wooden pallet|pallet/, 0.03],
+    [/pet strap|\bstrap\b/, 0.055],
+    [/stretch|wrapping film/, 0.011],
+    [/backlabel|back label/, 1],
+    [/barcode|label|sticker/, 1],
+    [/rfid/, 1],
+    [/flux/, 0.024],
+    [/fixation tape|fixing tape|cell fixation/, 0.0053],
+    [/teflon/, 0.005]
+  ];
+  function consumptionPerModule(r){
+    const d = (String(r.desc==null?'':r.desc) + ' ' + String(r.itemCode==null?'':r.itemCode)).toLowerCase();
+    for(let i=0;i<PO_CONS.length;i++){ if(PO_CONS[i][0].test(d)) return PO_CONS[i][1]; }
     return null;
   }
-  function rowPowerW(r){ const wpu = wattPerUnit(r); if(wpu===null) return null; const q = num(r.pendingQty); if(q===null) return null; return q * wpu; }
+  // Power for a PO line. {w: watts|null, est: true when derived from BOM usage (approx), false when exact (cell/module Wp)}
+  function powerInfo(r){
+    const q = num(r.pendingQty);
+    const d = String(r.desc==null?'':r.desc);
+    let m = d.match(/(\d+(?:\.\d+)?)\s*Wp\b/i);           // finished module: "625Wp"
+    if(m) return {w: q===null?null:q*parseFloat(m[1]), est:false};
+    if(/cell/i.test(d) || /cell/i.test(String(r.moduleType==null?'':r.moduleType))){
+      m = d.match(/\bW\s?(\d+(?:\.\d+)?)\b/);              // solar cell: "W9.79" per cell
+      if(m) return {w: q===null?null:q*parseFloat(m[1]), est:false};
+    }
+    const pm = consumptionPerModule(r);                   // raw / packing material -> production-equivalent
+    if(pm && pm > 0) return {w: q===null?null:(q/pm)*wpForType(r.moduleType), est:true};
+    return {w:null, est:false};
+  }
+  function powerText(r){ const pi = powerInfo(r); return pi.w===null ? '—' : ((pi.est?'≈ ':'') + fmtPow(pi.w)); }
+  function rowPowerW(r){ return powerInfo(r).w; }
   function fmtPow(w){
     if(w===null || !isFinite(w)) return '—';
     const a = Math.abs(w);
@@ -3424,7 +3473,7 @@ const VENDOR_SHEETS = {
       if(r.vendor) vend.add(String(r.vendor).toLowerCase());
       const tp = String(r.itemType||'').toUpperCase();
       if(tp==='RM') rm++; else if(tp==='PM') pm++;
-      const pw = rowPowerW(r); if(pw!==null){ powerW += pw; powerRows++; }
+      const pi = powerInfo(r); if(pi.w!==null && !pi.est){ powerW += pi.w; powerRows++; }
     });
     const fmt = new Intl.NumberFormat('en-IN', {maximumFractionDigits:2});
     box.style.display = '';
@@ -3450,7 +3499,7 @@ const VENDOR_SHEETS = {
     tb.innerHTML = slice.map(function(r){
       const gi = gmap.get(r);
       const tds = CC.map(function(c){
-        if(c.computed){ const pw = fmtPow(rowPowerW(r)); return '<td class="'+(c.cls||'')+'" data-key="'+esc(c.k)+'" data-computed="1" style="font-weight:600;color:var(--solar-1)" title="Pending qty × Wp per unit">'+esc(pw)+'</td>'; }
+        if(c.computed){ const pi = powerInfo(r); const txt = pi.w===null ? '—' : ((pi.est?'≈ ':'')+fmtPow(pi.w)); const tip = pi.est ? 'Production-equivalent power (pending qty ÷ per-module usage × module Wp) — approximate' : 'Pending qty × Wp per unit'; return '<td class="'+(c.cls||'')+'" data-key="'+esc(c.k)+'" data-computed="1" style="font-weight:600;color:'+(pi.est?'var(--muted)':'var(--solar-1)')+'" title="'+tip+'">'+esc(txt)+'</td>'; }
         const val = r[c.k]==null ? '' : r[c.k];
         if(c.badge==='status') return '<td data-key="'+esc(c.k)+'" contenteditable="true"><span class="po-badge">'+esc(val||'Pending')+'</span></td>';
         if(c.badge==='type'){ const tp = String(val).toLowerCase(); return '<td class="center" data-key="'+esc(c.k)+'" contenteditable="true"><span class="po-type '+(tp==='rm'?'rm':(tp==='pm'?'pm':''))+'">'+esc(val)+'</span></td>'; }
@@ -3496,7 +3545,7 @@ const VENDOR_SHEETS = {
     poRows[gi][key] = td.textContent.trim();
     if(key==='pendingQty' || key==='desc' || key==='moduleType'){
       const pc = tr.querySelector('td[data-computed]');
-      if(pc) pc.textContent = fmtPow(rowPowerW(poRows[gi]));
+      if(pc) pc.textContent = powerText(poRows[gi]);
       renderKpis();
     }
     save();
@@ -3530,7 +3579,7 @@ const VENDOR_SHEETS = {
     if(typeof XLSX === 'undefined'){ alert('Excel library not loaded'); return; }
     const CC = cols();
     const head = CC.map(c=>c.label);
-    const body = view.map(function(r){ return CC.map(function(c){ return c.computed ? fmtPow(rowPowerW(r)) : (r[c.k]==null ? '' : r[c.k]); }); });
+    const body = view.map(function(r){ return CC.map(function(c){ return c.computed ? powerText(r) : (r[c.k]==null ? '' : r[c.k]); }); });
     const ws = XLSX.utils.aoa_to_sheet([head].concat(body));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Pending PO');
