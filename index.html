@@ -5247,6 +5247,84 @@ function applyAllModulePower() {
 }
 
 // ── CONTROLS ──────────────────────────────────────────────────────────────
+// Live-update a single module card's derived UI without rebuilding innerHTML
+// (rebuilding would destroy the focused input and drop focus after each keystroke).
+function syncCard(mk) {
+  const anchor = document.querySelector(`[data-module-qty="${mk}"]`)
+              || document.querySelector(`[data-mp-val="${mk}"]`)
+              || document.querySelector(`[data-module-wp="${mk}"]`);
+  if (!anchor) return;
+  const card = anchor.closest(".module-card");
+  if (!card) return;
+  const mod = modules.find(m => m.key === mk);
+  const qty = n(moduleQty[mk]);
+  const wp  = n(moduleWp[mk]);
+  const totalW = qty * wp;
+  const mp = modulePower[mk];
+  const hasTarget = mp && mp.value > 0;
+  const isAutoQty = hasTarget && wp > 0;
+
+  // Wp badge in header
+  const header = card.querySelector(".module-card-header");
+  if (header) {
+    let badge = header.querySelector(".module-wp-badge");
+    if (wp > 0) {
+      if (!badge) { badge = document.createElement("div"); badge.className = "module-wp-badge"; header.appendChild(badge); }
+      badge.textContent = wp + "Wp";
+    } else if (badge) { badge.remove(); }
+  }
+
+  // Modules qty field (auto) — never touch it while it is being edited
+  const qtyInp = card.querySelector(`[data-module-qty="${mk}"]`);
+  if (qtyInp && qtyInp !== document.activeElement) {
+    if (isAutoQty) {
+      qtyInp.value = moduleQty[mk] || "";
+      qtyInp.readOnly = true;
+      qtyInp.classList.add("module-qty-auto");
+      qtyInp.title = "Auto-calculated from Power Target";
+    } else {
+      qtyInp.readOnly = false;
+      qtyInp.classList.remove("module-qty-auto");
+      qtyInp.removeAttribute("title");
+    }
+    const row = qtyInp.closest(".input-row");
+    const unit = row ? row.querySelector(".input-unit") : null;
+    if (unit) unit.textContent = isAutoQty ? "\u26a1auto" : "nos";
+  }
+
+  // Clear (x) button next to the Power input
+  const powerRow = card.querySelector(".module-power-row");
+  if (powerRow) {
+    let clr = powerRow.querySelector("[data-mp-clear]");
+    if (hasTarget) {
+      if (!clr) {
+        clr = document.createElement("button");
+        clr.className = "mp-clear";
+        clr.setAttribute("data-mp-clear", mk);
+        clr.title = "Clear power target";
+        clr.textContent = "\u2715";
+        clr.addEventListener("click", () => { delete modulePower[mk]; saveState(); renderControls(); render(); });
+        powerRow.appendChild(clr);
+      }
+    } else if (clr) { clr.remove(); }
+  }
+
+  // Power pill at the end of the card
+  let pill = card.querySelector(".power-pill");
+  if (totalW > 0) {
+    if (!pill) {
+      pill = document.createElement("div");
+      pill.className = "power-pill";
+      pill.innerHTML = '<span class="power-pill-icon">\u26a1</span><span class="power-pill-text"></span><span class="power-pill-val"></span>';
+      card.appendChild(pill);
+    }
+    const t = pill.querySelector(".power-pill-text");
+    const v = pill.querySelector(".power-pill-val");
+    if (t) t.textContent = mod ? mod.name : "";
+    if (v) v.textContent = fmtPower(totalW).full;
+  } else if (pill) { pill.remove(); }
+}
+
 function renderControls() {
   const box = document.getElementById("moduleControls");
   box.innerHTML = modules.map(module => {
@@ -5316,7 +5394,7 @@ function renderControls() {
       } else {
         delete modulePower[mk];
       }
-      saveState(); renderControls(); render();
+      saveState(); syncCard(mk); render();
     });
   });
   // Power target unit change
@@ -5340,8 +5418,9 @@ function renderControls() {
   // Module qty manual input
   document.querySelectorAll("[data-module-qty]").forEach(inp => {
     inp.addEventListener("input", () => {
-      moduleQty[inp.dataset.moduleQty] = n(inp.value);
-      saveState(); render();
+      const mk = inp.dataset.moduleQty;
+      moduleQty[mk] = n(inp.value);
+      saveState(); syncCard(mk); render();
     });
   });
   // Module Wp input
@@ -5351,10 +5430,8 @@ function renderControls() {
       moduleWp[mk] = n(inp.value);
       if (modulePower[mk] && modulePower[mk].value > 0) {
         applyModulePower(mk);
-        saveState(); renderControls(); render();
-        return;
       }
-      saveState(); render();
+      saveState(); syncCard(mk); render();
     });
   });
 }
