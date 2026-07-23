@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vendor Payments — Combined Dashboard</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+:root{
+  --ink:#101B2D; --ink-soft:#1C2B44; --paper:#F6F3EC; --paper-card:#FFFFFF;
+  --line:#DCD6C6; --slate:#5C6B7A; --slate-soft:#8A93A0;
+  --rust:#B3402F; --rust-soft:#F3DAD3; --amber:#C1791F; --amber-soft:#F4E3C6;
+  --green:#3E7C59; --green-soft:#DCEAE0; --gold:#C9A24B; --radius:10px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{background:var(--paper);color:var(--ink);font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;padding-bottom:60px;}
+::selection{background:var(--gold);color:#fff;}
+
+.masthead{background:linear-gradient(160deg,var(--ink) 0%,var(--ink-soft) 100%);color:#EFE9DB;padding:32px 32px 24px;position:relative;overflow:hidden;border-bottom:3px solid var(--gold);}
+.masthead::before{content:'';position:absolute;right:-60px;top:-60px;width:260px;height:260px;border:1px solid rgba(239,233,219,0.08);border-radius:50%;}
+.masthead::after{content:'';position:absolute;right:20px;top:40px;width:180px;height:180px;border:1px solid rgba(239,233,219,0.06);border-radius:50%;}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin-bottom:10px;}
+h1{font-family:'Fraunces',serif;font-weight:600;font-size:32px;margin:0 0 6px;letter-spacing:-0.01em;}
+.sub{color:#B9C0CC;font-size:13.5px;max-width:680px;}
+
+.param-row{display:flex;gap:12px;margin-top:20px;flex-wrap:wrap;align-items:center;}
+.param-box{background:rgba(255,255,255,0.05);border:1px solid rgba(239,233,219,0.18);border-radius:8px;padding:9px 14px;display:flex;align-items:center;gap:9px;}
+.param-box label{font-family:'IBM Plex Mono',monospace;font-size:10px;color:#B9C0CC;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;}
+.param-box input[type=number]{width:58px;background:transparent;border:none;border-bottom:1px solid var(--gold);color:#F4EFE2;font-family:'IBM Plex Mono',monospace;font-size:14px;padding:2px;text-align:right;}
+.param-box input[type=number]:focus{outline:none;border-bottom-color:#F4EFE2;}
+.param-box .note{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8B96A6;}
+.toggle-grp{display:flex;border:1px solid rgba(239,233,219,0.25);border-radius:7px;overflow:hidden;}
+.toggle-grp button{background:transparent;border:none;color:#B9C0CC;font-family:'IBM Plex Mono',monospace;font-size:11.5px;padding:8px 14px;cursor:pointer;letter-spacing:.04em;}
+.toggle-grp button.active{background:var(--gold);color:var(--ink);font-weight:600;}
+.clear-btn{background:transparent;border:1px solid rgba(239,233,219,0.3);color:#EFE9DB;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:8px 12px;border-radius:7px;cursor:pointer;}
+.clear-btn:hover{border-color:var(--gold);color:var(--gold);}
+
+/* creative drag & drop upload */
+.dropzone{position:relative;border:1.5px dashed rgba(201,162,75,0.55);border-radius:10px;padding:12px 18px;display:flex;align-items:center;gap:13px;cursor:pointer;transition:border-color .15s,background .15s,transform .12s;background:rgba(255,255,255,0.035);min-width:300px;}
+.dropzone:hover{border-color:var(--gold);background:rgba(201,162,75,0.09);}
+.dropzone.dragover{border-color:var(--gold);background:rgba(201,162,75,0.16);transform:scale(1.008);}
+.dropzone.loaded{border-style:solid;border-color:var(--green);background:rgba(62,124,89,0.12);}
+.dz-icon{width:34px;height:34px;flex:none;border-radius:9px;background:rgba(201,162,75,0.16);display:flex;align-items:center;justify-content:center;color:var(--gold);}
+.dropzone.loaded .dz-icon{background:rgba(62,124,89,0.18);color:#9ED8B4;}
+.dz-icon svg{width:19px;height:19px;}
+.dz-body{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.dz-title{font-family:'Inter';font-size:12.5px;font-weight:600;color:#F4EFE2;}
+.dz-hint{font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8B96A6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px;}
+.dropzone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;}
+
+.wrap{padding:26px 32px 0;max-width:1360px;margin:0 auto;}
+
+.summary-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:16px;margin-bottom:8px;}
+.hero-card{background:var(--paper-card);border:1px solid var(--line);border-radius:12px;padding:20px 22px;}
+.hero-num{font-family:'Fraunces',serif;font-weight:700;font-size:34px;color:var(--rust);line-height:1.04;word-break:break-word;}
+.hero-lbl{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--slate);margin-top:8px;}
+.hero-sub{font-size:12px;color:var(--slate-soft);margin-top:6px;}
+.donut-card{display:flex;align-items:center;gap:16px;}
+.legend{font-size:11.5px;}
+.legend .li{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.legend .sw{width:10px;height:10px;border-radius:3px;flex:none;}
+.legend b{font-family:'IBM Plex Mono',monospace;}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin:20px 0 8px;}
+.kpi{background:var(--paper-card);border:1px solid var(--line);border-radius:var(--radius);padding:15px 17px;position:relative;overflow:hidden;}
+.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--slate-soft);}
+.kpi.overdue::before{background:var(--rust);}
+.kpi.interest::before,.kpi.accrued::before{background:var(--amber);}
+.kpi.total::before{background:var(--gold);}
+.kpi.healthy::before{background:var(--green);}
+.kpi .k-lbl{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--slate);margin-bottom:7px;}
+.kpi .k-val{font-family:'Fraunces',serif;font-size:19px;font-weight:600;color:var(--ink);word-break:break-word;line-height:1.1;}
+.kpi .k-sub{font-size:10.5px;color:var(--slate-soft);margin-top:4px;}
+.kpi.overdue .k-val{color:var(--rust);}
+.kpi.interest .k-val,.kpi.accrued .k-val{color:var(--amber);}
+.kpi.total .k-val{color:var(--gold);}
+
+.chart-card{background:var(--paper-card);border:1px solid var(--line);border-radius:12px;padding:18px 22px;margin:22px 0;}
+.bar-row{display:grid;grid-template-columns:200px 1fr 118px;align-items:center;gap:12px;margin-bottom:10px;}
+.bar-label{font-size:11.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bar-track{background:var(--paper);border-radius:5px;height:13px;overflow:hidden;border:1px solid var(--line);}
+.bar-fill{background:linear-gradient(90deg,var(--rust),#C9614E);height:100%;border-radius:5px;}
+.bar-val{font-family:'IBM Plex Mono',monospace;font-size:11px;text-align:right;color:var(--ink);white-space:nowrap;}
+
+.section-head{display:flex;align-items:baseline;justify-content:space-between;margin:30px 0 14px;border-bottom:1px solid var(--line);padding-bottom:10px;flex-wrap:wrap;gap:8px;}
+.section-head h2{font-family:'Fraunces',serif;font-size:19px;font-weight:600;margin:0;}
+.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.controls input[type=text]{padding:8px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter';font-size:13px;background:#fff;min-width:220px;}
+.controls select{padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-family:'Inter';font-size:13px;background:#fff;}
+
+.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
+.vcard{background:var(--paper-card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px 14px;cursor:pointer;transition:box-shadow .15s ease, transform .15s ease;position:relative;}
+.vcard:hover{box-shadow:0 4px 18px rgba(16,27,45,0.08);transform:translateY(-1px);}
+.vcard.open{border-color:var(--ink);}
+.vname{font-family:'Fraunces',serif;font-weight:600;font-size:15px;line-height:1.25;margin:0 0 8px;padding-right:70px;}
+.stamp{position:absolute;top:14px;right:14px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;padding:4px 8px;border-radius:20px;border:1.4px solid var(--rust);color:var(--rust);transform:rotate(4deg);font-weight:600;}
+.stamp.clear{border-color:var(--green);color:var(--green);}
+.bar{height:6px;background:var(--line);border-radius:4px;overflow:hidden;margin:10px 0 12px;display:flex;}
+.bar .seg-paid{background:var(--green);}
+.bar .seg-overdue{background:var(--rust);}
+.bar .seg-due{background:var(--amber);}
+.vnums{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--slate);margin-bottom:10px;}
+.vnums b{color:var(--ink);font-size:12.5px;display:block;word-break:break-word;}
+.vfoot{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--slate-soft);gap:8px;}
+.chip-row{display:flex;gap:6px;flex-wrap:wrap;}
+.chip{font-family:'IBM Plex Mono',monospace;font-size:9.5px;padding:2px 7px;border-radius:20px;background:var(--paper);border:1px solid var(--line);color:var(--slate);}
+.expand-hint{font-size:11px;color:var(--gold);font-weight:600;white-space:nowrap;}
+
+.ledger{grid-column:1/-1;background:var(--paper-card);border:1px solid var(--ink);border-radius:var(--radius);margin-top:-4px;padding:6px 6px 14px;overflow-x:auto;}
+.ledger table{border-collapse:collapse;width:100%;min-width:980px;}
+.ledger th{font-family:'IBM Plex Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--slate);text-align:left;padding:10px 9px 8px;border-bottom:1.5px solid var(--ink);white-space:nowrap;}
+.ledger td{padding:7px 9px;border-bottom:1px solid var(--line);font-size:12px;white-space:nowrap;}
+.ledger tr:last-child td{border-bottom:none;}
+.ledger tr.row-overdue td{background:var(--rust-soft);}
+.ledger tr.row-flag td{background:#FCEFD8;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+.num{text-align:right;font-family:'IBM Plex Mono',monospace;}
+.badge{font-family:'IBM Plex Mono',monospace;font-size:9.5px;padding:2px 7px;border-radius:20px;font-weight:600;}
+.badge.od{background:var(--rust-soft);color:var(--rust);}
+.badge.ok{background:var(--green-soft);color:var(--green);}
+.badge.flag{background:var(--amber-soft);color:var(--amber);}
+.badge.wait{background:#EAEAEA;color:var(--slate);}
+select.st-edit,input.date-edit,input.out-edit{font-family:'IBM Plex Mono',monospace;font-size:11px;border:1px solid var(--line);border-radius:5px;padding:3px 5px;background:#fffdf8;}
+input.out-edit{width:92px;text-align:right;}
+input.date-edit{width:112px;}
+.flag-note{font-size:9.5px;color:var(--amber);font-style:italic;}
+.fx-note{font-size:9.5px;color:var(--slate-soft);}
+
+/* FX manager modal */
+.fx-overlay{position:fixed;inset:0;background:rgba(16,27,45,0.55);display:none;align-items:flex-start;justify-content:center;z-index:9999;padding:40px 16px;overflow:auto;}
+.fx-overlay.show{display:flex;}
+.fx-modal{background:var(--paper-card);border:1px solid var(--line);border-radius:14px;max-width:640px;width:100%;box-shadow:0 20px 60px rgba(16,27,45,0.3);}
+.fx-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--line);}
+.fx-head h3{font-family:'Fraunces',serif;font-size:18px;margin:0;}
+.fx-head .x{background:none;border:none;font-size:20px;cursor:pointer;color:var(--slate);line-height:1;}
+.fx-actions{display:flex;gap:10px;align-items:center;padding:14px 22px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+.fx-btn{background:var(--ink);color:#F4EFE2;border:none;border-radius:8px;padding:8px 14px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;cursor:pointer;}
+.fx-btn:hover{background:var(--ink-soft);}
+.fx-btn.sec{background:transparent;color:var(--slate);border:1px solid var(--line);}
+.fx-status{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--slate-soft);}
+.fx-body{padding:8px 22px 20px;max-height:56vh;overflow:auto;}
+.fx-table{width:100%;border-collapse:collapse;}
+.fx-table th{font-family:'IBM Plex Mono',monospace;font-size:9.5px;text-transform:uppercase;color:var(--slate);text-align:left;padding:9px 8px;border-bottom:1.5px solid var(--ink);}
+.fx-table td{padding:7px 8px;border-bottom:1px solid var(--line);font-size:12px;}
+.fx-table input{width:96px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;border:1px solid var(--line);border-radius:5px;padding:4px 6px;text-align:right;background:#fffdf8;}
+.src-tag{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:2px 7px;border-radius:20px;font-weight:600;}
+.src-manual{background:var(--amber-soft);color:var(--amber);}
+.src-auto{background:var(--green-soft);color:var(--green);}
+.src-default{background:#EAEAEA;color:var(--slate);}
+.fx-clear{background:none;border:none;color:var(--rust);cursor:pointer;font-size:11px;}
+
+.foot{max-width:1360px;margin:40px auto 0;padding:18px 32px 0;border-top:1px solid var(--line);font-size:11px;color:var(--slate-soft);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+.foot .legend2 span{display:inline-flex;align-items:center;gap:5px;margin-right:14px;}
+.foot .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+
+@media (max-width:900px){
+  .summary-grid{grid-template-columns:1fr;}
+  h1{font-size:24px;}
+}
+@media print{
+  @page{ size:A4 landscape; margin:12mm; }
+  body{ background:#fff; }
+  .param-row, #dataRow, .controls, .clear-btn, .dropzone, .expand-hint, .fx-overlay{ display:none !important; }
+  .masthead{ background:#101B2D !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .kpi::before, .vcard, .hero-card, .chart-card, .ledger{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .vcard{ break-inside:avoid; box-shadow:none !important; }
+  .vgrid{ grid-template-columns:repeat(2,1fr) !important; }
+  .ledger{ break-inside:avoid; }
+  .ledger table{ min-width:0; }
+  .wrap{ padding:14px 8px 0; }
+  select.st-edit, input.date-edit, input.out-edit{ border:none !important; background:transparent !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <div class="eyebrow">Accounts Payable · Solar Cell Manufacturing Line</div>
+  <h1>Vendor Payment &amp; Interest Dashboard</h1>
+  <div class="sub">At-a-glance summary plus the full vendor-by-vendor ledger, in one page. Pick a credit period below — interest is only ever counted on the days <em>past</em> that period. Amounts convert at the monthly-average USD→INR rate (auto-fetched, per-month override available).</div>
+  <div class="param-row" id="paramRow"></div>
+  <div class="param-row" id="dataRow">
+    <label class="dropzone" id="dropzone" for="fileUpload">
+      <span class="dz-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 9 12 4 17 9"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
+      </span>
+      <span class="dz-body">
+        <span class="dz-title">Drag &amp; drop your file — or click to browse</span>
+        <span class="dz-hint" id="dzHint">CSV / XLSX · we auto-map Vendor, Amount, Dates, Status…</span>
+      </span>
+      <input type="file" id="fileUpload" accept=".csv,.xlsx,.xls">
+    </label>
+    <button class="clear-btn" id="fxBtn" style="border-color:var(--gold);color:var(--gold);">⇅ FX rates</button>
+    <button class="clear-btn" id="useSampleBtn">Use sample data</button>
+    <button class="clear-btn" id="exportPdfBtn" style="border-color:var(--gold);color:var(--gold);">⬇ Export PDF</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="summary-grid" id="summaryGrid"></div>
+  <div class="kpis" id="kpiRow"></div>
+
+  <div class="section-head"><h2>Overdue Exposure by Vendor</h2><div class="controls fx-note" id="chartFxNote"></div></div>
+  <div class="chart-card" id="chartCard"></div>
+
+  <div class="section-head">
+    <h2>Vendors — Detail Ledger</h2>
+    <div class="controls">
+      <input type="text" id="searchBox" placeholder="Search vendor or invoice…">
+      <select id="filterSel">
+        <option value="all">All vendors</option>
+        <option value="overdue">Has overdue balance</option>
+        <option value="flag">Needs verification</option>
+        <option value="clear">Fully settled</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="vgrid" id="vendorGrid"></div>
+
+  <div class="foot">
+    <div>Reference date: <b id="todayLabel"></b> · <span id="fxFootNote"></span></div>
+    <div class="legend2">
+      <span><i class="dot" style="background:var(--rust)"></i>Overdue</span>
+      <span><i class="dot" style="background:var(--amber)"></i>Needs verification</span>
+      <span><i class="dot" style="background:var(--green)"></i>Settled</span>
+    </div>
+  </div>
+</div>
+
+<div class="fx-overlay" id="fxOverlay">
+  <div class="fx-modal">
+    <div class="fx-head">
+      <h3>USD → INR · Monthly Average Rates</h3>
+      <button class="x" id="fxClose">×</button>
+    </div>
+    <div class="fx-actions">
+      <button class="fx-btn" id="fxFetchBtn">↻ Fetch latest averages</button>
+      <button class="fx-btn sec" id="fxResetBtn">Reset overrides</button>
+      <span class="fx-status" id="fxStatus"></span>
+    </div>
+    <div class="fx-body">
+      <table class="fx-table">
+        <thead><tr><th>Month</th><th>Effective rate</th><th>Source</th><th>Manual override</th><th></th></tr></thead>
+        <tbody id="fxTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script id="vpLogic">
+let RAW = [{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2503A","it":"Junction Box","bl":"2025-06-03","cd":60,"due":"2025-08-02","amt":89280,"st":"Paid","pd":"2025-08-25","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2503B","it":"Junction Box","bl":"2025-07-06","cd":60,"due":"2025-09-04","amt":84960,"st":"Paid","pd":"2025-09-17","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2504","it":"Junction Box","bl":"2025-07-28","cd":60,"due":"2025-09-26","amt":200448,"st":"Paid","pd":"2025-09-17","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2505","it":"Junction Box","bl":"2025-08-08","cd":60,"due":"2025-10-07","amt":200448,"st":"Paid","pd":"2025-11-19","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2506","it":"Junction Box","bl":"2025-09-06","cd":60,"due":"2025-09-06","amt":200448,"st":"Paid","pd":"2025-11-19","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2509","it":"Junction Box","bl":"2025-12-30","cd":60,"due":"2026-02-28","amt":190080,"st":"Paid","pd":"2026-04-17","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2510","it":"Junction Box","bl":"2026-01-04","cd":60,"due":"2026-03-05","amt":79200,"st":"Paid","pd":"2026-05-27","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2601A","it":"Junction Box","bl":"2026-02-04","cd":60,"due":"2026-04-05","amt":179424,"st":"Pending","pd":null,"out":179424},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2601B","it":"Junction Box","bl":"2026-02-07","cd":60,"due":"2026-04-08","amt":179424,"st":"Pending","pd":null,"out":179424},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2601C","it":"Junction Box","bl":"2026-02-20","cd":60,"due":"2026-04-21","amt":179424,"st":"Pending","pd":null,"out":179424},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2601D","it":"Junction Box","bl":"2026-04-02","cd":60,"due":"2026-06-01","amt":414918,"st":"Paid","pd":"2026-06-18","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2602","it":"Junction Box","bl":"2026-03-02","cd":60,"due":"2026-05-01","amt":213120,"st":"Pending","pd":null,"out":213120},{"v":"Shanghai Huitian New Material Co. Ltd.","inv":"HT-SLX-20251210","it":"sealant","bl":"2026-01-21","cd":60,"due":"2026-03-22","amt":10373,"st":"Yes","pd":null,"out":10373},{"v":"Shanghai Huitian New Material Co. Ltd.","inv":"HT-SLX-20260119","it":"sealant","bl":"2026-02-10","cd":60,"due":"2026-04-11","amt":125507.36,"st":"Paid","pd":"2026-06-24","out":0},{"v":"Shanghai Huitian New Material Co. Ltd.","inv":"HT-SLX-20260119-1","it":"sealant","bl":"2026-02-10","cd":60,"due":"2026-04-11","amt":61023.88,"st":"Yes","pd":null,"out":61023.88},{"v":"Shanghai Huitian New Material Co. Ltd.","inv":"HT-SLX-20260119-2","it":"sealant","bl":"2026-02-07","cd":60,"due":"2026-04-08","amt":53184.6,"st":"Paid","pd":"2026-06-25","out":0},{"v":"Shanghai Huitian New Material Co. Ltd.","inv":"HT-SLX-20260330","it":"sealant","bl":"2026-04-25","cd":60,"due":"2026-06-24","amt":5145.6,"st":"Yes","pd":null,"out":5145.6},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS2502015C","it":"Ribbon","bl":"2026-02-04","cd":60,"due":"2026-04-05","amt":44844,"st":"Paid","pd":"2026-06-25","out":0},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS250250A&TLS250249A","it":"Ribbon","bl":"2026-01-01","cd":60,"due":"2026-03-02","amt":493596,"st":"Paid","pd":"2026-05-05","out":0},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS250269A","it":"Ribbon","bl":"2026-01-13","cd":60,"due":"2026-03-14","amt":234864,"st":"Paid","pd":"2026-05-05","out":0},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS26015A&TLS26017A","it":"Ribbon","bl":"2026-02-10","cd":60,"due":"2026-04-11","amt":233280,"st":"Yes","pd":null,"out":233280},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS26015B","it":"Ribbon","bl":"2026-02-16","cd":60,"due":"2026-04-17","amt":290856,"st":"Yes","pd":null,"out":290856},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS26017B-1","it":"Ribbon","bl":"2026-04-03","cd":60,"due":"2026-06-02","amt":64800,"st":"Yes","pd":null,"out":64800},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS26015A&TLS26017A","it":"Ribbon/BB","bl":"2026-02-10","cd":60,"due":"2026-04-11","amt":343760,"st":"Yes","pd":null,"out":343760},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS26017B-1","it":"Ribbon/BB","bl":"2026-04-03","cd":60,"due":"2026-06-02","amt":687520,"st":"Yes","pd":null,"out":687520},{"v":"Shenzhen Topray Solar Co., ltd","inv":"TPS-SOLEX-SHA-20260105-1","it":"Glass","bl":"2026-02-28","cd":60,"due":"2026-04-29","amt":239884.86,"st":"Paid","pd":"2026-05-07","out":0},{"v":"Shenzhen Topray Solar Co., ltd","inv":"TPS-SOLEX-SHA-20260105-2","it":"Glass","bl":"2026-02-12","cd":60,"due":"2026-04-13","amt":506423.59,"st":"Paid","pd":"2026-05-14","out":0},{"v":"Shenzhen Topray Solar Co., ltd","inv":"TPS-SOLEX-SHA-20260105-3","it":"Glass","bl":"2026-03-07","cd":60,"due":"2026-05-06","amt":159923.24,"st":"Paid","pd":"2026-05-22","out":0},{"v":"Shenzhen Topray Solar Co., ltd","inv":"TPS-SHA-20250929-7","it":"Glass","bl":"2026-01-19","cd":60,"due":"2026-03-20","amt":399808.09,"st":"Paid","pd":"2026-03-30","out":0},{"v":"Shenzhen Topray Solar Co., ltd","inv":"TPS-SHA-20250929-8","it":"Glass","bl":"2026-01-23","cd":60,"due":"2026-03-24","amt":399808.09,"st":"Paid","pd":"2026-03-30","out":0},{"v":"Shenzhen Topray Solar Co., ltd","inv":"TPS-SHA-20250929-9","it":"Glass","bl":"2026-01-29","cd":60,"due":"2026-03-30","amt":586386.6,"st":"Paid","pd":"2026-03-31","out":0},{"v":"Shaanxi Topray Solar Ltd","inv":"TPS-SX-SHA-20260331","it":"Glass","bl":"2026-04-11","cd":60,"due":"2026-06-10","amt":297950.4,"st":"Paid","pd":"2026-06-26","out":0},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO015C-2025","it":"Al. Frame","bl":"2026-01-17","cd":60,"due":"2026-03-18","amt":378000,"st":"Paid","pd":"2026-05-29","out":0},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO015E-2025","it":"Al. Frame","bl":"2026-01-23","cd":60,"due":"2026-03-24","amt":472500,"st":"Paid","pd":"2026-06-10","out":0},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO015F-2025","it":"Al. Frame","bl":"2026-01-29","cd":60,"due":"2026-03-30","amt":472500,"st":"Paid","pd":"2026-06-25","out":0},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO018019B-2026","it":"Al. Frame","bl":"2026-02-10","cd":60,"due":"2026-04-11","amt":746900,"st":"Pending","pd":null,"out":746900},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO019A-2026","it":"Al. Frame","bl":"2026-02-16","cd":60,"due":"2026-04-17","amt":640200,"st":"Pending","pd":null,"out":640200},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO015B-2025","it":"Al. Frame","bl":"2026-01-06","cd":60,"due":"2026-03-07","amt":283500,"st":"Paid","pd":"2026-04-06","out":0},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO015D-2025","it":"Al. Frame","bl":"2026-01-22","cd":60,"due":"2026-03-23","amt":283500,"st":"Paid","pd":"2026-04-06","out":0},{"v":"Xiangyu (Singapore) PTE. LTD.","inv":"XY-SOLEX-251029-CI-B","it":"EPE","bl":"2026-01-02","cd":60,"due":"2026-03-03","amt":218872.51,"st":"Paid","pd":"2026-05-07","out":0},{"v":"Xiangyu (Singapore) PTE. LTD.","inv":"XY-SOLEX-251029-CI-C","it":"EPE","bl":"2026-01-03","cd":60,"due":"2026-03-04","amt":145915.01,"st":"Paid","pd":"2026-05-07","out":0},{"v":"Xiangyu (Singapore) PTE. LTD.","inv":"XY-SOLEX-251230-VN-CI-A","it":"EPE","bl":"2026-02-07","cd":60,"due":"2026-04-08","amt":288600.11,"st":"Paid","pd":"2026-06-23","out":0},{"v":"Xiangyu (Singapore) PTE. LTD.","inv":"XY-SOLEX-251230-TH-CI","it":"EPE","bl":"2026-01-28","cd":60,"due":"2026-03-29","amt":180375.07,"st":"Paid","pd":"2026-04-06","out":0},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0415","it":"Al. Frame","bl":"2026-04-25","cd":60,"due":"2026-06-24","amt":319140,"st":"Yes","pd":null,"out":319140},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0123","it":"Al. Frame","bl":"2026-02-17","cd":60,"due":"2026-04-18","amt":288090,"st":"Paid","pd":"2026-06-23","out":0},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0124","it":"Al. Frame","bl":"2026-02-07","cd":60,"due":"2026-04-08","amt":192060,"st":"Paid","pd":"2026-05-27","out":0},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0125","it":"Al. Frame","bl":"2026-02-16","cd":60,"due":"2026-04-17","amt":288090,"st":"Paid","pd":"2026-04-17","out":0},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0401","it":"Al. Frame","bl":"2026-04-06","cd":60,"due":"2026-06-05","amt":405720,"st":"Yes","pd":null,"out":405720},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0402","it":"Al. Frame","bl":"2026-04-15","cd":60,"due":"2026-06-14","amt":507150,"st":"Yes","pd":null,"out":507150},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0403","it":"Al. Frame","bl":"2026-04-15","cd":60,"due":"2026-06-14","amt":202860,"st":"Yes","pd":null,"out":202860},{"v":"Anhui Krant Aluminum Products Co. Ltd","inv":"KLTM057-260111-1","it":"Al. Frame","bl":"2026-02-24","cd":60,"due":"2026-04-25","amt":484800,"st":"Yes","pd":null,"out":484800},{"v":"Anhui Krant Aluminum Products Co. Ltd","inv":"KLTM057-260111-2","it":"Al. Frame","bl":"2026-02-19","cd":60,"due":"2026-04-20","amt":484800,"st":"Paid","pd":"2026-06-17","out":0},{"v":"Anhui Krant Aluminum Products Co. Ltd","inv":"KLTM071-260311","it":"Al. Frame","bl":"2026-04-06","cd":60,"due":"2026-06-05","amt":511680,"st":"Yes","pd":null,"out":511680},{"v":"Jolywood (Jiangsu) Sunwatt Co Ltd","inv":"JS2600069","it":"Backsheet","bl":"2026-02-19","cd":60,"due":"2026-04-20","amt":85165.34,"st":"Pending","pd":null,"out":85165.34},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260312-1","it":"Glass","bl":"2026-03-25","cd":60,"due":"2026-05-24","amt":290056.85,"st":"Paid","pd":"2026-06-23","out":0},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260312-2","it":"Glass","bl":"2026-03-26","cd":60,"due":"2026-05-25","amt":290056.85,"st":"Paid","pd":"2026-06-23","out":0},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260312-3","it":"Glass","bl":"2026-03-25","cd":60,"due":"2026-05-24","amt":290056.85,"st":"Pending","pd":null,"out":290056.85},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260312-4","it":"Glass","bl":"2026-04-02","cd":60,"due":"2026-06-01","amt":290056.85,"st":"Pending","pd":null,"out":290056.85},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260312-5","it":"Glass","bl":"2026-04-02","cd":60,"due":"2026-06-01","amt":330093.95,"st":"Pending","pd":null,"out":330093.95},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260323-1","it":"Glass","bl":"2026-04-20","cd":60,"due":"2026-06-19","amt":290056.85,"st":"Pending","pd":null,"out":290056.85},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260323-2","it":"Glass","bl":"2026-03-31","cd":60,"due":"2026-05-30","amt":290056.85,"st":"Pending","pd":null,"out":290056.85},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260323-3","it":"Glass","bl":"2026-04-05","cd":60,"due":"2026-06-04","amt":174034.11,"st":"Pending","pd":null,"out":174034.11},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260323-4","it":"Glass","bl":"2026-04-04","cd":60,"due":"2026-06-03","amt":290056.85,"st":"Pending","pd":null,"out":290056.85},{"v":"Anhui CSG New Energy Material Technology Co Ltd","inv":"CSG2603022-1","it":"Glass","bl":"2026-04-15","cd":60,"due":"2026-06-14","amt":183030.12,"st":"Paid","pd":"2026-06-23","out":0},{"v":"Anhui CSG New Energy Material Technology Co Ltd","inv":"CSG2603022-2","it":"Glass","bl":"2026-04-15","cd":60,"due":"2026-06-14","amt":261471.6,"st":"Paid","pd":"2026-06-23","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2512034-1","it":"Glass","bl":"2026-01-03","cd":60,"due":"2026-03-04","amt":169322.4,"st":"Paid","pd":"2026-03-31","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2512034-2","it":"Glass","bl":"2026-01-11","cd":60,"due":"2026-03-12","amt":170769.6,"st":"Paid","pd":"2026-03-31","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2601007-1","it":"Glass","bl":"2026-01-18","cd":60,"due":"2026-03-19","amt":181382.4,"st":"Paid","pd":"2026-03-31","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2601027-2","it":"Glass","bl":"2026-02-21","cd":60,"due":"2026-04-22","amt":116864.4,"st":"Paid","pd":"2026-06-05","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2601007-2","it":"Glass","bl":"2026-01-22","cd":60,"due":"2026-03-23","amt":272073.6,"st":"Paid","pd":"2026-03-31","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2601027-1","it":"Glass","bl":"2026-02-06","cd":60,"due":"2026-04-07","amt":175296.61,"st":"Paid","pd":"2026-06-01","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2601027-3","it":"Glass","bl":"2026-02-27","cd":60,"due":"2026-04-28","amt":175296.61,"st":"Paid","pd":"2026-05-01","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2601027-4","it":"Glass","bl":"2026-02-27","cd":60,"due":"2026-04-28","amt":116864.41,"st":"Paid","pd":"2026-05-01","out":0},{"v":"Guangzhou MyTech New Materials Co., Ltd","inv":"MTCI260317","it":"Glass","bl":"2026-04-01","cd":45,"due":"2026-05-16","amt":1740,"st":"Paid","pd":"2026-05-22","out":0},{"v":"Guangzhou MyTech New Materials Co., Ltd","inv":"MTCI251229","it":"Edge Sealing Tape","bl":"2026-01-12","cd":45,"due":"2026-02-26","amt":914,"st":"Paid","pd":"2026-02-18","out":0},{"v":"Guangzhou MyTech New Materials Co., Ltd","inv":"MTCI260116A","it":"Edge Sealing Tape","bl":"2026-01-29","cd":45,"due":"2026-03-15","amt":7315.2,"st":"Paid","pd":"2026-04-24","out":0},{"v":"Guangzhou MyTech New Materials Co., Ltd","inv":"MTCI260211","it":"Edge Sealing Tape","bl":"2026-02-27","cd":45,"due":"2026-04-13","amt":696,"st":"Paid","pd":"2026-04-24","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-1","it":"Glass","bl":"2026-03-14","cd":90,"due":"2026-06-12","amt":290056.85,"st":"Paid","pd":"2026-06-11","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-2","it":"Glass","bl":"2026-03-14","cd":90,"due":"2026-06-12","amt":290056.85,"st":"Paid","pd":"2026-06-11","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-3","it":"Glass","bl":"2026-03-22","cd":90,"due":"2026-06-20","amt":696136.44,"st":"Paid","pd":"2026-06-18","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-6","it":"Glass","bl":"2026-03-22","cd":90,"due":"2026-06-20","amt":725142.12,"st":"Paid","pd":"2026-06-18","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-4","it":"Glass","bl":"2026-03-23","cd":90,"due":"2026-06-21","amt":290056.85,"st":"Paid","pd":"2026-06-18","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-5","it":"Glass","bl":"2026-03-23","cd":90,"due":"2026-06-21","amt":290056.85,"st":"Paid","pd":"2026-06-18","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-7","it":"Glass","bl":"2026-03-30","cd":90,"due":"2026-06-28","amt":145028.42,"st":"Paid","pd":"2026-06-23","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TWTYN-XSBJD-20260311-00002","it":"Solar Cell","bl":"2026-04-07","cd":90,"due":"2026-07-06","amt":2760941.57,"st":"Paid","pd":"2026-07-06","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"MSBV260059","it":"EPE","bl":"2026-04-14","cd":90,"due":"2026-07-13","amt":393951.55,"st":"Paid","pd":"2026-07-09","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"NS2604210179024","it":"Solar Cell","bl":"2026-04-25","cd":90,"due":"2026-07-24","amt":953013.6,"st":"Pending","pd":null,"out":953013.6},{"v":"LX International (Singapore) Pte. Ltd","inv":"MSBV260081","it":"EVA/EPE/POE","bl":"2026-04-27","cd":90,"due":"2026-07-26","amt":148663.96,"st":"Paid","pd":"2026-07-17","out":0},{"v":"Nantong DH Trading Co. Ltd","inv":"PO/U2/2526/02853","it":"Edge Sealing Tape","bl":"2026-03-13","cd":30,"due":"2026-04-12","amt":74000,"st":"Paid","pd":"2026-05-18","out":0},{"v":"Nantong DH Trading Co. Ltd","inv":"PO/U2/2526/02519","it":"Edge Sealing Tape","bl":"2026-01-27","cd":30,"due":"2026-02-26","amt":1475,"st":"Paid","pd":"2026-02-24","out":0},{"v":"Nantong DH Trading Co. Ltd","inv":"PO/U2/2526/02658","it":"Edge Sealing Tape","bl":"2026-02-19","cd":30,"due":"2026-03-21","amt":37760,"st":"Paid","pd":"2026-04-10","out":0},{"v":"PT Glass Max Power","inv":"PI-YN-Solex-20260128S0001","it":"Glass","bl":"2026-04-03","cd":60,"due":"2026-06-02","amt":94651.2,"st":"Pending","pd":null,"out":94651.2},{"v":"SBH Kibing Solar New Materials (M) SDN. BHD.","inv":"KBM-SLX-260127","it":"Glass","bl":"2026-03-01","cd":45,"due":"2026-04-15","amt":292161.02,"st":"Paid","pd":"2026-07-02","out":0},{"v":"Targray International Inc.","inv":"SO-03664","it":"Solar Cell","bl":"2026-02-10","cd":90,"due":"2026-05-11","amt":512500.01,"st":"Paid","pd":"2026-05-11","out":0},{"v":"HLA Supply Chain Solutions Inc.","inv":"INV-670-1","it":"Solar Cell","bl":"2026-05-07","cd":90,"due":"2026-08-05","amt":201312.9,"st":"Pending","pd":null,"out":201312.9},{"v":"HLA Supply Chain Solutions Inc.","inv":"NS2605110192012","it":"Solar Cell","bl":"2026-05-07","cd":90,"due":"2026-08-05","amt":801944.54,"st":"Pending","pd":null,"out":801944.54},{"v":"Targray International Inc.","inv":"SO-03701","it":"Solar Cell","bl":"2026-05-21","cd":90,"due":"2026-08-19","amt":678941.95,"st":"Pending","pd":null,"out":678941.95}];
+const SAMPLE_RAW = JSON.parse(JSON.stringify(RAW));
+const FX_BASE = {"2025-06":85.9257,"2025-07":86.0678,"2025-08":87.5163,"2025-09":88.2715,"2025-10":88.3705,"2025-11":88.8811,"2025-12":89.9974,"2026-01":90.801,"2026-02":90.714,"2026-03":92.925,"2026-04":93.472,"2026-05":95.551,"2026-06":95.058,"2026-07":95.57,"2026-08":95.57};
+const FX_FALLBACK = 95.57;
+
+let fxOverride = {}, fxFetched = {};
+try{ fxOverride = JSON.parse(localStorage.getItem('vpFxOverride')||'{}')||{}; }catch(e){ fxOverride={}; }
+try{ fxFetched  = JSON.parse(localStorage.getItem('vpFxFetched') ||'{}')||{}; }catch(e){ fxFetched={}; }
+function saveFx(){ try{ localStorage.setItem('vpFxOverride',JSON.stringify(fxOverride)); localStorage.setItem('vpFxFetched',JSON.stringify(fxFetched)); }catch(e){} }
+
+let rate = 0.0164, creditOverride = null, currency = 'USD', openVendor = null;
+const today = new Date(); today.setHours(0,0,0,0);
+
+function fmtDate(d){ return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
+function parseD(s){ if(!s) return null; const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
+function daysBetween(a,b){ if(!a||!b) return 0; return Math.round((b-a)/86400000); }
+function ym(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+function fxSource(m){ if(fxOverride[m]!=null) return 'manual'; if(fxFetched[m]!=null) return 'auto'; if(FX_BASE[m]!=null) return 'default'; return 'default'; }
+function fxRate(m){ if(fxOverride[m]!=null) return fxOverride[m]; if(fxFetched[m]!=null) return fxFetched[m]; if(FX_BASE[m]!=null) return FX_BASE[m]; return FX_FALLBACK; }
+function fxFor(d){ if(!d) return FX_FALLBACK; return fxRate(ym(d)); }
+
+function conv(usdAmount, refDate){ if(currency==='USD') return usdAmount; return usdAmount * fxFor(refDate); }
+function scaleUnit(absV){
+  if(currency==='INR'){ if(absV>=1e7) return {d:1e7,s:' Cr'}; if(absV>=1e5) return {d:1e5,s:' L'}; return {d:1,s:''}; }
+  if(absV>=1e9) return {d:1e9,s:'B'}; if(absV>=1e6) return {d:1e6,s:'M'}; if(absV>=1e3) return {d:1e3,s:'K'}; return {d:1,s:''};
+}
+function money(n, refDate){
+  const v = conv(n, refDate||today), abs = Math.abs(v), sym = currency==='USD'?'$':'₹', u = scaleUnit(abs);
+  if(u.d===1) return sym + abs.toLocaleString(currency==='USD'?'en-US':'en-IN',{maximumFractionDigits:0});
+  const sc = abs/u.d;
+  return sym + sc.toLocaleString('en-US',{maximumFractionDigits: sc<10?2:(sc<100?1:0)}) + u.s;
+}
+function money2(n, refDate){
+  const v = conv(n, refDate||today), abs = Math.abs(v), sym = currency==='USD'?'$':'₹', u = scaleUnit(abs);
+  if(u.d===1) return sym + abs.toLocaleString(currency==='USD'?'en-US':'en-IN',{maximumFractionDigits:2});
+  const sc = abs/u.d;
+  return sym + sc.toLocaleString('en-US',{maximumFractionDigits:2}) + u.s;
+}
+function fullMoney(n, refDate){ const v=conv(n,refDate||today), sym=currency==='USD'?'$':'₹'; return sym+Math.abs(v).toLocaleString(currency==='USD'?'en-US':'en-IN',{maximumFractionDigits:2}); }
+
+document.getElementById('todayLabel').textContent = fmtDate(today);
+
+function computeRow(r){
+  const bl = parseD(r.bl); let due = parseD(r.due); const pd = parseD(r.pd);
+  const out = Number(r.out)||0, amt = Number(r.amt)||0, settled = out <= 0.01;
+  let effDue = due;
+  if(creditOverride!==null && bl){ effDue = new Date(bl.getTime()); effDue.setDate(effDue.getDate()+creditOverride); }
+  let overdueDays=0, overdueAmt=0, interest=0, bucket='clear', flagged=false;
+  if(settled){
+    if(pd && effDue && pd > effDue){ const lateDays = daysBetween(effDue,pd); interest = amt*(rate/100)*lateDays; bucket='paid_late'; }
+    else bucket='paid_ontime';
+  } else {
+    overdueDays = effDue ? Math.max(0, daysBetween(effDue, today)) : 0;
+    if(overdueDays>0){
+      overdueAmt = out; interest = out*(rate/100)*overdueDays;
+      bucket = (r.st==='Paid'||r.st==='Yes') ? 'flag' : 'pending';
+      if(bucket==='flag') flagged=true;
+    } else bucket='notdue';
+  }
+  return {overdueDays, overdueAmt:Math.abs(overdueAmt), interest:Math.max(0,interest), bucket, flagged, settled, outstanding:Math.abs(out), effDue};
+}
+function groupByVendor(rows){ const m=new Map(); rows.forEach((r,i)=>{ if(!m.has(r.v)) m.set(r.v,[]); m.get(r.v).push(i); }); return m; }
+function arcPath(cx,cy,r,startA,endA){
+  function pt(a){ const rad=(a-90)*Math.PI/180; return [cx+r*Math.cos(rad), cy+r*Math.sin(rad)]; }
+  const [x1,y1]=pt(startA), [x2,y2]=pt(endA); const large=(endA-startA)>180?1:0;
+  return `M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`;
+}
+const CREDIT_PRESETS = [30,60,90,120];
+
+function renderParams(){
+  document.getElementById('paramRow').innerHTML = `
+    <div class="param-box">
+      <label>Credit period</label>
+      <div class="toggle-grp" id="creditPresetGrp">
+        <button data-cd="" class="${creditOverride===null?'active':''}">Sheet due date</button>
+        ${CREDIT_PRESETS.map(d=>`<button data-cd="${d}" class="${creditOverride===d?'active':''}">${d}d</button>`).join('')}
+      </div>
+    </div>
+    <div class="param-box">
+      <label for="creditInput">or custom (days from BL)</label>
+      <input id="creditInput" type="number" min="0" placeholder="—" value="${creditOverride===null?'':creditOverride}">
+    </div>
+    <div class="param-box">
+      <label for="rateInput">Interest</label>
+      <input id="rateInput" type="number" step="0.0001" value="${rate}">
+      <span class="note">%/day ≈ ${(rate*365).toFixed(2)}%/yr</span>
+    </div>
+    <div class="toggle-grp">
+      <button data-cur="USD" class="${currency==='USD'?'active':''}">USD $</button>
+      <button data-cur="INR" class="${currency==='INR'?'active':''}">INR ₹</button>
+    </div>
+    <button class="clear-btn" id="resetBtn">Reset all</button>
+  `;
+  document.querySelectorAll('#creditPresetGrp button').forEach(b=>b.addEventListener('click',()=>{ const v=b.dataset.cd; creditOverride = v==='' ? null : parseInt(v,10); renderAll(); }));
+  document.getElementById('creditInput').addEventListener('change', e=>{ const v=e.target.value.trim(); creditOverride = v==='' ? null : Math.max(0,parseInt(v,10)); renderAll(); });
+  document.getElementById('rateInput').addEventListener('change', e=>{ const v=parseFloat(e.target.value); if(!isNaN(v)&&v>=0){ rate=v; renderAll(); } });
+  document.querySelectorAll('.toggle-grp button[data-cur]').forEach(b=>b.addEventListener('click',()=>{ currency=b.dataset.cur; renderAll(); }));
+  document.getElementById('resetBtn').addEventListener('click',()=>{ creditOverride=null; rate=0.0164; currency='USD'; openVendor=null; renderAll(); });
+}
+
+function renderAll(){
+  renderParams();
+  const rows = RAW, computed = rows.map(computeRow);
+  let totValue=0, totOutstanding=0, totOverdue=0, interestPaidLate=0, interestAccrued=0, overdueCount=0, flagCount=0;
+  rows.forEach((r,i)=>{
+    const c = computed[i];
+    totValue += Number(r.amt)||0; totOutstanding += c.outstanding; totOverdue += c.overdueAmt;
+    if(c.bucket==='paid_late') interestPaidLate += c.interest;
+    if(c.bucket==='pending'||c.bucket==='flag') interestAccrued += c.interest;
+    if(c.overdueAmt>0) overdueCount++;
+    if(c.flagged) flagCount++;
+  });
+  const interestTotal = interestPaidLate + interestAccrued;
+  const settledValue = totValue - totOutstanding, notDueValue = totOutstanding - totOverdue;
+
+  const total = totValue || 1;
+  const seg1 = settledValue/total*360, seg2 = notDueValue/total*360, seg3 = totOverdue/total*360;
+  let a0=0; const p1=arcPath(150,150,130,a0,a0+seg1); a0+=seg1; const p2=arcPath(150,150,130,a0,a0+seg2); a0+=seg2; const p3=arcPath(150,150,130,a0,a0+seg3);
+
+  document.getElementById('summaryGrid').innerHTML = `
+    <div class="hero-card">
+      <div class="hero-num">${money(totOverdue)}</div>
+      <div class="hero-lbl">Overdue Right Now</div>
+      <div class="hero-sub">${overdueCount} invoice${overdueCount!==1?'s':''} past due with an unpaid balance — ${flagCount} marked paid but still show a balance, needs verification.
+      ${creditOverride!==null?`<br>Using a ${creditOverride}-day grace period from BL date for every invoice instead of the sheet's own due date.`:''}</div>
+    </div>
+    <div class="hero-card donut-card">
+      <svg width="130" height="130" viewBox="0 0 300 300">
+        <path d="${p1}" fill="#3E7C59"></path><path d="${p2}" fill="#C1791F"></path><path d="${p3}" fill="#B3402F"></path>
+        <circle cx="150" cy="150" r="72" fill="#FFFFFF"></circle>
+      </svg>
+      <div class="legend">
+        <div class="li"><span class="sw" style="background:#3E7C59"></span>Settled <b>${money(settledValue)}</b></div>
+        <div class="li"><span class="sw" style="background:#C1791F"></span>Not yet due <b>${money(notDueValue)}</b></div>
+        <div class="li"><span class="sw" style="background:#B3402F"></span>Overdue <b>${money(totOverdue)}</b></div>
+      </div>
+    </div>`;
+
+  document.getElementById('kpiRow').innerHTML = `
+    <div class="kpi overdue"><div class="k-lbl">Overdue Amount</div><div class="k-val">${money(totOverdue)}</div><div class="k-sub">${overdueCount} invoices, unpaid</div></div>
+    <div class="kpi"><div class="k-lbl">Outstanding (all)</div><div class="k-val">${money(totOutstanding)}</div><div class="k-sub">incl. not-yet-due</div></div>
+    <div class="kpi interest"><div class="k-lbl">Interest — Paid Late</div><div class="k-val">${interestPaidLate>0?money2(interestPaidLate):'—'}</div><div class="k-sub">already incurred</div></div>
+    <div class="kpi accrued"><div class="k-lbl">Interest — Accruing Now</div><div class="k-val">${interestAccrued>0?money2(interestAccrued):'—'}</div><div class="k-sub">on unpaid overdue, today</div></div>
+    <div class="kpi total"><div class="k-lbl">Interest — Total (both)</div><div class="k-val">${interestTotal>0?money2(interestTotal):'—'}</div><div class="k-sub">paid-late + accruing</div></div>
+    <div class="kpi ${flagCount>0?'interest':'healthy'}"><div class="k-lbl">Needs Verification</div><div class="k-val">${flagCount}</div><div class="k-sub">marked paid, balance open</div></div>`;
+
+  const groups = groupByVendor(rows), vSummary=[];
+  groups.forEach((idxs,vendor)=>{ let overdue=0; idxs.forEach(i=>overdue+=computed[i].overdueAmt); vSummary.push({vendor,overdue}); });
+  vSummary.sort((a,b)=>b.overdue-a.overdue);
+  const top = vSummary.filter(v=>v.overdue>0).slice(0,8), maxOv = top.length?top[0].overdue:1;
+  document.getElementById('chartFxNote').textContent = currency==='INR' ? 'Converted at monthly-average USD→INR rate' : '';
+  document.getElementById('chartCard').innerHTML = top.length===0
+    ? `<div style="color:var(--slate-soft);font-size:12.5px;">No vendor currently carries an overdue balance under these parameters.</div>`
+    : top.map(v=>{ const short=v.vendor.length<=34?v.vendor:v.vendor.slice(0,32)+'…'; const pct=v.overdue/maxOv*100;
+        return `<div class="bar-row"><div class="bar-label">${short}</div><div class="bar-track"><div class="bar-fill" style="width:${pct.toFixed(1)}%"></div></div><div class="bar-val">${money(v.overdue)}</div></div>`; }).join('');
+
+  document.getElementById('fxFootNote').textContent = currency==='INR'
+    ? `INR converted per invoice using the monthly-average USD→INR rate for its effective due-date month.`
+    : `Amounts in USD, original invoice currency.`;
+
+  renderVendors(rows, computed);
+}
+
+function renderVendors(rows, computed){
+  const groups = groupByVendor(rows);
+  const search = (document.getElementById('searchBox').value||'').toLowerCase();
+  const filter = document.getElementById('filterSel').value;
+  const vs = [];
+  groups.forEach((idxs,vendor)=>{
+    let totalValue=0,outstanding=0,overdueAmt=0,interest=0,paidN=0,pendingN=0,flagN=0,overdueN=0;
+    idxs.forEach(i=>{ const r=rows[i],c=computed[i]; totalValue+=Number(r.amt)||0; outstanding+=c.outstanding; overdueAmt+=c.overdueAmt; interest+=c.interest; if(c.settled)paidN++; else pendingN++; if(c.flagged)flagN++; if(c.overdueAmt>0)overdueN++; });
+    vs.push({vendor,idxs,totalValue,outstanding,overdueAmt,interest,paidN,pendingN,flagN,overdueN});
+  });
+  vs.sort((a,b)=> b.overdueAmt-a.overdueAmt || b.outstanding-a.outstanding);
+  const grid = document.getElementById('vendorGrid'); grid.innerHTML='';
+  const filtered = vs.filter(v=>{
+    const ms = !search || v.vendor.toLowerCase().includes(search) || v.idxs.some(i=>(rows[i].inv||'').toLowerCase().includes(search));
+    let mf=true;
+    if(filter==='overdue') mf=v.overdueN>0;
+    if(filter==='flag') mf=v.flagN>0;
+    if(filter==='clear') mf=v.overdueN===0&&v.flagN===0&&v.pendingN===0;
+    return ms&&mf;
+  });
+  if(filtered.length===0){ grid.innerHTML='<div style="padding:30px;color:var(--slate-soft);font-family:IBM Plex Mono,monospace;font-size:13px;">No vendors match this filter.</div>'; return; }
+  filtered.forEach(v=>{
+    const paidPct = v.totalValue>0?Math.max(0,((v.totalValue-v.outstanding)/v.totalValue*100)):100;
+    const overduePct = v.totalValue>0?(v.overdueAmt/v.totalValue*100):0;
+    const duePct = Math.max(0,100-paidPct-overduePct);
+    const card = document.createElement('div');
+    card.className='vcard'+(openVendor===v.vendor?' open':'');
+    card.innerHTML = `
+      <div class="stamp ${v.overdueAmt>0?'':'clear'}">${v.overdueAmt>0?'Overdue':'Clear'}</div>
+      <p class="vname">${v.vendor}</p>
+      <div class="bar"><div class="seg-paid" style="width:${paidPct}%"></div><div class="seg-due" style="width:${duePct}%"></div><div class="seg-overdue" style="width:${overduePct}%"></div></div>
+      <div class="vnums">
+        <div>Value<b>${money(v.totalValue)}</b></div>
+        <div>Outstanding<b>${money(v.outstanding)}</b></div>
+        <div>Overdue<b style="color:${v.overdueAmt>0?'var(--rust)':'inherit'}">${money(v.overdueAmt)}</b></div>
+        <div>Interest<b style="color:${v.interest>0?'var(--amber)':'inherit'}">${v.interest>0?money2(v.interest):'—'}</b></div>
+      </div>
+      <div class="vfoot">
+        <div class="chip-row">
+          <span class="chip">${v.idxs.length} inv</span><span class="chip">${v.paidN} settled</span>
+          ${v.pendingN?`<span class="chip">${v.pendingN} open</span>`:''}
+          ${v.flagN?`<span class="chip" style="border-color:var(--amber);color:var(--amber)">${v.flagN} verify</span>`:''}
+        </div>
+        <div class="expand-hint">${openVendor===v.vendor?'Close ▲':'Details ▼'}</div>
+      </div>`;
+    card.addEventListener('click',()=>{ openVendor=(openVendor===v.vendor)?null:v.vendor; renderVendors(rows,computed); });
+    grid.appendChild(card);
+    if(openVendor===v.vendor){
+      const ledger = document.createElement('div'); ledger.className='ledger';
+      const sortedIdxs = [...v.idxs].sort((a,b)=>{ const ca=computed[a],cb=computed[b]; return (cb.overdueAmt-ca.overdueAmt)||(parseD(rows[a].due)-parseD(rows[b].due)); });
+      const rowsHtml = sortedIdxs.map(i=>{
+        const r=rows[i],c=computed[i]; const trClass=c.overdueAmt>0?(c.flagged?'row-flag':'row-overdue'):'';
+        let badge;
+        if(c.bucket==='paid_ontime') badge='<span class="badge ok">Settled</span>';
+        else if(c.bucket==='paid_late') badge='<span class="badge ok">Settled · paid late</span>';
+        else if(c.bucket==='notdue') badge='<span class="badge wait">Not yet due</span>';
+        else if(c.bucket==='pending') badge='<span class="badge od">Overdue</span>';
+        else if(c.bucket==='flag') badge='<span class="badge flag">Verify</span>';
+        const effDueLabel = c.effDue?fmtDate(c.effDue):'—';
+        return `<tr class="${trClass}" data-idx="${i}">
+          <td>${r.inv}</td><td>${r.it||''}</td>
+          <td class="mono">${r.bl?fmtDate(parseD(r.bl)):'—'}</td><td class="mono">${effDueLabel}</td>
+          <td class="num" title="${fullMoney(r.amt,c.effDue)}">${money(r.amt,c.effDue)}</td>
+          <td><select class="st-edit" data-field="st" data-idx="${i}">${['Paid','Yes','Pending','Partial'].map(s=>`<option value="${s}" ${r.st===s?'selected':''}>${s}</option>`).join('')}</select></td>
+          <td><input class="date-edit" type="date" data-field="pd" data-idx="${i}" value="${r.pd||''}"></td>
+          <td><input class="out-edit" type="number" step="0.01" data-field="out" data-idx="${i}" value="${r.out}"></td>
+          <td class="num">${c.overdueDays>0?c.overdueDays+' d':'—'}</td>
+          <td class="num" title="${c.overdueAmt>0?fullMoney(c.overdueAmt,c.effDue):''}">${c.overdueAmt>0?money(c.overdueAmt,c.effDue):'—'}</td>
+          <td class="num" title="${c.interest>0?fullMoney(c.interest,c.effDue):''}">${c.interest>0?money2(c.interest,c.effDue):'—'}</td>
+          <td>${badge}${c.flagged?'<div class="flag-note">no payment date on file</div>':''}</td>
+        </tr>`;
+      }).join('');
+      ledger.innerHTML = `<table><thead><tr><th>Invoice</th><th>Item</th><th>BL date</th><th>Effective due</th><th>Amount</th><th>Status</th><th>Payment date</th><th>Outstanding</th><th>Overdue days</th><th>Overdue amt</th><th>Interest</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+      grid.appendChild(ledger);
+      ledger.querySelectorAll('[data-field]').forEach(el=>el.addEventListener('change',e=>{ const idx=Number(e.target.dataset.idx),field=e.target.dataset.field; let val=e.target.value; if(field==='out') val=parseFloat(val)||0; rows[idx][field]=val; renderAll(); }));
+    }
+  });
+}
+
+/* ---------- FX manager: auto-fetch monthly average + manual override ---------- */
+function monthsInData(){
+  const set = new Set(Object.keys(FX_BASE));
+  RAW.forEach(r=>{ [r.bl, r.due, r.pd].forEach(d=>{ if(d){ const p=parseD(d); if(p) set.add(ym(p)); } }); });
+  Object.keys(fxOverride).forEach(m=>set.add(m)); Object.keys(fxFetched).forEach(m=>set.add(m));
+  return Array.from(set).sort();
+}
+function renderFxTable(){
+  const tb = document.getElementById('fxTableBody'); if(!tb) return;
+  tb.innerHTML = monthsInData().map(m=>{
+    const eff = fxRate(m), src = fxSource(m);
+    const tag = src==='manual'?'<span class="src-tag src-manual">Manual</span>':src==='auto'?'<span class="src-tag src-auto">Auto</span>':'<span class="src-tag src-default">Default</span>';
+    const ov = fxOverride[m]!=null ? fxOverride[m] : '';
+    return `<tr><td class="mono">${m}</td><td class="mono">₹${eff.toFixed(4)}</td><td>${tag}</td>
+      <td><input type="number" step="0.0001" data-fxm="${m}" placeholder="—" value="${ov}"></td>
+      <td>${fxOverride[m]!=null?`<button class="fx-clear" data-fxclr="${m}">clear</button>`:''}</td></tr>`;
+  }).join('');
+  tb.querySelectorAll('input[data-fxm]').forEach(inp=>inp.addEventListener('change',e=>{
+    const m=e.target.dataset.fxm, v=e.target.value.trim();
+    if(v==='') delete fxOverride[m]; else { const n=parseFloat(v); if(!isNaN(n)&&n>0) fxOverride[m]=n; }
+    saveFx(); renderFxTable(); renderAll();
+  }));
+  tb.querySelectorAll('button[data-fxclr]').forEach(b=>b.addEventListener('click',()=>{ delete fxOverride[b.dataset.fxclr]; saveFx(); renderFxTable(); renderAll(); }));
+}
+async function fetchMonthAvg(m){
+  const [y,mm] = m.split('-').map(Number);
+  const start = `${m}-01`, last = new Date(y,mm,0), end = `${m}-${String(last.getDate()).padStart(2,'0')}`;
+  const url = `https://api.frankfurter.app/${start}..${end}?from=USD&to=INR`;
+  const res = await fetch(url); if(!res.ok) throw new Error('HTTP '+res.status);
+  const data = await res.json();
+  const vals = Object.values(data.rates||{}).map(o=>o&&o.INR).filter(v=>typeof v==='number');
+  if(!vals.length) return null;
+  return vals.reduce((a,b)=>a+b,0)/vals.length;
+}
+async function refreshFx(){
+  const status = document.getElementById('fxStatus'); const btn = document.getElementById('fxFetchBtn');
+  const months = monthsInData(); btn.disabled=true; let got=0, miss=0;
+  for(const m of months){
+    status.textContent = `Fetching ${m}…`;
+    try{ const avg = await fetchMonthAvg(m); if(avg){ fxFetched[m]=Math.round(avg*10000)/10000; got++; } else miss++; }
+    catch(e){ miss++; }
+  }
+  saveFx(); btn.disabled=false;
+  status.textContent = `Updated ${got} month${got!==1?'s':''}${miss?` · ${miss} unavailable (kept previous)`:''}.`;
+  renderFxTable(); renderAll();
+}
+document.getElementById('fxBtn').addEventListener('click',()=>{ renderFxTable(); document.getElementById('fxOverlay').classList.add('show'); document.getElementById('fxStatus').textContent=''; });
+document.getElementById('fxClose').addEventListener('click',()=>document.getElementById('fxOverlay').classList.remove('show'));
+document.getElementById('fxOverlay').addEventListener('click',e=>{ if(e.target===e.currentTarget) e.currentTarget.classList.remove('show'); });
+document.getElementById('fxFetchBtn').addEventListener('click',refreshFx);
+document.getElementById('fxResetBtn').addEventListener('click',()=>{ fxOverride={}; saveFx(); renderFxTable(); renderAll(); });
+
+document.getElementById('searchBox').addEventListener('input',()=>renderVendors(RAW,RAW.map(computeRow)));
+document.getElementById('filterSel').addEventListener('change',()=>renderVendors(RAW,RAW.map(computeRow)));
+document.getElementById('exportPdfBtn').addEventListener('click',()=>window.print());
+
+function setDzLoaded(text){ const dz=document.getElementById('dropzone'), h=document.getElementById('dzHint'); if(text){ dz.classList.add('loaded'); h.textContent=text; } else { dz.classList.remove('loaded'); h.textContent='CSV / XLSX · we auto-map Vendor, Amount, Dates, Status…'; } }
+document.getElementById('useSampleBtn').addEventListener('click',()=>{ RAW=JSON.parse(JSON.stringify(SAMPLE_RAW)); openVendor=null; setDzLoaded(`Sample data — ${RAW.length} invoices.`); document.getElementById('fileUpload').value=''; renderAll(); });
+
+const FIELD_ALIASES = {
+  v:['vendor','supplier','vendor name','supplier name','company','name of supplier'],
+  inv:['invoice','invoice no','invoice number','invoice #','inv','inv no'],
+  it:['item','description','product','material','item description'],
+  bl:['bl date','bl','invoice date','bill date','billing date','date','invoice/bl date'],
+  cd:['credit days','payment terms','terms','terms (days)','credit period','credit period (days)','cd'],
+  due:['due date','due','payment due date','effective due date'],
+  amt:['amount','invoice amount','amt','value','total','invoice value','amount (usd)','payable amount','total amount'],
+  st:['status','payment status','st'],
+  pd:['payment date','paid date','pd','date paid'],
+  out:['outstanding','balance','outstanding balance','out','open balance','amount due','outstanding (usd)']
+};
+function normHeader(h){ return String(h||'').trim().toLowerCase().replace(/\s+/g,' '); }
+function buildHeaderMap(headers){ const map={}, normed=headers.map(normHeader); Object.keys(FIELD_ALIASES).forEach(f=>{ for(const a of FIELD_ALIASES[f]){ const i=normed.indexOf(a); if(i!==-1){ map[f]=headers[i]; return; } } }); return map; }
+function toISODate(val){
+  if(val==null||val==='') return null;
+  if(val instanceof Date){ return `${val.getFullYear()}-${String(val.getMonth()+1).padStart(2,'0')}-${String(val.getDate()).padStart(2,'0')}`; }
+  const s=String(val).trim();
+  let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if(m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/); if(m) return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+  const d=new Date(s); if(!isNaN(d.getTime())) return toISODate(d); return null;
+}
+function num(val){ const n=parseFloat(String(val).replace(/[,$₹]/g,'')); return isNaN(n)?0:n; }
+function mapUploadedRows(json, headerMap){
+  const missing=['v','amt'].filter(f=>!headerMap[f]);
+  if(missing.length) return {rows:null,error:`Could not find a column for: ${missing.map(f=>({v:'Vendor',amt:'Amount'}[f])).join(', ')}. Rename header(s) to e.g. "Vendor" and "Amount".`};
+  const rows=[];
+  json.forEach(r=>{
+    const vendor=r[headerMap.v]; if(!vendor) return;
+    const amt=num(r[headerMap.amt]); const bl=headerMap.bl?toISODate(r[headerMap.bl]):null;
+    let due=headerMap.due?toISODate(r[headerMap.due]):null; let cd=headerMap.cd?num(r[headerMap.cd]):null;
+    if(!due&&bl&&cd){ const d=new Date(bl); d.setDate(d.getDate()+cd); due=toISODate(d); }
+    if(due&&bl&&(cd===null||cd===undefined||cd===0)){ cd=daysBetween(parseD(bl),parseD(due)); }
+    const st=headerMap.st?String(r[headerMap.st]||'Pending').trim():'Pending';
+    const pd=headerMap.pd?toISODate(r[headerMap.pd]):null;
+    let out=(headerMap.out!=null && r[headerMap.out]!==undefined && r[headerMap.out]!=='')?num(r[headerMap.out]):(/paid|yes/i.test(st)?0:amt);
+    rows.push({v:String(vendor).trim(),inv:String(r[headerMap.inv]||'').trim(),it:String(r[headerMap.it]||'').trim(),bl,cd:cd||0,due,amt,st,pd,out});
+  });
+  return {rows,error:null};
+}
+function handleFile(file){
+  if(!file) return;
+  setDzLoaded('⏳ Reading '+file.name+' …');
+  const reader=new FileReader();
+  reader.onload=evt=>{
+    try{
+      const wb=XLSX.read(evt.target.result,{type:'array',cellDates:true});
+      const sheet=wb.Sheets[wb.SheetNames[0]];
+      const json=XLSX.utils.sheet_to_json(sheet,{defval:''});
+      if(!json.length){ setDzLoaded('⚠ That file has no rows.'); return; }
+      const headerMap=buildHeaderMap(Object.keys(json[0]));
+      const {rows,error}=mapUploadedRows(json,headerMap);
+      if(error){ setDzLoaded('⚠ '+error); return; }
+      if(!rows.length){ setDzLoaded('⚠ No usable rows found.'); return; }
+      RAW=rows; openVendor=null;
+      const missOpt=['inv','it','bl','cd','due','st','pd','out'].filter(f=>!headerMap[f]);
+      setDzLoaded(`✅ ${rows.length} invoices from "${file.name}"`+(missOpt.length?` · defaults used for: ${missOpt.join(', ')}`:''));
+      renderAll();
+    }catch(err){ setDzLoaded('⚠ Could not read that file — is it a valid CSV/XLSX?'); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+(function(){
+  const dz=document.getElementById('dropzone'), inp=document.getElementById('fileUpload');
+  inp.addEventListener('change',e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); });
+  ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{ e.preventDefault(); dz.classList.add('dragover'); }));
+  ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{ e.preventDefault(); dz.classList.remove('dragover'); }));
+  dz.addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f){ inp.files=e.dataTransfer.files; handleFile(f); } });
+})();
+
+setDzLoaded(`Sample data — ${RAW.length} invoices. Drop your file to replace it.`);
+renderAll();
+</script>
+</body>
+</html>
