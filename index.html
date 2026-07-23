@@ -308,6 +308,13 @@
   .kpi-val { font-size: 22px; font-weight: 800; color: var(--ink); line-height: 1; letter-spacing: -0.02em; }
   .kpi-sub { font-size: 10px; color: var(--muted); margin-top: 5px; }
 
+  /* Pending Qty broken down per UOM (units can't be summed together) */
+  .kpi.kpi-uom { grid-column: span 2; }
+  .kpi-uom .uom-list { margin-top: 4px; display: flex; flex-direction: column; gap: 3px; max-height: 128px; overflow-y: auto; }
+  .kpi-uom .uom-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; line-height: 1.35; }
+  .kpi-uom .uom-nm { color: var(--muted); font-weight: 700; text-transform: uppercase; font-size: 10px; letter-spacing: 0.04em; }
+  .kpi-uom .uom-qt { font-weight: 800; color: var(--ink); font-size: 13px; font-family: 'JetBrains Mono', monospace; white-space: nowrap; }
+
   /* ── TOOLBAR ── */
   .toolbar {
     display: flex; gap: 8px; align-items: center;
@@ -3554,20 +3561,25 @@ const VENDOR_SHEETS = {
   function renderKpis(){
     const box = document.getElementById('poKpi'); if(!box) return;
     if(!poRows.length){ box.style.display = 'none'; return; }
-    let qty = 0; const vend = new Set(); let rm = 0, pm = 0; let powerW = 0, powerRows = 0;
+    let qty = 0; const vend = new Set(); let rm = 0, pm = 0; let powerW = 0, powerRows = 0; const uomTot = {};
     poRows.forEach(function(r){
-      const n = num(r.pendingQty); if(n!==null) qty += n;
+      const n = num(r.pendingQty); if(n!==null){ qty += n; const u = (String(r.uom||'').trim() || '\u2014').toUpperCase(); uomTot[u] = (uomTot[u]||0) + n; }
       if(r.vendor) vend.add(String(r.vendor).toLowerCase());
       const tp = String(r.itemType||'').toUpperCase();
       if(tp==='RM') rm++; else if(tp==='PM') pm++;
       const pi = powerInfo(r); if(pi.w!==null && !pi.est){ powerW += pi.w; powerRows++; }
     });
     const fmt = new Intl.NumberFormat('en-IN', {maximumFractionDigits:2});
+    const uomRows = Object.keys(uomTot).map(function(u){ return [u, uomTot[u]]; }).sort(function(a,b){ return b[1]-a[1]; });
+    const uomHtml = uomRows.length
+      ? uomRows.map(function(e){ return '<div class="uom-row"><span class="uom-nm">'+esc(e[0])+'</span><span class="uom-qt">'+fmt.format(e[1])+'</span></div>'; }).join('')
+      : '<div class="uom-row"><span class="uom-nm">\u2014</span><span class="uom-qt">0</span></div>';
+    const uomCard = '<div class="kpi kpi-uom"><div class="kpi-label">Pending Qty by UOM</div><div class="uom-list">'+uomHtml+'</div></div>';
     box.style.display = '';
     box.innerHTML =
       kpi('Open PO Lines', fmt.format(poRows.length), 'pending / not received') +
       kpi('Pending Power', fmtPow(powerW), powerRows + ' cell / module line' + (powerRows===1?'':'s')) +
-      kpi('Total Pending Qty', fmt.format(qty), 'across all UOM') +
+      uomCard +
       kpi('Vendors', vend.size, 'distinct suppliers') +
       kpi('RM / PM', rm + ' / ' + pm, 'raw vs packing material');
   }
