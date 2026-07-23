@@ -3555,14 +3555,17 @@ const VENDOR_SHEETS = {
       });
     }
     page = 1;
+    renderKpis();
     renderBody();
   }
 
   function renderKpis(){
     const box = document.getElementById('poKpi'); if(!box) return;
     if(!poRows.length){ box.style.display = 'none'; return; }
+    // KPIs reflect the current filtered/searched view; all rows when no filter is active
+    const rows = (typeof view !== 'undefined' && Array.isArray(view)) ? view : poRows;
     let qty = 0; const vend = new Set(); let rm = 0, pm = 0; let powerW = 0, powerRows = 0; const uomTot = {};
-    poRows.forEach(function(r){
+    rows.forEach(function(r){
       const n = num(r.pendingQty); if(n!==null){ qty += n; const u = (String(r.uom||'').trim() || '\u2014').toUpperCase(); uomTot[u] = (uomTot[u]||0) + n; }
       if(r.vendor) vend.add(String(r.vendor).toLowerCase());
       const tp = String(r.itemType||'').toUpperCase();
@@ -3577,7 +3580,7 @@ const VENDOR_SHEETS = {
     const uomCard = '<div class="kpi kpi-uom"><div class="kpi-label">Pending Qty by UOM</div><div class="uom-list">'+uomHtml+'</div></div>';
     box.style.display = '';
     box.innerHTML =
-      kpi('Open PO Lines', fmt.format(poRows.length), 'pending / not received') +
+      kpi('Open PO Lines', fmt.format(rows.length), rows.length === poRows.length ? 'pending / not received' : 'filtered \u00b7 of ' + fmt.format(poRows.length) + ' total') +
       kpi('Pending Power', fmtPow(powerW), powerRows + ' cell / module line' + (powerRows===1?'':'s')) +
       uomCard +
       kpi('Vendors', vend.size, 'distinct suppliers') +
@@ -3632,7 +3635,7 @@ const VENDOR_SHEETS = {
     if((el=document.getElementById('poTableWrap'))) el.style.display = has ? '' : 'none';
     if((el=document.getElementById('poPager'))) el.style.display = has ? '' : 'none';
     if((el=document.getElementById('poEmpty'))) el.style.display = has ? 'none' : '';
-    if(has){ if(!headerBuilt) buildHeader(); renderKpis(); applyFilters(); }
+    if(has){ if(!headerBuilt) buildHeader(); applyFilters(); }
   }
 
   function onCellEdit(e){
