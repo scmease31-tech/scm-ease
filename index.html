@@ -2828,7 +2828,7 @@
               <tr class="group-row">
                 <th colspan="6" style="text-align:left">Material Details</th>
                 <th colspan="2" style="text-align:center">Requirement</th>
-                <th colspan="4" style="text-align:center; background:#0d4f38">Stock Analysis</th>
+                <th colspan="5" style="text-align:center; background:#0d4f38">Stock Analysis</th>
                 <th style="background:#1a1a2e">Actions</th>
               </tr>
               <tr>
@@ -2843,6 +2843,7 @@
                 <th>Mapped Stock Item(s)</th>
                 <th class="num" style="background:#0d4f38; color:#fff;">Available</th>
                 <th class="num" style="background:#0d4f38; color:#fff;" title="Max Stock Limit">MSL</th>
+                <th class="num" style="background:#0d4f38; color:#fff;" title="Available stock minus MSL">Stock − MSL</th>
                 <th class="num" style="background:#991b1b; color:#fff;">Shortage / Surplus</th>
                 <th class="center">Discard / Map</th>
               </tr>
@@ -2858,7 +2859,8 @@
                 <th><div class="cf-wrap" data-col="8" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
                 <th></th>
                 <th></th>
-                <th><div class="cf-wrap" data-col="11" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+                <th></th>
+                <th><div class="cf-wrap" data-col="12" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
                 <th></th>
               </tr>
             </thead>
@@ -6231,7 +6233,7 @@ function render() {
 }
 
 // ── PLANNING & STOCK MODE LOGIC ───────────────────────────────────────────
-const PARSE_VERSION = 2; // Increment to auto-clear stale IndexedDB cache
+const PARSE_VERSION = 3; // Increment to auto-clear stale IndexedDB cache
 let planRaw = [];
 let planFmt = [];
 let planSheetName = '';
@@ -7818,6 +7820,9 @@ function renderConsolidatedTable(consolidated) {
     // Diff display
     const diff = mat.diff;
     const diffStr = isDiscarded ? '\u2014' : (diff >= 0 ? `<span style="color:#059669">+${fmt2.format(diff)}</span>` : `<span style="color:#dc2626;font-weight:800">${fmt2.format(diff)}</span>`);
+    // Stock minus MSL (available stock vs the max stock limit)
+    const _msl0 = mat.stockResult ? (mat.stockResult.msl || 0) : 0;
+    const smMslStr = (isDiscarded || _msl0 <= 0) ? '\u2014' : (function(){ const d = mat.stockResult.total - _msl0; return d >= 0 ? `<span style="color:#059669">+${fmt2.format(d)}</span>` : `<span style="color:#dc2626;font-weight:800">${fmt2.format(d)}</span>`; })();
 
     // Escape baseMaterialKey for HTML attributes (discard/map use base key)
     const bmkEsc = bmk.replace(/'/g, "\\'").replace(/"/g, '&quot;');
@@ -7834,6 +7839,7 @@ function renderConsolidatedTable(consolidated) {
       <td style="padding:4px 6px">${stockPillsHtml}</td>
       <td class="num" style="font-weight:700;color:var(--solar-1)">${isDiscarded ? '\u2014' : fmt2.format(mat.stockResult.total)}</td>
       <td class="num" style="font-weight:600;color:#0369a1" title="Max Stock Limit (from stock statement)">${isDiscarded || (mat.stockResult.msl||0) <= 0 ? '\u2014' : fmt2.format(mat.stockResult.msl)}</td>
+      <td class="num" style="font-weight:700" title="Available stock minus MSL">${smMslStr}</td>
       <td class="num" style="font-weight:800">${diffStr} ${!isDiscarded ? statusBadge : ''}</td>
       <td class="center" style="padding:4px">
         <div style="display:flex;gap:4px;justify-content:center;align-items:center">
@@ -7932,7 +7938,9 @@ function renderCustomerMaterials(customerOrders, consolidated) {
               <th>Material Code</th>
               <th class="num">Required Qty</th>
               <th>Stock Mapping</th>
-              <th class="num">Stock (net) / MSL</th>
+              <th class="num">Stock (net)</th>
+              <th class="num">MSL</th>
+              <th class="num">Stock − MSL</th>
               <th class="num">Diff</th>
               <th class="center">Action</th>
             </tr>
@@ -8000,7 +8008,9 @@ function renderCustomerMaterials(customerOrders, consolidated) {
         <td style="padding:4px 6px">${custMatCodeHtml}</td>
         <td class="num" style="font-weight:600">${fmt2.format(mat.reqQty)}</td>
         <td style="padding:4px 6px">${mappingLabel}</td>
-        <td class="num" style="font-weight:700;color:var(--solar-1)">${fmt2.format(availNow)}<br><span style="font-size:9px;font-weight:500;color:var(--muted)">of ${fmt2.format(poolInit[mk])} total${usedEarlier > 0 ? ' \u00b7 \u2212' + fmt2.format(usedEarlier) + ' used earlier' : ''}</span>${(stockResult.msl||0) > 0 ? '<br><span style="font-size:9px;font-weight:600;color:var(--muted)" title="Max Stock Limit">MSL ' + fmt2.format(stockResult.msl) + '</span>' : ''}</td>
+        <td class="num" style="font-weight:700;color:var(--solar-1)">${fmt2.format(availNow)}<br><span style="font-size:9px;font-weight:500;color:var(--muted)">of ${fmt2.format(poolInit[mk])} total${usedEarlier > 0 ? ' \u00b7 \u2212' + fmt2.format(usedEarlier) + ' used earlier' : ''}</span></td>
+        <td class="num" style="font-weight:600;color:#0369a1" title="Max Stock Limit">${(stockResult.msl||0) > 0 ? fmt2.format(stockResult.msl) : '\u2014'}</td>
+        <td class="num" style="font-weight:700" title="Stock (net) minus MSL">${(stockResult.msl||0) > 0 ? (availNow - stockResult.msl >= 0 ? '<span style="color:#059669">+' + fmt2.format(availNow - stockResult.msl) + '</span>' : '<span style="color:#dc2626;font-weight:800">' + fmt2.format(availNow - stockResult.msl) + '</span>') : '\u2014'}</td>
         <td class="num" style="font-weight:700;color:${diffColor}">${diff >= 0 ? '+' : ''}${fmt2.format(diff)}</td>
         <td class="center"><button class="map-btn" onclick="openCustomerMapModal('${custNameAttr}','${mkEsc}')" title="Map stock for ${custNameEsc}">🔗</button></td>
       </tr>`;
@@ -9013,7 +9023,7 @@ const _EX_BORDERS = { top: _EX_BORDER, bottom: _EX_BORDER, left: _EX_BORDER, rig
 function _colLetter(c){let s='';for(let n=c;n>=0;n=Math.floor(n/26)-1)s=String.fromCharCode(65+(n%26))+s;return s}
 const _TABLE_FORMULAS={
   resultBody:{7:'F{r}*(1+G{r}/100)',9:'H{r}*I{r}'},
-  consolidatedBody:{7:'D{r}*G{r}',11:'J{r}-H{r}'},
+  consolidatedBody:{7:'D{r}*G{r}',11:'J{r}-K{r}',12:'J{r}-H{r}'},
   resultBodyPlan:{7:'F{r}*(1+G{r}/100)',9:'H{r}*I{r}',11:'K{r}-J{r}'},
   cellBody:{5:'D{r}*E{r}',7:'G{r}*D{r}',8:'H{r}*E{r}'},
   planOrderBody:{6:'E{r}*F{r}'}
