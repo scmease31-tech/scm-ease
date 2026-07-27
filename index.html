@@ -6233,7 +6233,7 @@ function render() {
 }
 
 // ── PLANNING & STOCK MODE LOGIC ───────────────────────────────────────────
-const PARSE_VERSION = 3; // Increment to auto-clear stale IndexedDB cache
+const PARSE_VERSION = 4; // Increment to auto-clear stale IndexedDB cache
 let planRaw = [];
 let planFmt = [];
 let planSheetName = '';
@@ -6280,6 +6280,8 @@ let globalStockMappings = {}; // { materialKey: [stockItemDesc1, ...] }
 
 // Aggregated analysis results (shared between renders)
 let lastAnalysis = null;
+let stockMslByDesc = {}; // normalized item description -> Max Stock Limit (merged from all stock sheets)
+function _normDesc(x){ return String(x||'').toLowerCase().replace(/\s+/g,' ').trim(); }
 let aggregatedStock = {}; // { itemDesc: { qty, uom, cat, subcat } }
 
 // ── IndexedDB wrapper for large data persistence (no 5MB limit like localStorage) ──
@@ -6664,12 +6666,67 @@ function processExcelStock(file, callback, onError) {
     try {
       const data = new Uint8Array(e.target.result);
       const workbook = XLSX.read(data, {type: 'array'});
-      const sheetName = workbook.SheetNames[0];
-      const ws = workbook.Sheets[sheetName];
-      if (!ws || !ws['!ref']) throw new Error('Stock file has no data');
-      const json2d = XLSX.utils.sheet_to_json(ws, {header: 1, raw: true, defval: ''});
+      // Pick the best STOCK sheet. Pivot sheets often don't expose their body rows to the
+      // reader (only a handful parse), so prefer a normal detailed sheet that has
+      // Description + a real Quantity column, favouring sheets named like a stock report
+      // and carrying Item Code / MSL. Falls back to the first sheet.
+      let sheetName = workbook.SheetNames[0], json2d = null, bestScore = -1;
+      workbook.SheetNames.forEach(sn => {
+        const w = workbook.Sheets[sn];
+        if (!w || !w['!ref']) return;
+        const g = XLSX.utils.sheet_to_json(w, {header: 1, raw: true, defval: ''});
+        let hi = -1, dC = -1, qC = -1;
+        for (let i = 0; i < Math.min(g.length, 15); i++) {
+          const rl = (g[i] || []).map(c => String(c).toLowerCase());
+          const d = rl.findIndex(h => h.includes('description'));
+          const q = rl.findIndex(h => h === 'quantity' || h === 'qty.' || h === 'qty' || (h.includes('qty') && !h.includes('bom')));
+          if (d !== -1 && q !== -1) { hi = i; dC = d; qC = q; break; }
+        }
+        if (hi === -1) return;
+        let usable = 0;
+        for (let i = hi + 1; i < g.length; i++) {
+          if (String(g[i][dC] || '').trim() && (Number(g[i][qC]) || 0) > 0) usable++;
+        }
+        const hdrRow = (g[hi] || []).map(c => String(c).toLowerCase());
+        let score = usable;
+        if (/stock/.test(String(sn).toLowerCase())) score += 1e6;
+        if (hdrRow.some(h => h.includes('item code') || h === 'item no' || h.includes('item no') || h.includes('material code'))) score += 5e5;
+        if (hdrRow.some(h => h.includes('msl'))) score += 2e5;
+        if (score > bestScore) { bestScore = score; sheetName = sn; json2d = g; }
+      });
+      if (!json2d) {
+        const ws0 = workbook.Sheets[workbook.SheetNames[0]];
+        if (!ws0 || !ws0['!ref']) throw new Error('Stock file has no data');
+        json2d = XLSX.utils.sheet_to_json(ws0, {header: 1, raw: true, defval: ''});
+      }
       if (json2d.length < 2) throw new Error('Stock file is empty (no data rows)');
-      console.log('[Stock] Parsed ' + json2d.length + ' rows from sheet "' + sheetName + '"');
+      // Build a reliable MSL-by-description map from ALL sheets. The primary (often pivot)
+      // sheet's "Max of MSL" is frequently blank/unparsed, but normal sheets such as
+      // "MSD Store Stock" / "BOM & MSL Details" carry clean per-item MSL. Keyed by
+      // normalized description so it matches regardless of spacing/case differences.
+      stockMslByDesc = {};
+      workbook.SheetNames.forEach(sn => {
+        try {
+          const w = workbook.Sheets[sn];
+          if (!w || !w['!ref']) return;
+          const grid = XLSX.utils.sheet_to_json(w, {header: 1, raw: true, defval: ''});
+          let hi = -1, dC = -1, mC = -1;
+          for (let i = 0; i < Math.min(grid.length, 15); i++) {
+            const rl = (grid[i] || []).map(c => String(c).toLowerCase());
+            const d = rl.findIndex(h => h.includes('description'));
+            const m = rl.findIndex(h => h === 'msl' || h.includes('msl'));
+            if (d !== -1 && m !== -1) { hi = i; dC = d; mC = m; break; }
+          }
+          if (hi === -1) return;
+          for (let i = hi + 1; i < grid.length; i++) {
+            const row = grid[i]; if (!row) continue;
+            const dk = _normDesc(row[dC]);
+            const msl = Number(row[mC]) || 0;
+            if (dk && msl > (stockMslByDesc[dk] || 0)) stockMslByDesc[dk] = msl;
+          }
+        } catch(e2) {}
+      });
+      console.log('[Stock] Parsed ' + json2d.length + ' rows from "' + sheetName + '"; MSL map entries: ' + Object.keys(stockMslByDesc).length);
       callback(json2d);
     } catch(err) {
       console.error('[Stock Parse Error]', err);
@@ -7032,6 +7089,8 @@ function getStockQtyWithVariants(materialKey, desc, customer) {
 }
 
 function getStockForMaterial(materialKey, materialGroup, materialSpec, materialUom) {
+  // MSL may also be found directly by the material's spec (BOM & MSL sheets are keyed by item description)
+  const _specMsl = (stockMslByDesc && stockMslByDesc[_normDesc(materialSpec)]) || 0;
   // Check manual override first
   if (stockMappingOverrides[materialKey] && stockMappingOverrides[materialKey].length > 0) {
     let total = 0, msl = 0;
@@ -7044,7 +7103,7 @@ function getStockForMaterial(materialKey, materialGroup, materialSpec, materialU
         items.push({ desc, qty, uom: aggregatedStock[desc].uom, manual: true });
       }
     });
-    return { total, items, isManual: true, msl };
+    return { total, items, isManual: true, msl: Math.max(msl, _specMsl) };
   }
 
   // Auto mapping
@@ -7059,7 +7118,7 @@ function getStockForMaterial(materialKey, materialGroup, materialSpec, materialU
       items.push({ desc, qty, uom: aggregatedStock[desc].uom, manual: false });
     }
   });
-  return { total, items, isManual: false, msl };
+  return { total, items, isManual: false, msl: Math.max(msl, _specMsl) };
 }
 
 // ── MODULE TYPE DETECTION ─────────────────────────────────────────────────
@@ -7278,7 +7337,7 @@ function runAnalysisAuto() {
       const c1 = row.findIndex(c => String(c).toLowerCase().includes('description'));
       const c2 = row.findIndex(c => String(c).toLowerCase() === 'quantity' || String(c).toLowerCase().includes('qty'));
       const c3 = row.findIndex(c => String(c).toLowerCase().includes('unit') || String(c).toLowerCase().includes('uom'));
-      const c4 = row.findIndex(c => String(c).toLowerCase().includes('location'));
+      const c4 = row.findIndex(c => { const h = String(c).toLowerCase(); return h.includes('location') || h === 'whs' || h.includes('warehouse'); });
       const c5 = row.findIndex(c => { const h = String(c).toLowerCase(); return (h.includes('variant') || h.includes('item variant')) && !h.includes('variant name') && !h.includes('variant description'); });
       const c6 = row.findIndex(c => { const h = String(c).toLowerCase(); return h.includes('variant name') || h.includes('variant description'); });
       const c7 = row.findIndex(c => { const h = String(c).toLowerCase(); return h === 'item code' || h === 'material code' || h === 'code' || h === 'item no' || h === 'item no.' || h.includes('item code') || h.includes('material code'); });
@@ -7320,6 +7379,17 @@ function runAnalysisAuto() {
     }
   });
   if (rejectedCount > 0) console.log(`Excluded ${rejectedCount} rejection-location stock rows`);
+
+  // Fill MSL from the dedicated map (built from all stock sheets) wherever the primary
+  // sheet left it blank. Matched by normalized description.
+  if (stockMslByDesc && Object.keys(stockMslByDesc).length) {
+    let _mslFilled = 0;
+    Object.keys(aggregatedStock).forEach(desc => {
+      const m = stockMslByDesc[_normDesc(desc)] || 0;
+      if (m > (aggregatedStock[desc].msl || 0)) { aggregatedStock[desc].msl = m; _mslFilled++; }
+    });
+    console.log('[Stock] MSL applied to ' + _mslFilled + ' / ' + Object.keys(aggregatedStock).length + ' stock items');
+  }
 
   // 3. Aggregate planned modules by type
   let plannedModules = {};
