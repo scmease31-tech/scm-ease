@@ -6233,7 +6233,7 @@ function render() {
 }
 
 // ── PLANNING & STOCK MODE LOGIC ───────────────────────────────────────────
-const PARSE_VERSION = 4; // Increment to auto-clear stale IndexedDB cache
+const PARSE_VERSION = 5; // Increment to auto-clear stale IndexedDB cache
 let planRaw = [];
 let planFmt = [];
 let planSheetName = '';
@@ -6691,7 +6691,7 @@ function processExcelStock(file, callback, onError) {
         let score = usable;
         if (/stock/.test(String(sn).toLowerCase())) score += 1e6;
         if (hdrRow.some(h => h.includes('item code') || h === 'item no' || h.includes('item no') || h.includes('material code'))) score += 5e5;
-        if (hdrRow.some(h => h.includes('msl'))) score += 2e5;
+        if (hdrRow.some(h => h.includes('msl') || h.includes('minimum') || (h.includes('min') && h.includes('qty')))) score += 2e5;
         if (score > bestScore) { bestScore = score; sheetName = sn; json2d = g; }
       });
       if (!json2d) {
@@ -6714,7 +6714,7 @@ function processExcelStock(file, callback, onError) {
           for (let i = 0; i < Math.min(grid.length, 15); i++) {
             const rl = (grid[i] || []).map(c => String(c).toLowerCase());
             const d = rl.findIndex(h => h.includes('description'));
-            const m = rl.findIndex(h => h === 'msl' || h.includes('msl'));
+            const m = rl.findIndex(h => h.includes('msl') || h.includes('minimum') || (h.includes('min') && h.includes('qty')));
             if (d !== -1 && m !== -1) { hi = i; dC = d; mC = m; break; }
           }
           if (hi === -1) return;
@@ -7335,13 +7335,15 @@ function runAnalysisAuto() {
   stockRaw.forEach((row, ri) => {
     if (ri === stockHdrIdx) {
       const c1 = row.findIndex(c => String(c).toLowerCase().includes('description'));
-      const c2 = row.findIndex(c => String(c).toLowerCase() === 'quantity' || String(c).toLowerCase().includes('qty'));
+      let c2 = row.findIndex(c => String(c).toLowerCase().includes('available'));
+      if (c2 === -1) c2 = row.findIndex(c => { const h = String(c).toLowerCase(); return (h === 'quantity' || h.includes('qty')) && !h.includes('min') && !h.includes('msl') && !h.includes('required') && !h.includes('bom') && !h.includes('max'); });
       const c3 = row.findIndex(c => String(c).toLowerCase().includes('unit') || String(c).toLowerCase().includes('uom'));
       const c4 = row.findIndex(c => { const h = String(c).toLowerCase(); return h.includes('location') || h === 'whs' || h.includes('warehouse'); });
       const c5 = row.findIndex(c => { const h = String(c).toLowerCase(); return (h.includes('variant') || h.includes('item variant')) && !h.includes('variant name') && !h.includes('variant description'); });
       const c6 = row.findIndex(c => { const h = String(c).toLowerCase(); return h.includes('variant name') || h.includes('variant description'); });
       const c7 = row.findIndex(c => { const h = String(c).toLowerCase(); return h === 'item code' || h === 'material code' || h === 'code' || h === 'item no' || h === 'item no.' || h.includes('item code') || h.includes('material code'); });
-      const c8 = row.findIndex(c => String(c).toLowerCase().includes('msl'));
+      let c8 = row.findIndex(c => String(c).toLowerCase().includes('msl'));
+      if (c8 === -1) c8 = row.findIndex(c => { const h = String(c).toLowerCase(); return h.includes('minimum') || (h.includes('min') && h.includes('qty')); });
       if (c1 !== -1) stockDescCol = c1;
       if (c2 !== -1) stockQtyCol = c2;
       if (c3 !== -1) stockUomCol = c3;
