@@ -2637,6 +2637,7 @@
           <th colspan="5" style="text-align:left">Material Details</th>
           <th colspan="3" style="text-align:center">Per Module Consumption</th>
           <th colspan="2" style="text-align:center">⇄ Calculated Totals (editable either way)</th>
+          <th style="text-align:center;background:#0d4f38">📦 Stock</th>
           <th colspan="4" style="text-align:center;background:#78350f">💰 Pricing</th>
           <th colspan="2" style="text-align:center;background:#064430">⚡ Generation (Editable — W/KW/MW/GW)</th>
           <th style="background:#1a1a2e">Actions</th>
@@ -2652,6 +2653,7 @@
           <th class="num">Consumption / Module</th>
           <th class="num" data-tip="Auto-computed from Required Qty, or set via Module Qty above">Module Qty ↕</th>
           <th class="num" data-tip="Edit this to back-calculate Module Qty automatically">Required Qty ✎</th>
+          <th class="num" style="min-width:90px;background:#0d4f38;color:#fff" data-tip="Max Stock Limit (from the planning stock statement)">MSL</th>
           <th class="num" style="min-width:110px" data-tip="Qty for which you have a price + its UOM">Price Qty (UOM)</th>
           <th class="num" style="min-width:120px" data-tip="Price for the specified quantity + Currency">Unit Price (Cur)</th>
           <th class="num" style="min-width:100px" data-tip="Auto-calculated material cost per module in INR">Cost / Mod ₹</th>
@@ -2668,8 +2670,8 @@
           <th><div class="cf-wrap" data-col="4" data-tbody="resultBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
           <th></th><th></th><th></th>
           <th><div class="cf-wrap" data-col="8" data-tbody="resultBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
-          <th></th><th></th><th></th><th></th><th></th><th></th>
-          <th><div class="cf-wrap" data-col="15" data-tbody="resultBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+          <th></th><th></th><th></th><th></th><th></th><th></th><th></th>
+          <th><div class="cf-wrap" data-col="16" data-tbody="resultBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
           <th></th>
         </tr>
       </thead>
@@ -5589,7 +5591,7 @@ function renderTable() {
   });
 
   if (!visibleRows.length) {
-    document.getElementById("resultBody").innerHTML = `<tr><td colspan="17">
+    document.getElementById("resultBody").innerHTML = `<tr><td colspan="18">
       <div class="empty-state">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <p>No rows match your search</p>
@@ -5660,6 +5662,12 @@ function renderTable() {
     const pCur = pd.currency || 'INR';
     const costPM = (n(pPrice) > 0) ? calcCostPerModule(item.row, mk, pd) : null;
     const totalPrice = (costPM !== null && impliedMQ > 0) ? costPM * impliedMQ : null;
+    // MSL (Max Stock Limit) from the planning stock statement, matched by material
+    let mslCell = '\u2014';
+    if (typeof aggregatedStock !== 'undefined' && aggregatedStock && Object.keys(aggregatedStock).length) {
+      const _sm = getStockForMaterial(item.row.group + '|||' + item.row.spec, item.row.group, item.row.spec, item.row.uom);
+      if (_sm && (_sm.msl || 0) > 0) mslCell = fmt2.format(_sm.msl);
+    }
     const pricingCells = `<td class="price-cell">
         <div class="price-inline-wrap">
           <input type="number" step="0.001" min="0" data-price-qty="${mk}:${ri}" value="${pQty}" placeholder="1" title="Qty this price is for (default 1)"/>
@@ -5722,6 +5730,7 @@ function renderTable() {
         <input type="number" step="0.000001" data-req="${mk}:${ri}" value="${fmtInput(reqQty)}" title="✎ Type to set this row's Required Qty independently"/>
         ${overrideTag}${genDrivenTag}${resetBtn}
       </td>
+      <td class="num" style="font-weight:600;color:#0369a1" title="Max Stock Limit (from planning stock statement)">${mslCell}</td>
       ${pricingCells}
       ${wattCell}
       <td class="action-cell">
