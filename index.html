@@ -2826,7 +2826,7 @@
               <tr class="group-row">
                 <th colspan="6" style="text-align:left">Material Details</th>
                 <th colspan="2" style="text-align:center">Requirement</th>
-                <th colspan="3" style="text-align:center; background:#0d4f38">Stock Analysis</th>
+                <th colspan="4" style="text-align:center; background:#0d4f38">Stock Analysis</th>
                 <th style="background:#1a1a2e">Actions</th>
               </tr>
               <tr>
@@ -2840,6 +2840,7 @@
                 <th class="num" style="background:#e6f7f1; color:var(--solar-1);">Required Qty</th>
                 <th>Mapped Stock Item(s)</th>
                 <th class="num" style="background:#0d4f38; color:#fff;">Available</th>
+                <th class="num" style="background:#0d4f38; color:#fff;" title="Max Stock Limit">MSL</th>
                 <th class="num" style="background:#991b1b; color:#fff;">Shortage / Surplus</th>
                 <th class="center">Discard / Map</th>
               </tr>
@@ -2854,7 +2855,8 @@
                 <th></th>
                 <th><div class="cf-wrap" data-col="8" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
                 <th></th>
-                <th><div class="cf-wrap" data-col="10" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+                <th></th>
+                <th><div class="cf-wrap" data-col="11" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
                 <th></th>
               </tr>
             </thead>
@@ -7021,30 +7023,32 @@ function getStockQtyWithVariants(materialKey, desc, customer) {
 function getStockForMaterial(materialKey, materialGroup, materialSpec, materialUom) {
   // Check manual override first
   if (stockMappingOverrides[materialKey] && stockMappingOverrides[materialKey].length > 0) {
-    let total = 0;
+    let total = 0, msl = 0;
     const items = [];
     stockMappingOverrides[materialKey].forEach(desc => {
       if (aggregatedStock[desc]) {
         const qty = getStockQtyWithVariants(materialKey, desc);
         total += qty;
+        if ((aggregatedStock[desc].msl || 0) > msl) msl = aggregatedStock[desc].msl || 0;
         items.push({ desc, qty, uom: aggregatedStock[desc].uom, manual: true });
       }
     });
-    return { total, items, isManual: true };
+    return { total, items, isManual: true, msl };
   }
 
   // Auto mapping
   const autoMapped = buildAutoStockMapping(materialGroup, materialSpec, materialUom);
-  let total = 0;
+  let total = 0, msl = 0;
   const items = [];
   autoMapped.forEach(desc => {
     if (aggregatedStock[desc]) {
       const qty = getStockQtyWithVariants(materialKey, desc);
       total += qty;
+      if ((aggregatedStock[desc].msl || 0) > msl) msl = aggregatedStock[desc].msl || 0;
       items.push({ desc, qty, uom: aggregatedStock[desc].uom, manual: false });
     }
   });
-  return { total, items, isManual: false };
+  return { total, items, isManual: false, msl };
 }
 
 // ── MODULE TYPE DETECTION ─────────────────────────────────────────────────
@@ -7247,11 +7251,19 @@ function runAnalysisAuto() {
 
   // 2. Aggregate stock data
   aggregatedStock = {};
-  let stockDescCol = 3, stockQtyCol = 8, stockUomCol = 9, stockLocCol = -1, stockVariantCol = -1, stockVariantNameCol = -1, stockCodeCol = -1;
+  let stockDescCol = 3, stockQtyCol = 8, stockUomCol = 9, stockLocCol = -1, stockVariantCol = -1, stockVariantNameCol = -1, stockCodeCol = -1, stockMslCol = -1;
   let rejectedCount = 0;
 
+  // Some stock exports (pivot / statement sheets) have blank or title rows above the
+  // real header. Find the header row instead of assuming row 0, so column detection works.
+  let stockHdrIdx = 0;
+  for (let i = 0; i < Math.min(stockRaw.length, 30); i++) {
+    const rl = (stockRaw[i] || []).map(c => String(c).toLowerCase());
+    if (rl.some(h => h.includes('description')) && rl.some(h => h === 'quantity' || h.includes('qty'))) { stockHdrIdx = i; break; }
+  }
+
   stockRaw.forEach((row, ri) => {
-    if (ri === 0) {
+    if (ri === stockHdrIdx) {
       const c1 = row.findIndex(c => String(c).toLowerCase().includes('description'));
       const c2 = row.findIndex(c => String(c).toLowerCase() === 'quantity' || String(c).toLowerCase().includes('qty'));
       const c3 = row.findIndex(c => String(c).toLowerCase().includes('unit') || String(c).toLowerCase().includes('uom'));
@@ -7259,6 +7271,7 @@ function runAnalysisAuto() {
       const c5 = row.findIndex(c => { const h = String(c).toLowerCase(); return (h.includes('variant') || h.includes('item variant')) && !h.includes('variant name') && !h.includes('variant description'); });
       const c6 = row.findIndex(c => { const h = String(c).toLowerCase(); return h.includes('variant name') || h.includes('variant description'); });
       const c7 = row.findIndex(c => { const h = String(c).toLowerCase(); return h === 'item code' || h === 'material code' || h === 'code' || h === 'item no' || h === 'item no.' || h.includes('item code') || h.includes('material code'); });
+      const c8 = row.findIndex(c => String(c).toLowerCase().includes('msl'));
       if (c1 !== -1) stockDescCol = c1;
       if (c2 !== -1) stockQtyCol = c2;
       if (c3 !== -1) stockUomCol = c3;
@@ -7266,7 +7279,8 @@ function runAnalysisAuto() {
       if (c5 !== -1) stockVariantCol = c5;
       if (c6 !== -1) stockVariantNameCol = c6;
       if (c7 !== -1) stockCodeCol = c7;
-    } else {
+      if (c8 !== -1) stockMslCol = c8;
+    } else if (ri > stockHdrIdx) {
       // Skip rejection location items
       if (stockLocCol !== -1) {
         const loc = String(row[stockLocCol] || '').toLowerCase();
@@ -7280,9 +7294,11 @@ function runAnalysisAuto() {
       const variant = stockVariantCol !== -1 ? String(row[stockVariantCol] || '').trim() : '';
       const variantName = stockVariantNameCol !== -1 ? String(row[stockVariantNameCol] || '').trim() : '';
       const itemCode = stockCodeCol !== -1 ? String(row[stockCodeCol] || '').trim() : '';
+      const mslVal = stockMslCol !== -1 ? (Number(row[stockMslCol]) || 0) : 0;
       if (desc && qty > 0) {
-        if (!aggregatedStock[desc]) aggregatedStock[desc] = { qty: 0, uom, cat, subcat, variants: {}, variantNames: {}, code: '' };
+        if (!aggregatedStock[desc]) aggregatedStock[desc] = { qty: 0, uom, cat, subcat, variants: {}, variantNames: {}, code: '', msl: 0 };
         aggregatedStock[desc].qty += qty;
+        if (mslVal > (aggregatedStock[desc].msl || 0)) aggregatedStock[desc].msl = mslVal;
         if (itemCode && !aggregatedStock[desc].code) aggregatedStock[desc].code = itemCode;
         if (variant) {
           if (!aggregatedStock[desc].variants[variant]) aggregatedStock[desc].variants[variant] = 0;
@@ -7808,6 +7824,7 @@ function renderConsolidatedTable(consolidated) {
       <td class="total-cell num" style="font-size:12px">${isDiscarded ? '\u2014' : fmt2.format(mat.requiredQty)}</td>
       <td style="padding:4px 6px">${stockPillsHtml}</td>
       <td class="num" style="font-weight:700;color:var(--solar-1)">${isDiscarded ? '\u2014' : fmt2.format(mat.stockResult.total)}</td>
+      <td class="num" style="font-weight:600;color:#0369a1" title="Max Stock Limit (from stock statement)">${isDiscarded || (mat.stockResult.msl||0) <= 0 ? '\u2014' : fmt2.format(mat.stockResult.msl)}</td>
       <td class="num" style="font-weight:800">${diffStr} ${!isDiscarded ? statusBadge : ''}</td>
       <td class="center" style="padding:4px">
         <div style="display:flex;gap:4px;justify-content:center;align-items:center">
@@ -7848,6 +7865,9 @@ function renderCustomerMaterials(customerOrders, consolidated) {
   const sorted = Object.entries(custMap).sort((a, b) => b[1].totalMW - a[1].totalMW);
   let html = '';
   let custMatIdx = 0;
+  // Stock waterfall across customers (largest MW first): each later customer only sees
+  // what earlier customers left. Pool = physical stock per material, shared by all customers.
+  const remainingStock = {}, poolInit = {};
 
   sorted.forEach(([custName, data]) => {
     const custMappings = customerStockMappings[custName] || {};
@@ -7903,7 +7923,7 @@ function renderCustomerMaterials(customerOrders, consolidated) {
               <th>Material Code</th>
               <th class="num">Required Qty</th>
               <th>Stock Mapping</th>
-              <th class="num">Stock Qty</th>
+              <th class="num">Stock (net) / MSL</th>
               <th class="num">Diff</th>
               <th class="center">Action</th>
             </tr>
@@ -7931,7 +7951,16 @@ function renderCustomerMaterials(customerOrders, consolidated) {
         stockResult.isCustomer = false;
       }
 
-      const diff = stockResult.total - mat.reqQty;
+      // Waterfall: physical stock pool for this material, shared across customers
+      if (poolInit[mk] === undefined) {
+        const baseStock = getStockForMaterial(mk, mat.group, mat.spec, mat.uom);
+        poolInit[mk] = baseStock.total;
+        remainingStock[mk] = baseStock.total;
+      }
+      const availNow = remainingStock[mk];
+      const usedEarlier = Math.max(0, poolInit[mk] - availNow);
+      const diff = availNow - mat.reqQty;
+      remainingStock[mk] = Math.max(0, availNow - mat.reqQty);
       const diffColor = diff >= 0 ? '#059669' : '#dc2626';
       const mappingLabel = stockResult.items.length > 0
         ? stockResult.items.map(i => `<span class="stock-pill ${stockResult.isCustomer ? 'manual' : 'matched'}" title="${escHtml(i.desc)}" style="font-size:9px;padding:1px 5px;">${escHtml(i.desc.substring(0,30))}${i.desc.length>30?'…':''}</span>`).join(' ')
@@ -7962,7 +7991,7 @@ function renderCustomerMaterials(customerOrders, consolidated) {
         <td style="padding:4px 6px">${custMatCodeHtml}</td>
         <td class="num" style="font-weight:600">${fmt2.format(mat.reqQty)}</td>
         <td style="padding:4px 6px">${mappingLabel}</td>
-        <td class="num" style="font-weight:700;color:var(--solar-1)">${fmt2.format(stockResult.total)}</td>
+        <td class="num" style="font-weight:700;color:var(--solar-1)">${fmt2.format(availNow)}<br><span style="font-size:9px;font-weight:500;color:var(--muted)">of ${fmt2.format(poolInit[mk])} total${usedEarlier > 0 ? ' \u00b7 \u2212' + fmt2.format(usedEarlier) + ' used earlier' : ''}</span>${(stockResult.msl||0) > 0 ? '<br><span style="font-size:9px;font-weight:600;color:var(--muted)" title="Max Stock Limit">MSL ' + fmt2.format(stockResult.msl) + '</span>' : ''}</td>
         <td class="num" style="font-weight:700;color:${diffColor}">${diff >= 0 ? '+' : ''}${fmt2.format(diff)}</td>
         <td class="center"><button class="map-btn" onclick="openCustomerMapModal('${custNameAttr}','${mkEsc}')" title="Map stock for ${custNameEsc}">🔗</button></td>
       </tr>`;
@@ -8975,7 +9004,7 @@ const _EX_BORDERS = { top: _EX_BORDER, bottom: _EX_BORDER, left: _EX_BORDER, rig
 function _colLetter(c){let s='';for(let n=c;n>=0;n=Math.floor(n/26)-1)s=String.fromCharCode(65+(n%26))+s;return s}
 const _TABLE_FORMULAS={
   resultBody:{7:'F{r}*(1+G{r}/100)',9:'H{r}*I{r}'},
-  consolidatedBody:{7:'D{r}*G{r}',10:'J{r}-H{r}'},
+  consolidatedBody:{7:'D{r}*G{r}',11:'J{r}-H{r}'},
   resultBodyPlan:{7:'F{r}*(1+G{r}/100)',9:'H{r}*I{r}',11:'K{r}-J{r}'},
   cellBody:{5:'D{r}*E{r}',7:'G{r}*D{r}',8:'H{r}*E{r}'},
   planOrderBody:{6:'E{r}*F{r}'}
