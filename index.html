@@ -4223,6 +4223,8 @@ const recycleBin = saved.recycleBin || []; // [{ type:'row'|'module', data, modu
 let activeModule = saved.activeModule || "all";
 // Per-module power target: { moduleKey: { value: number, unit: 'W'|'kW'|'MW'|'GW' } } — auto-calculates moduleQty from Wp
 const modulePower = saved.modulePower || {};
+// mslOverrides: { "group|||spec": editedMslNumber } — user-entered Max Stock Limit; overrides the stock-statement value everywhere (consumption + planning)
+const mslOverrides = saved.mslOverrides || {};
 
 // Unit multipliers for generation
 const GEN_UNITS = { W: 1, kW: 1e3, MW: 1e6, GW: 1e9 };
@@ -5196,7 +5198,7 @@ document.addEventListener('click', function(e) {
 
 // ── SAVE ──────────────────────────────────────────────────────────────────
 function saveState() {
-  try { localStorage.setItem("rmConsv2", JSON.stringify({ modules, moduleQty, moduleWp, activeModule, rowOverrides, rowGeneration, rowPricing, currencyRates, recycleBin, modulePower, _baseVersion: _BASE_VERSION })); } catch(e) { console.warn('localStorage quota exceeded', e); }
+  try { localStorage.setItem("rmConsv2", JSON.stringify({ modules, moduleQty, moduleWp, activeModule, rowOverrides, rowGeneration, rowPricing, currencyRates, recycleBin, modulePower, mslOverrides, _baseVersion: _BASE_VERSION })); } catch(e) { console.warn('localStorage quota exceeded', e); }
 }
 
 // ── PRICING UOM CONVERSION ────────────────────────────────────────────────
@@ -5664,12 +5666,15 @@ function renderTable() {
     const pCur = pd.currency || 'INR';
     const costPM = (n(pPrice) > 0) ? calcCostPerModule(item.row, mk, pd) : null;
     const totalPrice = (costPM !== null && impliedMQ > 0) ? costPM * impliedMQ : null;
-    // MSL (Max Stock Limit) from the planning stock statement, matched by material
-    let mslCell = '\u2014';
+    // MSL (Max Stock Limit) — editable. User override wins; else the value derived from the stock statement (incl. pivot "Max of MSL").
+    const _mslBaseKey = (item.row.group || '') + '|||' + (item.row.spec || '');
+    let _mslDerived = 0;
     if (typeof aggregatedStock !== 'undefined' && aggregatedStock && Object.keys(aggregatedStock).length) {
-      const _sm = getStockForMaterial(item.row.group + '|||' + item.row.spec, item.row.group, item.row.spec, item.row.uom);
-      if (_sm && (_sm.msl || 0) > 0) mslCell = fmt2.format(_sm.msl);
+      const _sm = getStockForMaterial(_mslBaseKey, item.row.group, item.row.spec, item.row.uom);
+      _mslDerived = _sm ? (_sm.msl || 0) : 0;
     }
+    const _mslHasOv = (typeof mslOverrides !== 'undefined' && mslOverrides && mslOverrides[_mslBaseKey] !== undefined && mslOverrides[_mslBaseKey] !== null && mslOverrides[_mslBaseKey] !== '');
+    const _mslShown = _mslHasOv ? n(mslOverrides[_mslBaseKey]) : _mslDerived;
     const pricingCells = `<td class="price-cell">
         <div class="price-inline-wrap">
           <input type="number" step="0.001" min="0" data-price-qty="${mk}:${ri}" value="${pQty}" placeholder="1" title="Qty this price is for (default 1)"/>
@@ -5732,7 +5737,10 @@ function renderTable() {
         <input type="number" step="0.000001" data-req="${mk}:${ri}" value="${fmtInput(reqQty)}" title="✎ Type to set this row's Required Qty independently"/>
         ${overrideTag}${genDrivenTag}${resetBtn}
       </td>
-      <td class="num" style="font-weight:600;color:#0369a1" title="Max Stock Limit (from planning stock statement)">${mslCell}</td>
+      <td class="edit-cell num" style="white-space:nowrap" title="Max Stock Limit — type to edit; your value overrides the stock statement. Clear to revert.">
+        <input type="number" step="1" min="0" data-msl="${mk}:${ri}" value="${_mslShown > 0 ? fmtInput(_mslShown) : ''}" placeholder="\u2014" style="width:88px;font-weight:600;color:${_mslHasOv ? '#b45309' : '#0369a1'}"/>
+        ${_mslHasOv ? '<span class="override-tag" title="Manually edited MSL — clear the box to revert to the stock value">edited</span>' : ''}
+      </td>
       ${pricingCells}
       ${wattCell}
       <td class="action-cell">
@@ -5762,6 +5770,22 @@ function renderTable() {
         row[field] = val;
         row.consumption = consumption(row);
       }
+      saveState(); render();
+    });
+  });
+
+  // ── MSL (Max Stock Limit) inline edit — writes a per-material override (group|||spec) used across consumption + planning ──
+  document.querySelectorAll("[data-msl]").forEach(inp => {
+    inp.addEventListener("change", () => {
+      const [mk, ri] = inp.dataset.msl.split(":");
+      const mod = modules.find(m => m.key === mk);
+      if (!mod) return;
+      const row = mod.rows[Number(ri)];
+      if (!row) return;
+      const baseKey = (row.group || '') + '|||' + (row.spec || '');
+      const raw = String(inp.value).trim();
+      if (raw === '') { delete mslOverrides[baseKey]; }
+      else { mslOverrides[baseKey] = n(raw); }
       saveState(); render();
     });
   });
@@ -7091,6 +7115,11 @@ function getStockQtyWithVariants(materialKey, desc, customer) {
 function getStockForMaterial(materialKey, materialGroup, materialSpec, materialUom) {
   // MSL may also be found directly by the material's spec (BOM & MSL sheets are keyed by item description)
   const _specMsl = (stockMslByDesc && stockMslByDesc[_normDesc(materialSpec)]) || 0;
+  // User-entered MSL override (keyed by group|||spec) takes top priority over the stock-statement value
+  const _ovKey = (materialGroup || '') + '|||' + (materialSpec || '');
+  const _ovRaw = (typeof mslOverrides !== 'undefined' && mslOverrides) ? mslOverrides[_ovKey] : undefined;
+  const _hasOv = _ovRaw !== undefined && _ovRaw !== null && _ovRaw !== '';
+  const _resolveMsl = m => _hasOv ? Number(_ovRaw) : Math.max(m, _specMsl);
   // Check manual override first
   if (stockMappingOverrides[materialKey] && stockMappingOverrides[materialKey].length > 0) {
     let total = 0, msl = 0;
@@ -7103,7 +7132,7 @@ function getStockForMaterial(materialKey, materialGroup, materialSpec, materialU
         items.push({ desc, qty, uom: aggregatedStock[desc].uom, manual: true });
       }
     });
-    return { total, items, isManual: true, msl: Math.max(msl, _specMsl) };
+    return { total, items, isManual: true, msl: _resolveMsl(msl), mslEdited: _hasOv };
   }
 
   // Auto mapping
@@ -7118,7 +7147,7 @@ function getStockForMaterial(materialKey, materialGroup, materialSpec, materialU
       items.push({ desc, qty, uom: aggregatedStock[desc].uom, manual: false });
     }
   });
-  return { total, items, isManual: false, msl: Math.max(msl, _specMsl) };
+  return { total, items, isManual: false, msl: _resolveMsl(msl), mslEdited: _hasOv };
 }
 
 // ── MODULE TYPE DETECTION ─────────────────────────────────────────────────
