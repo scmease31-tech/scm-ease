@@ -3638,7 +3638,7 @@ const VENDOR_SHEETS = {
     if((el=document.getElementById('poTableWrap'))) el.style.display = has ? '' : 'none';
     if((el=document.getElementById('poPager'))) el.style.display = has ? '' : 'none';
     if((el=document.getElementById('poEmpty'))) el.style.display = has ? 'none' : '';
-    if(has){ if(!headerBuilt) buildHeader(); applyFilters(); }
+    if(has){ enrichFromStock(); if(!headerBuilt) buildHeader(); applyFilters(); }
   }
 
   function onCellEdit(e){
@@ -3714,6 +3714,47 @@ const VENDOR_SHEETS = {
     zone.addEventListener('drop', function(e){ e.preventDefault(); zone.classList.remove('dragover'); if(e.dataTransfer.files.length){ input.files = e.dataTransfer.files; readFile(e.dataTransfer.files[0], slot); } });
     input.addEventListener('change', function(e){ if(e.target.files.length) readFile(e.target.files[0], slot); });
   }
+
+  // ---- MSL / Line enrichment from the Planning stock (aggregatedStock, else the persisted snapshot) ----
+  function _stockItems(){
+    try { if (typeof aggregatedStock !== 'undefined' && aggregatedStock && Object.keys(aggregatedStock).length){
+      return Object.keys(aggregatedStock).map(function(d){ const s = aggregatedStock[d] || {}; return { code:s.code||'', desc:d, msl:s.msl||0, line:s.line||'', uom:s.uom||'', variant:Object.keys(s.variants||{}).join(', '), cat:s.cat||'', subcat:s.subcat||'', stock:s.qty||0 }; });
+    }}catch(e){}
+    try { const raw = localStorage.getItem('stockSnapV1'); if(raw){ const d = JSON.parse(raw); if(d && Array.isArray(d.items)) return d.items; } }catch(e){}
+    return [];
+  }
+  function _nrm(x){ return String(x==null?'':x).toLowerCase().replace(/\s+/g,' ').trim(); }
+  function stockInfoFor(code, desc){
+    const arr = _stockItems(); const c = _nrm(code), d = _nrm(desc);
+    let hit = null;
+    if(c) hit = arr.find(function(it){ return _nrm(it.code) === c; });
+    if(!hit && d) hit = arr.find(function(it){ return _nrm(it.desc) === d; });
+    if(!hit && d && d.length > 4) hit = arr.find(function(it){ const id = _nrm(it.desc); return id && (id.indexOf(d) >= 0 || d.indexOf(id) >= 0); });
+    let msl = hit ? (Number(hit.msl)||0) : 0;
+    let line = hit ? (hit.line||'') : '';
+    if(!msl && typeof stockMslByDesc !== 'undefined' && stockMslByDesc && typeof _normDesc === 'function'){
+      try { const m = stockMslByDesc[_normDesc(desc)] || 0; if(m) msl = m; }catch(e){}
+    }
+    return { msl: msl, line: line };
+  }
+  // Fill MSL + Line on any PO row missing them, from the parsed stock. Returns count of MSL values filled.
+  function enrichFromStock(){
+    if(!poRows.length) return 0;
+    const hasStock = _stockItems().length || (typeof stockMslByDesc !== 'undefined' && stockMslByDesc && Object.keys(stockMslByDesc).length);
+    if(!hasStock) return 0;
+    let n = 0;
+    poRows.forEach(function(r){
+      const needMsl = (r.msl === undefined || r.msl === null || r.msl === '' || r.msl === 0 || r.msl === '0');
+      const needLine = (r.line === undefined || r.line === null || r.line === '');
+      if(!needMsl && !needLine) return;
+      const info = stockInfoFor(r.itemCode, r.desc);
+      if(needMsl && info.msl){ r.msl = info.msl; n++; }
+      if(needLine && info.line){ r.line = info.line; }
+    });
+    if(n) save();
+    return n;
+  }
+  window.poEnrichFromStock = function(){ const n = enrichFromStock(); renderAll(); return n; };
 
   // Seed the PO list from the Store Stock Statement (parsed in the Planning tab). Every stock item that
   // does not already have a PO line here is added with PO No = 0, plus its MSL and the line where it is used.
@@ -6275,7 +6316,7 @@ function render() {
 }
 
 // ── PLANNING & STOCK MODE LOGIC ───────────────────────────────────────────
-const PARSE_VERSION = 6; // Increment to auto-clear stale IndexedDB cache
+const PARSE_VERSION = 5; // Increment to auto-clear stale IndexedDB cache
 let planRaw = [];
 let planFmt = [];
 let planSheetName = '';
@@ -6595,7 +6636,7 @@ function cellShowView(which, btn) {
     }
     if (which === 'log') { if (typeof loadActivityLogs === 'function') loadActivityLogs(); }
     if (which === 'users') { if (typeof loadUsers === 'function') loadUsers(); }
-    if (which === 'po') { if (window.initPOTab) window.initPOTab(); }
+    if (which === 'po') { if (window.initPOTab) window.initPOTab(); if (window.poEnrichFromStock) window.poEnrichFromStock(); }
   });
 }
 
@@ -10039,6 +10080,13 @@ async function loadAnalysisState() {
   try {
     lastAnalysis = data.lastAnalysis;
     aggregatedStock = data.aggregatedStock;
+    // Refresh the Pending-PO stock snapshot from restored data so MSL / Line are available there without a re-upload
+    try {
+      const _snap = Object.keys(aggregatedStock || {}).map(function(d){ const si = aggregatedStock[d] || {}; return { code:si.code||'', desc:d, variant:Object.keys(si.variants||{}).join(', '), uom:si.uom||'', msl:si.msl||0, stock:si.qty||0, cat:si.cat||'', subcat:si.subcat||'', line:si.line||'' }; });
+      localStorage.setItem('stockSnapV1', JSON.stringify({ ts: Date.now(), items: _snap }));
+      window._stockSnap = _snap;
+      if (window.poEnrichFromStock) window.poEnrichFromStock();
+    } catch(e){}
     planSheetName = data.planSheetName || 'Saved Plan';
     
     let planStartDate = data.planStartDate ? new Date(data.planStartDate) : null;
