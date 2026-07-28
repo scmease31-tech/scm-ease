@@ -3165,7 +3165,7 @@ const VENDOR_SHEETS = {
     #poMain .po-pg select{height:28px;border:1px solid var(--line2);border-radius:7px;background:#fff;color:var(--ink)}
   </style>
 
-  <div class="po-intro"><span style="font-size:16px">&#128229;</span><span><strong>Pending / Open Purchase Orders.</strong> Upload one or both Purchase Record files (reads the <strong>&ldquo;BOM&rdquo;</strong> sheet, open/pending lines only), and/or click <strong>&#128230; From Stock Statement</strong> to list every stock item &mdash; items with no PO show <strong>PO No = 0</strong> along with their <strong>MSL</strong> and the <strong>line</strong> where they are used. Every cell is editable; add / delete rows &amp; columns, filter, sort and export.</span></div>
+  <div class="po-intro"><span style="font-size:16px">&#128229;</span><span><strong>Pending / Open Purchase Orders.</strong> Upload Purchase Record files (reads the <strong>&ldquo;BOM&rdquo;</strong> sheet, open lines only) and/or click <strong>&#128230; From Stock Statement</strong> to list every item (no-PO items show <strong>PO No = 0</strong>). <strong>MSL &amp; Line come from the Store Stock Statement</strong> &mdash; drop it in the green <strong>MSL Source</strong> box above (the Planning Report has no MSL column). Every cell is editable; add / delete rows &amp; columns, filter, sort and export.</span></div>
 
   <div id="poUploadContainer" style="display:flex; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
     <div class="upload-zone" id="poUploadA" style="flex:1; min-width:250px;">
@@ -3177,6 +3177,11 @@ const VENDOR_SHEETS = {
       <input type="file" id="poFileB" accept=".xlsx,.xls" style="display:none">
       <h3>&#128196; Purchase Record &mdash; File 2 (optional)</h3>
       <p id="poFileBName">Click or drop a second .xlsx</p>
+    </div>
+    <div class="upload-zone" id="poUploadMsl" style="flex:1; min-width:250px; border-color:#0d4f38;">
+      <input type="file" id="poFileMsl" accept=".xlsx,.xls" style="display:none">
+      <h3>&#128202; MSL Source &mdash; Store Stock Statement</h3>
+      <p id="poFileMslName">Click or drop the <strong>Statement</strong> (not the Report) &mdash; reads MSL &amp; Line per item to fill the MSL column</p>
     </div>
   </div>
 
@@ -3237,6 +3242,7 @@ const VENDOR_SHEETS = {
   let poRows = [], extraCols = [], poBySlot = {}, poNames = {a:'',b:''};
   let view = [], page = 1, pageSize = 100, sortKey = '', sortAsc = true;
   let headerBuilt = false, inited = false, saveTimer = null;
+  let mslMap = null; // { byCode, byDesc, lineByCode, lineByDesc } from the Store Stock Statement (MSL source), independent of the Planning upload
 
   function cols(){ return BASECOLS.concat(extraCols); }
   function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -3724,14 +3730,32 @@ const VENDOR_SHEETS = {
     return [];
   }
   function _nrm(x){ return String(x==null?'':x).toLowerCase().replace(/\s+/g,' ').trim(); }
+  function _mapDescFuzzy(map, d){
+    if(!map || !d) return 0;
+    if(map[d]) return map[d];
+    if(d.length > 4){ const keys = Object.keys(map); for(let i=0;i<keys.length;i++){ const k = keys[i]; if(k && (k.indexOf(d) >= 0 || d.indexOf(k) >= 0)) return map[k]; } }
+    return 0;
+  }
   function stockInfoFor(code, desc){
-    const arr = _stockItems(); const c = _nrm(code), d = _nrm(desc);
-    let hit = null;
-    if(c) hit = arr.find(function(it){ return _nrm(it.code) === c; });
-    if(!hit && d) hit = arr.find(function(it){ return _nrm(it.desc) === d; });
-    if(!hit && d && d.length > 4) hit = arr.find(function(it){ const id = _nrm(it.desc); return id && (id.indexOf(d) >= 0 || d.indexOf(id) >= 0); });
-    let msl = hit ? (Number(hit.msl)||0) : 0;
-    let line = hit ? (hit.line||'') : '';
+    const c = _nrm(code), d = _nrm(desc);
+    let msl = 0, line = '';
+    // 1) dedicated MSL map from the Store Stock Statement (highest priority)
+    if(mslMap){
+      if(c && mslMap.byCode && mslMap.byCode[c]) msl = mslMap.byCode[c];
+      if(!msl) { const m = _mapDescFuzzy(mslMap.byDesc, d); if(m) msl = m; }
+      if(c && mslMap.lineByCode && mslMap.lineByCode[c]) line = mslMap.lineByCode[c];
+      if(!line && d && mslMap.lineByDesc && mslMap.lineByDesc[d]) line = mslMap.lineByDesc[d];
+    }
+    // 2) fall back to the Planning stock (aggregatedStock / snapshot)
+    if(!msl || !line){
+      const arr = _stockItems();
+      let hit = null;
+      if(c) hit = arr.find(function(it){ return _nrm(it.code) === c; });
+      if(!hit && d) hit = arr.find(function(it){ return _nrm(it.desc) === d; });
+      if(!hit && d && d.length > 4) hit = arr.find(function(it){ const id = _nrm(it.desc); return id && (id.indexOf(d) >= 0 || d.indexOf(id) >= 0); });
+      if(hit){ if(!msl) msl = Number(hit.msl)||0; if(!line) line = hit.line||''; }
+    }
+    // 3) by-description MSL map from the planning parse
     if(!msl && typeof stockMslByDesc !== 'undefined' && stockMslByDesc && typeof _normDesc === 'function'){
       try { const m = stockMslByDesc[_normDesc(desc)] || 0; if(m) msl = m; }catch(e){}
     }
@@ -3740,7 +3764,9 @@ const VENDOR_SHEETS = {
   // Fill MSL + Line on any PO row missing them, from the parsed stock. Returns count of MSL values filled.
   function enrichFromStock(){
     if(!poRows.length) return 0;
-    const hasStock = _stockItems().length || (typeof stockMslByDesc !== 'undefined' && stockMslByDesc && Object.keys(stockMslByDesc).length);
+    const hasStock = _stockItems().length
+      || (mslMap && ((mslMap.byCode && Object.keys(mslMap.byCode).length) || (mslMap.byDesc && Object.keys(mslMap.byDesc).length)))
+      || (typeof stockMslByDesc !== 'undefined' && stockMslByDesc && Object.keys(stockMslByDesc).length);
     if(!hasStock) return 0;
     let n = 0;
     poRows.forEach(function(r){
@@ -3755,6 +3781,65 @@ const VENDOR_SHEETS = {
     return n;
   }
   window.poEnrichFromStock = function(){ const n = enrichFromStock(); renderAll(); return n; };
+
+  // Load the Store Stock Statement purely as an MSL / Line source (independent of the Planning upload,
+  // which may be the Store Stock *Report* that has no MSL column). Builds maps keyed by item code + description.
+  function readMslFile(file){
+    if(!file) return;
+    if(typeof XLSX === 'undefined'){ alert('Excel library still loading — please try again in a moment.'); return; }
+    const nameEl = document.getElementById('poFileMslName');
+    if(nameEl) nameEl.textContent = '\u23F3 Reading ' + file.name + ' \u2026';
+    const reader = new FileReader();
+    reader.onload = function(e){
+      try{
+        const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+        const byCode = {}, byDesc = {}, lineByCode = {}, lineByDesc = {};
+        wb.SheetNames.forEach(function(sn){
+          const ws = wb.Sheets[sn]; if(!ws || !ws['!ref']) return;
+          const g = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:''});
+          let hi=-1,dC=-1,mC=-1,cC=-1,lC=-1;
+          for(let i=0;i<Math.min(g.length,20);i++){
+            const rl=(g[i]||[]).map(function(x){return String(x).toLowerCase();});
+            const d=rl.findIndex(function(h){return h.indexOf('description')>=0;});
+            let mm=rl.findIndex(function(h){return h.indexOf('msl')>=0;});
+            if(mm===-1) mm=rl.findIndex(function(h){return h.indexOf('minimum')>=0 || (h.indexOf('min')>=0 && h.indexOf('qty')>=0);});
+            if(d!==-1 && mm!==-1){ hi=i; dC=d; mC=mm;
+              cC=rl.findIndex(function(h){return h==='item code'||h==='material code'||h==='item no'||h==='item no.'||h.indexOf('item code')>=0||h.indexOf('material code')>=0;});
+              lC=rl.findIndex(function(h){return h.indexOf('consume line')>=0||h.indexOf('consumption line')>=0||h==='line';});
+              break;
+            }
+          }
+          if(hi<0) return;
+          for(let i=hi+1;i<g.length;i++){
+            const row=g[i]||[];
+            const desc=String(row[dC]==null?'':row[dC]).trim();
+            const code=cC!==-1?String(row[cC]==null?'':row[cC]).trim():'';
+            const msl=Number(row[mC])||0;
+            const line=lC!==-1?String(row[lC]==null?'':row[lC]).trim():'';
+            const dk=_nrm(desc), ck=_nrm(code);
+            if(msl>0){ if(dk && msl>(byDesc[dk]||0)) byDesc[dk]=msl; if(ck && msl>(byCode[ck]||0)) byCode[ck]=msl; }
+            if(line){ if(dk && !lineByDesc[dk]) lineByDesc[dk]=line; if(ck && !lineByCode[ck]) lineByCode[ck]=line; }
+          }
+        });
+        mslMap = { byCode:byCode, byDesc:byDesc, lineByCode:lineByCode, lineByDesc:lineByDesc };
+        try{ localStorage.setItem('mslMapV1', JSON.stringify(mslMap)); }catch(e){}
+        if(nameEl) nameEl.textContent = '\u2705 ' + file.name + ' \u2014 MSL for ' + Object.keys(byDesc).length + ' item(s)';
+        const filled = enrichFromStock(); renderAll();
+        alert('Loaded MSL for ' + Object.keys(byDesc).length + ' item(s) from ' + file.name + '. Filled the MSL column on ' + filled + ' PO row(s). Items are matched by item code, then description.');
+      }catch(err){ console.error('[MSL parse]', err); alert('Error reading ' + file.name + ': ' + (err.message||err)); if(nameEl) nameEl.textContent = '\u26A0 Error reading file'; }
+    };
+    reader.onerror = function(){ alert('Failed to read ' + file.name); };
+    reader.readAsArrayBuffer(file);
+  }
+  function setupMslZone(){
+    const zone=document.getElementById('poUploadMsl'), input=document.getElementById('poFileMsl');
+    if(!zone || !input) return;
+    zone.addEventListener('click', function(){ input.click(); });
+    zone.addEventListener('dragover', function(e){ e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', function(){ zone.classList.remove('dragover'); });
+    zone.addEventListener('drop', function(e){ e.preventDefault(); zone.classList.remove('dragover'); if(e.dataTransfer.files.length){ input.files=e.dataTransfer.files; readMslFile(e.dataTransfer.files[0]); } });
+    input.addEventListener('change', function(e){ if(e.target.files.length) readMslFile(e.target.files[0]); });
+  }
 
   // Seed the PO list from the Store Stock Statement (parsed in the Planning tab). Every stock item that
   // does not already have a PO line here is added with PO No = 0, plus its MSL and the line where it is used.
@@ -3811,6 +3896,8 @@ const VENDOR_SHEETS = {
     inited = true;
     setupZone('poUploadA', 'poFileA', 'a');
     setupZone('poUploadB', 'poFileB', 'b');
+    setupMslZone();
+    try { const _mm = localStorage.getItem('mslMapV1'); if(_mm){ const _d = JSON.parse(_mm); if(_d) mslMap = _d; } } catch(e){}
     const tb = document.getElementById('poBody'); if(tb) tb.addEventListener('input', onCellEdit);
     if(load()) populateSourceFilter();
     renderAll();
