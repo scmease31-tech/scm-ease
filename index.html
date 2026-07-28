@@ -2637,7 +2637,6 @@
           <th colspan="5" style="text-align:left">Material Details</th>
           <th colspan="3" style="text-align:center">Per Module Consumption</th>
           <th colspan="2" style="text-align:center">⇄ Calculated Totals (editable either way)</th>
-          <th style="text-align:center;background:#0d4f38">📦 Stock</th>
           <th colspan="4" style="text-align:center;background:#78350f">💰 Pricing</th>
           <th colspan="2" style="text-align:center;background:#064430">⚡ Generation (Editable — W/KW/MW/GW)</th>
           <th style="background:#1a1a2e">Actions</th>
@@ -2653,7 +2652,6 @@
           <th class="num">Consumption / Module</th>
           <th class="num" data-tip="Auto-computed from Required Qty, or set via Module Qty above">Module Qty ↕</th>
           <th class="num" data-tip="Edit this to back-calculate Module Qty automatically">Required Qty ✎</th>
-          <th class="num" style="min-width:90px;background:#0d4f38;color:#fff" data-tip="Max Stock Limit (from the planning stock statement)">MSL</th>
           <th class="num" style="min-width:110px" data-tip="Qty for which you have a price + its UOM">Price Qty (UOM)</th>
           <th class="num" style="min-width:120px" data-tip="Price for the specified quantity + Currency">Unit Price (Cur)</th>
           <th class="num" style="min-width:100px" data-tip="Auto-calculated material cost per module in INR">Cost / Mod ₹</th>
@@ -2670,8 +2668,8 @@
           <th><div class="cf-wrap" data-col="4" data-tbody="resultBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
           <th></th><th></th><th></th>
           <th><div class="cf-wrap" data-col="8" data-tbody="resultBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
-          <th></th><th></th><th></th><th></th><th></th><th></th><th></th>
-          <th><div class="cf-wrap" data-col="16" data-tbody="resultBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+          <th></th><th></th><th></th><th></th><th></th><th></th>
+          <th><div class="cf-wrap" data-col="15" data-tbody="resultBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
           <th></th>
         </tr>
       </thead>
@@ -2828,7 +2826,7 @@
               <tr class="group-row">
                 <th colspan="6" style="text-align:left">Material Details</th>
                 <th colspan="2" style="text-align:center">Requirement</th>
-                <th colspan="5" style="text-align:center; background:#0d4f38">Stock Analysis</th>
+                <th colspan="3" style="text-align:center; background:#0d4f38">Stock Analysis</th>
                 <th style="background:#1a1a2e">Actions</th>
               </tr>
               <tr>
@@ -2842,8 +2840,6 @@
                 <th class="num" style="background:#e6f7f1; color:var(--solar-1);">Required Qty</th>
                 <th>Mapped Stock Item(s)</th>
                 <th class="num" style="background:#0d4f38; color:#fff;">Available</th>
-                <th class="num" style="background:#0d4f38; color:#fff;" title="Max Stock Limit">MSL</th>
-                <th class="num" style="background:#0d4f38; color:#fff;" title="Available stock minus MSL">Stock − MSL</th>
                 <th class="num" style="background:#991b1b; color:#fff;">Shortage / Surplus</th>
                 <th class="center">Discard / Map</th>
               </tr>
@@ -2858,9 +2854,7 @@
                 <th></th>
                 <th><div class="cf-wrap" data-col="8" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
                 <th></th>
-                <th></th>
-                <th></th>
-                <th><div class="cf-wrap" data-col="12" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
+                <th><div class="cf-wrap" data-col="10" data-tbody="consolidatedBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
                 <th></th>
               </tr>
             </thead>
@@ -3171,7 +3165,7 @@ const VENDOR_SHEETS = {
     #poMain .po-pg select{height:28px;border:1px solid var(--line2);border-radius:7px;background:#fff;color:var(--ink)}
   </style>
 
-  <div class="po-intro"><span style="font-size:16px">&#128229;</span><span><strong>Pending / Open Purchase Orders.</strong> Upload one or both Purchase Record files &mdash; the app reads the <strong>&ldquo;BOM&rdquo;</strong> sheet and lists only PO lines that are <strong>not yet received</strong> (open/pending). Every cell is editable; add / delete rows &amp; columns, filter, sort, resize columns and export.</span></div>
+  <div class="po-intro"><span style="font-size:16px">&#128229;</span><span><strong>Pending / Open Purchase Orders.</strong> Upload one or both Purchase Record files (reads the <strong>&ldquo;BOM&rdquo;</strong> sheet, open/pending lines only), and/or click <strong>&#128230; From Stock Statement</strong> to list every stock item &mdash; items with no PO show <strong>PO No = 0</strong> along with their <strong>MSL</strong> and the <strong>line</strong> where they are used. Every cell is editable; add / delete rows &amp; columns, filter, sort and export.</span></div>
 
   <div id="poUploadContainer" style="display:flex; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
     <div class="upload-zone" id="poUploadA" style="flex:1; min-width:250px;">
@@ -3194,6 +3188,7 @@ const VENDOR_SHEETS = {
       <input type="text" id="poSearch" placeholder="&#128269; Search…" oninput="poApplyFilters()">
       <select id="poTypeFilter" onchange="poApplyFilters()"><option value="">All Types</option><option value="RM">RM</option><option value="PM">PM</option></select>
       <select id="poSourceFilter" onchange="poApplyFilters()"><option value="">All Files</option></select>
+      <button class="btn btn-outline" style="background:#0d4f38;color:#fff;border:none;font-weight:600" onclick="poSeedFromStock()" title="Add every item from the Store Stock Statement (uploaded in the Planning tab) that has no PO yet — listed with PO No = 0, plus its MSL and the line where it is used">&#128230; From Stock Statement</button>
       <button class="btn btn-primary" onclick="poAddRow()">+ Row</button>
       <button class="btn btn-outline" onclick="poAddColumn()">+ Column</button>
       <button class="btn btn-outline" onclick="poExport()">&#8681; Export</button>
@@ -3225,6 +3220,8 @@ const VENDOR_SHEETS = {
     {k:'itemCode',    label:'Item Code',    cls:''},
     {k:'desc',        label:'Description',  cls:''},
     {k:'variant',     label:'Variant',      cls:''},
+    {k:'msl',         label:'MSL',          cls:'num'},
+    {k:'line',        label:'Line Used',    cls:'center'},
     {k:'project',     label:'Project Code', cls:''},
     {k:'uom',         label:'UOM',          cls:'center'},
     {k:'price',       label:'Price',        cls:'num'},
@@ -3717,6 +3714,56 @@ const VENDOR_SHEETS = {
     zone.addEventListener('drop', function(e){ e.preventDefault(); zone.classList.remove('dragover'); if(e.dataTransfer.files.length){ input.files = e.dataTransfer.files; readFile(e.dataTransfer.files[0], slot); } });
     input.addEventListener('change', function(e){ if(e.target.files.length) readFile(e.target.files[0], slot); });
   }
+
+  // Seed the PO list from the Store Stock Statement (parsed in the Planning tab). Every stock item that
+  // does not already have a PO line here is added with PO No = 0, plus its MSL and the line where it is used.
+  window.poSeedFromStock = function(){
+    let items = [];
+    try {
+      if (typeof aggregatedStock !== 'undefined' && aggregatedStock && Object.keys(aggregatedStock).length){
+        items = Object.keys(aggregatedStock).map(function(d){
+          const s = aggregatedStock[d] || {};
+          return { code:s.code||'', desc:d, variant:Object.keys(s.variants||{}).join(', '), uom:s.uom||'', msl:s.msl||0, stock:s.qty||0, cat:s.cat||'', subcat:s.subcat||'', line:s.line||'' };
+        });
+      }
+    } catch(e){}
+    if(!items.length){
+      try { const raw = localStorage.getItem('stockSnapV1'); if(raw){ const d = JSON.parse(raw); if(d && Array.isArray(d.items)) items = d.items; } } catch(e){}
+    }
+    if(!items.length){ alert('No stock data found yet. Open the Planning tab and upload the Store Stock Statement first, then return here and click "From Stock Statement" again.'); return; }
+    const seen = {};
+    poRows.forEach(function(r){ const k = String(r.itemCode||'').toLowerCase().trim() || String(r.desc||'').toLowerCase().trim(); if(k) seen[k] = true; });
+    let added = 0;
+    items.forEach(function(it){
+      const key = String(it.code||'').toLowerCase().trim() || String(it.desc||'').toLowerCase().trim();
+      if(!key || seen[key]) return;
+      seen[key] = true;
+      const typ = /pack/i.test(String(it.cat||'') + ' ' + String(it.subcat||'')) ? 'PM' : 'RM';
+      poRows.push({ status:'No PO', pendingQty:'', vendor:'', itemType:typ, moduleType:'', itemCode:it.code||'', desc:it.desc||'', variant:it.variant||'', msl:(it.msl||'')===0?'':(it.msl||''), line:it.line||'', project:'', uom:it.uom||'', price:'', currency:'', poNo:'0', poDate:'', paymentTerm:'', coo:'', source:'Stock Statement' });
+      added++;
+    });
+    save(); populateSourceFilter(); renderAll();
+    alert(added ? ('Added ' + added + ' item(s) from the Store Stock Statement with PO No = 0 (fill in vendor / PO / price as orders are raised). MSL and Line are included.') : 'All stock items are already listed here.');
+  };
+
+  // Expose an open-PO lookup for the Planning tab. matchStrs = item code(s) / description keyword(s).
+  // Returns real open POs only (PO No present and not 0, status not closed).
+  window.poFindOpen = function(matchStrs){
+    if(!Array.isArray(matchStrs)) matchStrs = [matchStrs];
+    const needles = matchStrs.map(function(s){ return String(s==null?'':s).toLowerCase().trim(); }).filter(Boolean);
+    if(!needles.length || !poRows.length) return [];
+    const outp = [];
+    poRows.forEach(function(r){
+      const pn = String(r.poNo==null?'':r.poNo).trim();
+      if(!pn || pn === '0') return;
+      if(CLOSED.indexOf(String(r.status||'').toLowerCase()) >= 0) return;
+      const code = String(r.itemCode||'').toLowerCase().trim();
+      const hay = (code + ' ' + String(r.desc||'')).toLowerCase();
+      const hit = needles.some(function(n){ return n && (code === n || hay.indexOf(n) >= 0); });
+      if(hit) outp.push({ poNo:r.poNo, vendor:r.vendor||'', variant:r.variant||'', desc:r.desc||'', price:r.price||'', currency:r.currency||'', pendingQty:r.pendingQty||'', status:r.status||'' });
+    });
+    return outp;
+  };
 
   window.initPOTab = function(){
     if(inited) return;
@@ -5666,15 +5713,6 @@ function renderTable() {
     const pCur = pd.currency || 'INR';
     const costPM = (n(pPrice) > 0) ? calcCostPerModule(item.row, mk, pd) : null;
     const totalPrice = (costPM !== null && impliedMQ > 0) ? costPM * impliedMQ : null;
-    // MSL (Max Stock Limit) — editable. User override wins; else the value derived from the stock statement (incl. pivot "Max of MSL").
-    const _mslBaseKey = (item.row.group || '') + '|||' + (item.row.spec || '');
-    let _mslDerived = 0;
-    if (typeof aggregatedStock !== 'undefined' && aggregatedStock && Object.keys(aggregatedStock).length) {
-      const _sm = getStockForMaterial(_mslBaseKey, item.row.group, item.row.spec, item.row.uom);
-      _mslDerived = _sm ? (_sm.msl || 0) : 0;
-    }
-    const _mslHasOv = (typeof mslOverrides !== 'undefined' && mslOverrides && mslOverrides[_mslBaseKey] !== undefined && mslOverrides[_mslBaseKey] !== null && mslOverrides[_mslBaseKey] !== '');
-    const _mslShown = _mslHasOv ? n(mslOverrides[_mslBaseKey]) : _mslDerived;
     const pricingCells = `<td class="price-cell">
         <div class="price-inline-wrap">
           <input type="number" step="0.001" min="0" data-price-qty="${mk}:${ri}" value="${pQty}" placeholder="1" title="Qty this price is for (default 1)"/>
@@ -5737,10 +5775,6 @@ function renderTable() {
         <input type="number" step="0.000001" data-req="${mk}:${ri}" value="${fmtInput(reqQty)}" title="✎ Type to set this row's Required Qty independently"/>
         ${overrideTag}${genDrivenTag}${resetBtn}
       </td>
-      <td class="edit-cell num" style="white-space:nowrap" title="Max Stock Limit — type to edit; your value overrides the stock statement. Clear to revert.">
-        <input type="number" step="1" min="0" data-msl="${mk}:${ri}" value="${_mslShown > 0 ? fmtInput(_mslShown) : ''}" placeholder="\u2014" style="width:88px;font-weight:600;color:${_mslHasOv ? '#b45309' : '#0369a1'}"/>
-        ${_mslHasOv ? '<span class="override-tag" title="Manually edited MSL — clear the box to revert to the stock value">edited</span>' : ''}
-      </td>
       ${pricingCells}
       ${wattCell}
       <td class="action-cell">
@@ -5770,22 +5804,6 @@ function renderTable() {
         row[field] = val;
         row.consumption = consumption(row);
       }
-      saveState(); render();
-    });
-  });
-
-  // ── MSL (Max Stock Limit) inline edit — writes a per-material override (group|||spec) used across consumption + planning ──
-  document.querySelectorAll("[data-msl]").forEach(inp => {
-    inp.addEventListener("change", () => {
-      const [mk, ri] = inp.dataset.msl.split(":");
-      const mod = modules.find(m => m.key === mk);
-      if (!mod) return;
-      const row = mod.rows[Number(ri)];
-      if (!row) return;
-      const baseKey = (row.group || '') + '|||' + (row.spec || '');
-      const raw = String(inp.value).trim();
-      if (raw === '') { delete mslOverrides[baseKey]; }
-      else { mslOverrides[baseKey] = n(raw); }
       saveState(); render();
     });
   });
@@ -6257,7 +6275,7 @@ function render() {
 }
 
 // ── PLANNING & STOCK MODE LOGIC ───────────────────────────────────────────
-const PARSE_VERSION = 5; // Increment to auto-clear stale IndexedDB cache
+const PARSE_VERSION = 6; // Increment to auto-clear stale IndexedDB cache
 let planRaw = [];
 let planFmt = [];
 let planSheetName = '';
@@ -7350,7 +7368,7 @@ function runAnalysisAuto() {
 
   // 2. Aggregate stock data
   aggregatedStock = {};
-  let stockDescCol = 3, stockQtyCol = 8, stockUomCol = 9, stockLocCol = -1, stockVariantCol = -1, stockVariantNameCol = -1, stockCodeCol = -1, stockMslCol = -1;
+  let stockDescCol = 3, stockQtyCol = 8, stockUomCol = 9, stockLocCol = -1, stockVariantCol = -1, stockVariantNameCol = -1, stockCodeCol = -1, stockMslCol = -1, stockLineCol = -1;
   let rejectedCount = 0;
 
   // Some stock exports (pivot / statement sheets) have blank or title rows above the
@@ -7373,6 +7391,7 @@ function runAnalysisAuto() {
       const c7 = row.findIndex(c => { const h = String(c).toLowerCase(); return h === 'item code' || h === 'material code' || h === 'code' || h === 'item no' || h === 'item no.' || h.includes('item code') || h.includes('material code'); });
       let c8 = row.findIndex(c => String(c).toLowerCase().includes('msl'));
       if (c8 === -1) c8 = row.findIndex(c => { const h = String(c).toLowerCase(); return h.includes('minimum') || (h.includes('min') && h.includes('qty')); });
+      const c9 = row.findIndex(c => { const h = String(c).toLowerCase(); return h.includes('consume line') || h.includes('consumption line') || h === 'line'; });
       if (c1 !== -1) stockDescCol = c1;
       if (c2 !== -1) stockQtyCol = c2;
       if (c3 !== -1) stockUomCol = c3;
@@ -7381,6 +7400,7 @@ function runAnalysisAuto() {
       if (c6 !== -1) stockVariantNameCol = c6;
       if (c7 !== -1) stockCodeCol = c7;
       if (c8 !== -1) stockMslCol = c8;
+      if (c9 !== -1) stockLineCol = c9;
     } else if (ri > stockHdrIdx) {
       // Skip rejection location items
       if (stockLocCol !== -1) {
@@ -7396,10 +7416,12 @@ function runAnalysisAuto() {
       const variantName = stockVariantNameCol !== -1 ? String(row[stockVariantNameCol] || '').trim() : '';
       const itemCode = stockCodeCol !== -1 ? String(row[stockCodeCol] || '').trim() : '';
       const mslVal = stockMslCol !== -1 ? (Number(row[stockMslCol]) || 0) : 0;
+      const lineUsed = stockLineCol !== -1 ? String(row[stockLineCol] || '').trim() : '';
       if (desc && qty > 0) {
-        if (!aggregatedStock[desc]) aggregatedStock[desc] = { qty: 0, uom, cat, subcat, variants: {}, variantNames: {}, code: '', msl: 0 };
+        if (!aggregatedStock[desc]) aggregatedStock[desc] = { qty: 0, uom, cat, subcat, variants: {}, variantNames: {}, code: '', msl: 0, line: '' };
         aggregatedStock[desc].qty += qty;
         if (mslVal > (aggregatedStock[desc].msl || 0)) aggregatedStock[desc].msl = mslVal;
+        if (lineUsed && !aggregatedStock[desc].line) aggregatedStock[desc].line = lineUsed;
         if (itemCode && !aggregatedStock[desc].code) aggregatedStock[desc].code = itemCode;
         if (variant) {
           if (!aggregatedStock[desc].variants[variant]) aggregatedStock[desc].variants[variant] = 0;
@@ -7421,6 +7443,17 @@ function runAnalysisAuto() {
     });
     console.log('[Stock] MSL applied to ' + _mslFilled + ' / ' + Object.keys(aggregatedStock).length + ' stock items');
   }
+
+  // Persist a lightweight stock snapshot so the Pending PO tab can seed items (with MSL + Consume Line)
+  // even when opened before any PO file is uploaded. Consumed by window.poSeedFromStock().
+  try {
+    const _snap = Object.keys(aggregatedStock).map(d => {
+      const si = aggregatedStock[d];
+      return { code: si.code || '', desc: d, variant: Object.keys(si.variants || {}).join(', '), uom: si.uom || '', msl: si.msl || 0, stock: si.qty || 0, cat: si.cat || '', subcat: si.subcat || '', line: si.line || '' };
+    });
+    localStorage.setItem('stockSnapV1', JSON.stringify({ ts: Date.now(), items: _snap }));
+    window._stockSnap = _snap;
+  } catch (e) { console.warn('[Stock] snapshot save failed', e); }
 
   // 3. Aggregate planned modules by type
   let plannedModules = {};
@@ -7921,9 +7954,23 @@ function renderConsolidatedTable(consolidated) {
     // Diff display
     const diff = mat.diff;
     const diffStr = isDiscarded ? '\u2014' : (diff >= 0 ? `<span style="color:#059669">+${fmt2.format(diff)}</span>` : `<span style="color:#dc2626;font-weight:800">${fmt2.format(diff)}</span>`);
-    // Stock minus MSL (available stock vs the max stock limit)
-    const _msl0 = mat.stockResult ? (mat.stockResult.msl || 0) : 0;
-    const smMslStr = (isDiscarded || _msl0 <= 0) ? '\u2014' : (function(){ const d = mat.stockResult.total - _msl0; return d >= 0 ? `<span style="color:#059669">+${fmt2.format(d)}</span>` : `<span style="color:#dc2626;font-weight:800">${fmt2.format(d)}</span>`; })();
+
+    // Open-PO hint: for short/low materials, surface any already-placed purchase order (PO no · vendor · variant · price)
+    let poHintStr = '';
+    if (!isDiscarded && (mat.status === 'short' || mat.status === 'low') && typeof window.poFindOpen === 'function') {
+      const _match = (matCodes || []).slice();
+      if (mat.spec) _match.push(mat.spec);
+      if (mat.group) _match.push(mat.group);
+      let _pos = [];
+      try { _pos = window.poFindOpen(_match) || []; } catch(e) {}
+      if (_pos.length) {
+        poHintStr = '<div style="margin-top:3px;display:flex;flex-direction:column;gap:2px;align-items:flex-end">' + _pos.slice(0, 3).map(function(p){
+          const vv = [p.vendor, p.variant].filter(Boolean).join(' \u00b7 ');
+          const pr = p.price ? (' \u00b7 ' + (p.currency ? p.currency + ' ' : '\u20b9') + p.price) : '';
+          return '<span style="font-size:9px;font-weight:600;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;padding:1px 5px;white-space:nowrap" title="Open PO ' + escHtml(String(p.poNo)) + (p.desc ? ' \u2014 ' + escHtml(p.desc) : '') + '">\uD83D\uDCE6 PO ' + escHtml(String(p.poNo)) + (vv ? ' \u00b7 ' + escHtml(vv) : '') + escHtml(pr) + '</span>';
+        }).join('') + '</div>';
+      }
+    }
 
     // Escape baseMaterialKey for HTML attributes (discard/map use base key)
     const bmkEsc = bmk.replace(/'/g, "\\'").replace(/"/g, '&quot;');
@@ -7939,9 +7986,7 @@ function renderConsolidatedTable(consolidated) {
       <td class="total-cell num" style="font-size:12px">${isDiscarded ? '\u2014' : fmt2.format(mat.requiredQty)}</td>
       <td style="padding:4px 6px">${stockPillsHtml}</td>
       <td class="num" style="font-weight:700;color:var(--solar-1)">${isDiscarded ? '\u2014' : fmt2.format(mat.stockResult.total)}</td>
-      <td class="num" style="font-weight:600;color:#0369a1" title="Max Stock Limit (from stock statement)">${isDiscarded || (mat.stockResult.msl||0) <= 0 ? '\u2014' : fmt2.format(mat.stockResult.msl)}</td>
-      <td class="num" style="font-weight:700" title="Available stock minus MSL">${smMslStr}</td>
-      <td class="num" style="font-weight:800">${diffStr} ${!isDiscarded ? statusBadge : ''}</td>
+      <td class="num" style="font-weight:800">${diffStr} ${!isDiscarded ? statusBadge : ''}${poHintStr}</td>
       <td class="center" style="padding:4px">
         <div style="display:flex;gap:4px;justify-content:center;align-items:center">
           <button class="btn btn-sm" style="background-color: var(--danger); color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px;" onclick="toggleDiscard('${bmkEsc}')" title="${isDiscarded ? 'Restore this material' : 'Discard this material'}">${isDiscarded ? '\u21BA Restore' : '\u274C Discard'}</button>
@@ -8040,8 +8085,6 @@ function renderCustomerMaterials(customerOrders, consolidated) {
               <th class="num">Required Qty</th>
               <th>Stock Mapping</th>
               <th class="num">Stock (net)</th>
-              <th class="num">MSL</th>
-              <th class="num">Stock − MSL</th>
               <th class="num">Diff</th>
               <th class="center">Action</th>
             </tr>
@@ -8110,8 +8153,6 @@ function renderCustomerMaterials(customerOrders, consolidated) {
         <td class="num" style="font-weight:600">${fmt2.format(mat.reqQty)}</td>
         <td style="padding:4px 6px">${mappingLabel}</td>
         <td class="num" style="font-weight:700;color:var(--solar-1)">${fmt2.format(availNow)}<br><span style="font-size:9px;font-weight:500;color:var(--muted)">of ${fmt2.format(poolInit[mk])} total${usedEarlier > 0 ? ' \u00b7 \u2212' + fmt2.format(usedEarlier) + ' used earlier' : ''}</span></td>
-        <td class="num" style="font-weight:600;color:#0369a1" title="Max Stock Limit">${(stockResult.msl||0) > 0 ? fmt2.format(stockResult.msl) : '\u2014'}</td>
-        <td class="num" style="font-weight:700" title="Stock (net) minus MSL">${(stockResult.msl||0) > 0 ? (availNow - stockResult.msl >= 0 ? '<span style="color:#059669">+' + fmt2.format(availNow - stockResult.msl) + '</span>' : '<span style="color:#dc2626;font-weight:800">' + fmt2.format(availNow - stockResult.msl) + '</span>') : '\u2014'}</td>
         <td class="num" style="font-weight:700;color:${diffColor}">${diff >= 0 ? '+' : ''}${fmt2.format(diff)}</td>
         <td class="center"><button class="map-btn" onclick="openCustomerMapModal('${custNameAttr}','${mkEsc}')" title="Map stock for ${custNameEsc}">🔗</button></td>
       </tr>`;
@@ -9124,7 +9165,7 @@ const _EX_BORDERS = { top: _EX_BORDER, bottom: _EX_BORDER, left: _EX_BORDER, rig
 function _colLetter(c){let s='';for(let n=c;n>=0;n=Math.floor(n/26)-1)s=String.fromCharCode(65+(n%26))+s;return s}
 const _TABLE_FORMULAS={
   resultBody:{7:'F{r}*(1+G{r}/100)',9:'H{r}*I{r}'},
-  consolidatedBody:{7:'D{r}*G{r}',11:'J{r}-K{r}',12:'J{r}-H{r}'},
+  consolidatedBody:{7:'D{r}*G{r}',10:'J{r}-H{r}'},
   resultBodyPlan:{7:'F{r}*(1+G{r}/100)',9:'H{r}*I{r}',11:'K{r}-J{r}'},
   cellBody:{5:'D{r}*E{r}',7:'G{r}*D{r}',8:'H{r}*E{r}'},
   planOrderBody:{6:'E{r}*F{r}'}
