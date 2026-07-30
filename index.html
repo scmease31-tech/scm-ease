@@ -62,7 +62,7 @@
   }
 
   /* Reduce layout cost for hidden views */
-  #calcMain, #planningMain, #cellInvMain, #vendorMain, #explorerMain, #logMain, #usersMain, #poMain, #apMain {
+  #calcMain, #planningMain, #cellInvMain, #vendorMain, #explorerMain, #logMain, #usersMain, #poMain, #apMain, #mslPanelMain {
     contain: layout style paint;
   }
 
@@ -2453,6 +2453,10 @@
       <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2V3a1 1 0 0 1 1-1z"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="13" y2="15"/><path d="M9 4h6"/></svg>
       <span class="nav-label">Pending PO</span>
     </button>
+    <button class="mode-btn nav-item" id="modeMslPanel" title="MSL Control Panel — Packing / Label / Module Consumables">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+      <span class="nav-label">MSL Panel</span>
+    </button>
     <button class="mode-btn nav-item" id="modeAP" title="Vendor Payments &amp; Interest">
       <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.4"/><path d="M6 10v4M18 10v4"/></svg>
       <span class="nav-label">Vendor Pay</span>
@@ -3996,6 +4000,11 @@ const VENDOR_SHEETS = {
 <!-- VENDOR PAYMENTS & INTEREST DASHBOARD (isolated in an iframe) -->
 <main id="apMain" style="display:none; padding:0; margin:0;">
   <iframe id="apFrame" src="about:blank" style="width:100%; height:calc(100vh - 108px); border:none; display:block;"></iframe>
+</main>
+
+<!-- MSL CONTROL PANEL (isolated in an iframe) -->
+<main id="mslPanelMain" style="display:none; padding:0; margin:0;">
+  <iframe id="mslPanelFrame" src="about:blank" style="width:100%; height:calc(100vh - 108px); border:none; display:block;"></iframe>
 </main>
 
 <main id="explorerMain" style="display:none; padding:0; margin:0;">
@@ -6682,18 +6691,21 @@ document.getElementById('modePO').addEventListener('click', (e) => {
 document.getElementById('modeAP').addEventListener('click', (e) => {
   cellShowView('ap', e.target);
 });
+document.getElementById('modeMslPanel').addEventListener('click', (e) => {
+  cellShowView('mslpanel', e.target);
+});
 
 function cellShowView(which, btn) {
   document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  const views = {calc:'calcMain',plan:'planningMain',cell:'cellInvMain',vendor:'vendorMain',explorer:'explorerMain',log:'logMain',users:'usersMain',po:'poMain',ap:'apMain'};
+  const views = {calc:'calcMain',plan:'planningMain',cell:'cellInvMain',vendor:'vendorMain',explorer:'explorerMain',log:'logMain',users:'usersMain',po:'poMain',ap:'apMain',mslpanel:'mslPanelMain'};
   for (const [k,id] of Object.entries(views)) {
     document.getElementById(id).style.display = k === which ? 'block' : 'none';
   }
   /* Hide admin toolbar on 3D tab so it doesn't cover the 3D control bar */
   const atb = document.getElementById('adminToolbar');
   if (atb) {
-    if (which === 'explorer' || which === 'ap') { atb.classList.remove('show'); }
+    if (which === 'explorer' || which === 'ap' || which === 'mslpanel') { atb.classList.remove('show'); }
     else if (document.body.classList.contains('admin-active')) { atb.classList.add('show'); }
   }
   /* Unload 3D explorer when leaving to free GPU/CPU */
@@ -6710,6 +6722,10 @@ function cellShowView(which, btn) {
     if (which === 'ap') {
       const af = document.getElementById('apFrame');
       if (af && (af.src === 'about:blank' || !af.src.includes('vendor-payments'))) af.src = 'vendor-payments.html';
+    }
+    if (which === 'mslpanel') {
+      const mf = document.getElementById('mslPanelFrame');
+      if (mf && (mf.src === 'about:blank' || !mf.src.includes('MSL_Control_Panel'))) mf.src = 'MSL_Control_Panel.html';
     }
     if (which === 'plan' && lastAnalysis && planRaw && planRaw.length > 0) runAnalysisAuto();
     if (which === 'vendor') {
