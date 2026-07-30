@@ -232,6 +232,7 @@ const CONSUMPTION_DEFAULTS_KEY = 'consumption_defaults';
 const PLANNING_CONFIG_KEY = 'planning_config';
 const SHARED_PLANNING_KEY = 'shared_planning_data';
 const VENDOR_DATA_KEY = 'vendor_sheet_data';
+const MSL_BOARD_KEY = 'msl_board_data';
 
 async function getUsers(env) {
   const raw = await env.LOGS.get(USERS_KEY);
@@ -458,6 +459,36 @@ async function handleGetSharedPlanning(env) {
   catch { return jsonResp({ empty: true }); }
 }
 
+// ── MSL Gap Board (deployed to all users from the MSL Control Panel) ──
+async function handleSaveMslBoard(body, env, authHeader) {
+  // Auth: admin JWT OR gate user with plan_changes permission (mirrors shared-planning)
+  const token = (authHeader || '').replace('Bearer ', '');
+  const payload = token ? await verifyToken(token, env.JWT_SECRET) : null;
+  let actingUser = 'admin';
+  if (!payload) {
+    const { userName, userPassword } = body;
+    const verified = await verifyUserCredentials(env, userName, userPassword);
+    if (!verified) return jsonResp({ error: 'Unauthorized' }, 401);
+    const hasPerm = await userHasPermission(env, verified, 'plan_changes');
+    if (!hasPerm) return jsonResp({ error: 'No plan_changes permission' }, 403);
+    actingUser = verified;
+  }
+  const { items, detail, meta } = body;
+  if (!Array.isArray(items)) return jsonResp({ error: 'items array required' }, 400);
+  const data = JSON.stringify({ items, detail: detail || null, meta: meta || null, _ts: Date.now(), _by: actingUser });
+  if (data.length > 15 * 1024 * 1024) return jsonResp({ error: 'Data too large (>15MB)' }, 413);
+  await env.LOGS.put(MSL_BOARD_KEY, data);
+  await appendLog(env, { type: 'msl_deploy', user: actingUser, ts: new Date().toISOString(), detail: 'Deployed MSL gap board (' + items.length + ' items) to all users' });
+  return jsonResp({ ok: true, count: items.length });
+}
+
+async function handleGetMslBoard(env) {
+  const raw = await env.LOGS.get(MSL_BOARD_KEY);
+  if (!raw) return jsonResp({ empty: true });
+  try { return jsonResp(JSON.parse(raw)); }
+  catch { return jsonResp({ empty: true }); }
+}
+
 async function appendLog(env, entry) {
   try {
     const raw = await env.LOGS.get(LOG_KEY);
@@ -587,6 +618,9 @@ export default {
     if (request.method === 'GET' && path === '/api/shared-planning') {
       return handleGetSharedPlanning(env);
     }
+    if (request.method === 'GET' && path === '/api/msl-board') {
+      return handleGetMslBoard(env);
+    }
     if (request.method === 'GET' && path === '/api/vendor-data') {
       return handleGetVendorData(env);
     }
@@ -611,6 +645,7 @@ export default {
       if (path === '/api/customer-data') return handleSaveCustomerData(body, env);
       if (path === '/api/planning-config') return handleSavePlanningConfig(body, env);
       if (path === '/api/shared-planning') return handleSaveSharedPlanning(body, env, request.headers.get('Authorization'));
+      if (path === '/api/msl-board') return handleSaveMslBoard(body, env, request.headers.get('Authorization'));
       if (path === '/api/vendor-data') return handleSaveVendorData(body, env, request.headers.get('Authorization'));
       return jsonResp({ error: 'Not found' }, 404);
     } catch (e) {

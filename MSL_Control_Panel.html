@@ -446,6 +446,8 @@
       <div class="msg" id="loadingMsg" style="color:var(--ink-dim);"></div>
     </div>
 
+    <div id="deployedBanner" style="display:none; margin-top:12px; padding:10px 14px; border:1px solid var(--green); border-radius:6px; background:var(--green-dim); color:var(--green); font-family:var(--font-mono); font-size:12px; line-height:1.5;"></div>
+
     <div id="dashboard" class="hidden">
       <div class="dash">
         <div class="led amber"><div class="led-label">Items in scope</div><div class="led-value" id="ledTotal">0</div><div class="led-sub">packing · label · module cons.</div></div>
@@ -463,6 +465,7 @@
           <span class="scope-chip" id="visibleCount">— of — rows shown</span>
           <button class="btn ghost small" id="btnClearFilters">Clear filters</button>
           <button class="btn small" id="btnExport">Export to Excel (with formulas)</button>
+          <button class="btn small" id="btnDeploy" style="background:var(--green); color:#0b2018; border-color:var(--green); font-weight:600;" title="Publish this gap board to every user — they'll see it when they open the MSL Panel">&#128640; Deploy for all users</button>
         </div>
       </div>
 
@@ -508,6 +511,8 @@
   let globalQuery = '';
   let itemRawDetail = {};      // code -> [{variantCode, variantName, location, qty}]
   const expandedCodes = new Set();
+  const MSL_WORKER = 'https://scm-ease-admin.scmease31.workers.dev';
+  let deployedMeta = null;     // metadata about the currently loaded deployed board (if any)
 
   const COLS = [
     {key:'code',  label:'Item Code',        type:'text'},
@@ -607,6 +612,8 @@
   // ---------------- Core processing ----------------
   function processFiles(){
     document.getElementById('errMsg').classList.remove('show');
+    const _db = document.getElementById('deployedBanner'); if (_db) _db.style.display = 'none';
+    deployedMeta = null;
     const loading = document.getElementById('loadingMsg');
     loading.innerHTML = '<span class="spinner"></span> crunching…';
 
@@ -1021,6 +1028,62 @@
     const today = new Date().toISOString().slice(0,10);
     XLSX.writeFile(wb, 'MSL_Gap_Board_'+today+'.xlsx');
   }
+
+  // ---------------- Deploy for all users (shared via the admin worker KV) ----------------
+  function ss(k){ try { return sessionStorage.getItem(k) || ''; } catch(e){ return ''; } }
+
+  async function deployBoard(){
+    const btn = document.getElementById('btnDeploy');
+    if (!items.length){ showError('Build the gap board first, then deploy.'); return; }
+    const adminToken = ss('adminToken'), siteUser = ss('siteUser'), sitePass = ss('sitePass'), planPerm = ss('planChangesPerm');
+    if (!adminToken && planPerm !== '1'){ showError('You do not have permission to deploy for all users. Sign in as admin (or a user with planning-change rights).'); return; }
+    if (!confirm('Deploy this MSL gap board to ALL users?\nEveryone will see this board — with your current Min / Stock values — when they open the MSL Panel.')) return;
+    const orig = btn.textContent; btn.disabled = true; btn.textContent = '\u23F3 Deploying\u2026';
+    try {
+      const payload = { items: items, detail: itemRawDetail, meta: { by: siteUser || 'admin', at: Date.now(), count: items.length }, userName: siteUser, userPassword: sitePass };
+      const headers = { 'Content-Type': 'application/json' };
+      if (adminToken) headers['Authorization'] = 'Bearer ' + adminToken;
+      const r = await fetch(MSL_WORKER + '/api/msl-board', { method: 'POST', headers, body: JSON.stringify(payload) });
+      if (r.ok){
+        btn.textContent = '\u2705 Deployed to all!';
+        setTimeout(()=>{ btn.textContent = orig; btn.disabled = false; }, 2500);
+      } else {
+        let msg = 'Server error ' + r.status;
+        try { const d = await r.json(); if (d && d.error) msg = d.error; } catch(_){}
+        if (r.status === 404) msg = 'Deploy endpoint not live yet \u2014 the admin worker needs a one-time redeploy.';
+        if (r.status === 401 || r.status === 403) msg = 'Not authorized \u2014 sign in with deploy rights and retry.';
+        showError('Deploy failed: ' + msg);
+        btn.textContent = orig; btn.disabled = false;
+      }
+    } catch(e){ showError('Deploy failed: ' + (e.message || e)); btn.textContent = orig; btn.disabled = false; }
+  }
+
+  function showDeployedBanner(){
+    const el = document.getElementById('deployedBanner'); if (!el) return;
+    const by = (deployedMeta && deployedMeta.by) ? deployedMeta.by : 'admin';
+    const at = deployedMeta && (deployedMeta.at || deployedMeta._ts);
+    const when = at ? new Date(at).toLocaleString() : '';
+    el.innerHTML = '\uD83D\uDCE1 Showing the <b>deployed board shared with all users</b>' + (by ? ' \u00b7 by ' + by : '') + (when ? ' \u00b7 ' + when : '') + '.&nbsp; Upload files above and hit \u201CBuild gap board\u201D to work from your own data instead.';
+    el.style.display = '';
+  }
+
+  async function loadDeployedBoard(){
+    try {
+      const r = await fetch(MSL_WORKER + '/api/msl-board', { cache: 'no-store' });
+      if (!r.ok) return;
+      const d = await r.json();
+      if (!d || d.empty || !Array.isArray(d.items) || !d.items.length) return;
+      if (items.length) return; // don't clobber a board the user already built locally this session
+      items = d.items;
+      itemRawDetail = d.detail || {};
+      deployedMeta = d.meta || { by: d._by, at: d._ts };
+      renderAll();
+      showDeployedBanner();
+    } catch(e){ /* offline or not deployed yet — silent; panel still works for local uploads */ }
+  }
+
+  document.getElementById('btnDeploy').addEventListener('click', deployBoard);
+  loadDeployedBoard();
 
 })();
 </script>
