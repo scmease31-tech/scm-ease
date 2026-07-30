@@ -4141,14 +4141,17 @@ const VENDOR_SHEETS = {
               <th>Vendor View</th>
               <th>Vendor Edit</th>
               <th>3D Explorer</th>
+              <th>Pending PO</th>
+              <th>MSL Panel</th>
+              <th>Vendor Pay</th>
             </tr>
             <tr class="filter-row" id="filterRow-permBody">
               <th><div class="cf-wrap" data-col="0" data-tbody="permBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
-              <th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>
+              <th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>
             </tr>
           </thead>
           <tbody id="permBody">
-            <tr><td colspan="10" style="text-align:center;color:var(--muted);padding:30px">Loading…</td></tr>
+            <tr><td colspan="13" style="text-align:center;color:var(--muted);padding:30px">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -12423,7 +12426,7 @@ window.umSwitchTab = function(tab) {
 // ── Permissions Management ──
 (function(){
   const WORKER_URL = 'https://scm-ease-admin.scmease31.workers.dev';
-  const TAB_KEYS = ['calc', 'calc_changes', 'plan', 'plan_edit', 'plan_changes', 'cell', 'vendor', 'vendor_edit', 'explorer'];
+  const TAB_KEYS = ['calc', 'calc_changes', 'plan', 'plan_edit', 'plan_changes', 'cell', 'vendor', 'vendor_edit', 'explorer', 'po', 'mslpanel', 'ap'];
   const TAB_LABELS = {
     calc: 'Calculator',
     calc_changes: 'Calc Deploy',
@@ -12439,7 +12442,7 @@ window.umSwitchTab = function(tab) {
 
   let permUsers = [];
   let permData = {};
-  let permDefaults = { calc: true, calc_changes: false, plan: true, plan_edit: true, plan_changes: false, cell: true, vendor: true, vendor_edit: true, explorer: true };
+  let permDefaults = { calc: true, calc_changes: false, plan: true, plan_edit: true, plan_changes: false, cell: true, vendor: true, vendor_edit: true, explorer: true, po: true, mslpanel: true, ap: true };
 
   function getToken() { return sessionStorage.getItem('adminToken') || ''; }
   function escH(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
@@ -12468,13 +12471,13 @@ window.umSwitchTab = function(tab) {
   };
 
   function getUserPerms(name) {
-    return permData[name.toLowerCase()] || { ...permDefaults };
+    return { ...permDefaults, ...(permData[name.toLowerCase()] || {}) };
   }
 
   function renderPermissions() {
     const body = document.getElementById('permBody');
     if (!permUsers.length) {
-      body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:30px">No users found</td></tr>';
+      body.innerHTML = '<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:30px">No users found</td></tr>';
       return;
     }
     body.innerHTML = permUsers.map((u, i) => {
@@ -12545,7 +12548,10 @@ window.umSwitchTab = function(tab) {
     plan: 'modePlan',
     cell: 'modeCell',
     vendor: 'modeVendor',
-    explorer: 'mode3D'
+    explorer: 'mode3D',
+    po: 'modePO',
+    mslpanel: 'modeMslPanel',
+    ap: 'modeAP'
   };
 
   window.applyUserPermissions = async function(userName) {
@@ -12566,7 +12572,7 @@ window.umSwitchTab = function(tab) {
       for (const [key, btnId] of Object.entries(TAB_MAP)) {
         const btn = document.getElementById(btnId);
         if (btn) {
-          btn.style.display = perms[key] ? '' : 'none';
+          btn.style.display = perms[key] !== false ? '' : 'none';
         }
       }
       // Enforce plan edit permission
@@ -12581,7 +12587,7 @@ window.umSwitchTab = function(tab) {
       const activeBtn = document.querySelector('.mode-btn.active');
       if (activeBtn && activeBtn.style.display === 'none') {
         for (const [key, btnId] of Object.entries(TAB_MAP)) {
-          if (perms[key]) {
+          if (perms[key] !== false) {
             const btn = document.getElementById(btnId);
             if (btn) { btn.click(); break; }
           }

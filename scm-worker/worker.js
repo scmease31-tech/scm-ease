@@ -226,8 +226,8 @@ const DEFAULT_USERS = [
   {name:'Purvi',password:'purvi'},{name:'Khushi',password:'khushi'},
   {name:'Rajesh',password:'rajesh'}
 ];
-const DEFAULT_PERMS = { calc: true, calc_changes: false, plan: true, plan_edit: true, plan_changes: false, cell: true, vendor: true, vendor_edit: true, explorer: true };
-const ALLOWED_PERM_KEYS = ['calc', 'calc_changes', 'plan', 'plan_edit', 'plan_changes', 'cell', 'vendor', 'vendor_edit', 'explorer'];
+const DEFAULT_PERMS = { calc: true, calc_changes: false, plan: true, plan_edit: true, plan_changes: false, cell: true, vendor: true, vendor_edit: true, explorer: true, po: true, mslpanel: true, ap: true };
+const ALLOWED_PERM_KEYS = ['calc', 'calc_changes', 'plan', 'plan_edit', 'plan_changes', 'cell', 'vendor', 'vendor_edit', 'explorer', 'po', 'mslpanel', 'ap'];
 const CONSUMPTION_DEFAULTS_KEY = 'consumption_defaults';
 const PLANNING_CONFIG_KEY = 'planning_config';
 const SHARED_PLANNING_KEY = 'shared_planning_data';
@@ -366,7 +366,8 @@ async function handleGetUserPermissions(body, env) {
   const { name } = body;
   if (!name || typeof name !== 'string') return jsonResp({ error: 'Name required' }, 400);
   const allPerms = await getAllPermissions(env);
-  const userPerms = allPerms[name.toLowerCase()] || { ...DEFAULT_PERMS };
+  // Merge over defaults so newly-added tab permissions (e.g. po / mslpanel / ap) default-on for users saved before those keys existed
+  const userPerms = { ...DEFAULT_PERMS, ...(allPerms[name.toLowerCase()] || {}) };
   return jsonResp({ permissions: userPerms });
 }
 
