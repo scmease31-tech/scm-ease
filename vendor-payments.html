@@ -923,12 +923,35 @@ function buildWorkbook(RAW, opts){
 
   var wb = new XLJS.Workbook();
   wb.calcProperties.fullCalcOnLoad = true;          // force Excel/Sheets to recompute on open
-
-  /* ---------------- SUMMARY ---------------- */
-  var sum = wb.addWorksheet('Summary');
   var DET='Detail!';
   var Icol=DET+'I2:I'+last, Ocol=DET+'O2:O'+last, Qcol=DET+'Q2:Q'+last, Rcol=DET+'R2:R'+last,
       Ncol=DET+'N2:N'+last, Scol=DET+'S2:S'+last, Acol=DET+'A2:A'+last, Ucol=DET+'U2:U'+last, Vcol=DET+'V2:V'+last;
+  var BARINK='FF2A3B57', BARSLATE='FF8A93A0';
+
+  /* ---------------- DASHBOARD (charts) — only when the browser supplies chart images ---------------- */
+  if(opts && opts.images){
+    var dash = wb.addWorksheet('Dashboard', {views:[{showGridLines:false}]});
+    for(var di=1; di<=12; di++) dash.getColumn(di).width=12;
+    dash.mergeCells('A1:L2'); var dT=dash.getCell('A1'); dT.value='VENDOR PAYMENT & INTEREST   —   DASHBOARD'; dT.font={name:'Georgia',size:20,bold:true,color:{argb:GOLD}}; dT.fill=solid(INK); dT.alignment={vertical:'middle',horizontal:'left',indent:1};
+    dash.mergeCells('A3:L3'); var dS=dash.getCell('A3'); dS.value='USD  ·  KPI tiles are live formulas; the charts below are a snapshot taken at export.'; dS.font={name:'Calibri',size:10,italic:true,color:{argb:SLATE}}; dS.alignment={vertical:'middle',horizontal:'left',indent:1};
+    dash.getRow(5).height=16; dash.getRow(6).height=30;
+    function kpi(c0,label,formula,fill){
+      dash.mergeCells(colL(c0)+'5:'+colL(c0+2)+'5'); dash.mergeCells(colL(c0)+'6:'+colL(c0+2)+'6');
+      var lc=dash.getCell(colL(c0)+'5'); lc.value=label; lc.font={name:'Calibri',size:10,bold:true,color:{argb:WHITE}}; lc.fill=solid(fill); lc.alignment={vertical:'middle',horizontal:'left',indent:1};
+      var vc=dash.getCell(colL(c0)+'6'); vc.value={formula:formula}; vc.numFmt=MONEY; vc.font={name:'Georgia',size:18,bold:true,color:{argb:WHITE}}; vc.fill=solid(fill); vc.alignment={vertical:'middle',horizontal:'left',indent:1};
+    }
+    kpi(0,'OVERDUE','SUM('+Qcol+')',RUST);
+    kpi(3,'OUTSTANDING','SUM('+Ocol+')',INK);
+    kpi(6,'INTEREST — TOTAL','SUM('+Rcol+')',AMBER);
+    kpi(9,'SETTLED VALUE','SUM('+Icol+')-SUM('+Ocol+')',GREEN);
+    var l1=dash.getCell('A8'); l1.value='PORTFOLIO BREAKDOWN'; l1.font={name:'Calibri',size:10,bold:true,color:{argb:SLATE}};
+    var l2=dash.getCell('G8'); l2.value='OVERDUE EXPOSURE BY VENDOR'; l2.font={name:'Calibri',size:10,bold:true,color:{argb:SLATE}};
+    try{ if(opts.images.donut){ var idD=wb.addImage({base64:opts.images.donut, extension:'png'}); dash.addImage(idD,{tl:{col:0.2,row:8.5},ext:{width:430,height:322}}); } }catch(e){}
+    try{ if(opts.images.bars){ var idB=wb.addImage({base64:opts.images.bars, extension:'png'}); dash.addImage(idB,{tl:{col:6.2,row:8.5},ext:{width:430,height:322}}); } }catch(e){}
+  }
+
+  /* ---------------- SUMMARY ---------------- */
+  var sum = wb.addWorksheet('Summary');
 
   function sSection(r,text){ sum.mergeCells('A'+r+':F'+r); var c=sum.getCell('A'+r); c.value=text; c.font={name:'Calibri',size:11,bold:true,color:{argb:WHITE}}; c.fill=solid(INK); c.alignment={vertical:'middle',horizontal:'left',indent:1}; sum.getRow(r).height=19; }
   function sMetric(r,label,formula,fmt,argb){ var la=sum.getCell('A'+r); la.value=label; la.font={name:'Calibri',size:11,color:{argb:'FF1C2B44'}}; la.alignment={vertical:'middle',indent:1}; var c=sum.getCell('B'+r); c.value={formula:formula}; c.numFmt=fmt||MONEY; c.font={name:'Calibri',size:12,bold:true,color:{argb:argb||INK}}; c.alignment={vertical:'middle',horizontal:'right'}; }
@@ -993,7 +1016,14 @@ function buildWorkbook(RAW, opts){
     for(var cc=0;cc<6;cc++){ var cell=sum.getCell(colL(cc)+vr); cell.alignment={horizontal:cc?'right':'left',vertical:'middle'}; if(!cell.font) cell.font={name:'Calibri',size:10}; if(band) cell.fill=solid(BAND); }
     vr++;
   });
-  if(vendors.length){ sum.addConditionalFormatting({ ref:'D'+(hr+1)+':D'+(vr-1), rules:[{type:'cellIs',operator:'greaterThan',formulae:['0'],priority:1,style:{font:{color:{argb:RUST},bold:true}}}] }); }
+  if(vendors.length){
+    var v0=hr+1, v1=vr-1;                            // native in-cell data bars = a live bar chart per column
+    sum.addConditionalFormatting({ ref:'B'+v0+':B'+v1, rules:[{type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:BARINK}}] });
+    sum.addConditionalFormatting({ ref:'C'+v0+':C'+v1, rules:[{type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:BARSLATE}}] });
+    sum.addConditionalFormatting({ ref:'D'+v0+':D'+v1, rules:[{type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:RUST}},{type:'cellIs',operator:'greaterThan',formulae:['0'],priority:1,style:{font:{color:{argb:RUST},bold:true}}}] });
+    sum.addConditionalFormatting({ ref:'E'+v0+':E'+v1, rules:[{type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:AMBER}}] });
+    sum.addConditionalFormatting({ ref:'F'+v0+':F'+v1, rules:[{type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:RUST}}] });
+  }
   [36,17,16,15,15,18].forEach(function(w,i){ sum.getColumn(i+1).width=w; });
   sum.views=[{state:'frozen', ySplit:2}];
 
@@ -1047,9 +1077,12 @@ function buildWorkbook(RAW, opts){
       {type:'containsText',operator:'containsText',text:'Not yet due',priority:3,style:{font:{color:{argb:SLATE}},fill:{type:'pattern',pattern:'solid',bgColor:{argb:GRAY}}}},
       {type:'containsText',operator:'containsText',text:'Settled',priority:4,style:{font:{color:{argb:GREEN}},fill:{type:'pattern',pattern:'solid',bgColor:{argb:GREENSOFT}}}}
     ]});
+    det.addConditionalFormatting({ ref:'I2:I'+last, rules:[{type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:BARINK}}] });
     det.addConditionalFormatting({ ref:'Q2:Q'+last, rules:[
+      {type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:RUST}},
       {type:'cellIs',operator:'greaterThan',formulae:['0'],priority:5,style:{font:{color:{argb:RUST},bold:true}}}
     ]});
+    det.addConditionalFormatting({ ref:'R2:R'+last, rules:[{type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:AMBER}}] });
     det.addConditionalFormatting({ ref:'X2:X'+last, rules:[
       {type:'containsText',operator:'containsText',text:'overdue',priority:6,style:{font:{color:{argb:RUST},bold:true}}},
       {type:'containsText',operator:'containsText',text:'Paid since',priority:7,style:{font:{color:{argb:GREEN},bold:true}}},
@@ -1060,13 +1093,45 @@ function buildWorkbook(RAW, opts){
 }
 /*__BW_END__*/
 
+// Draw the two dashboard charts on a <canvas> and return raw base64 PNGs (browser only).
+function makeCharts(agg, vendors){
+  function usd(v){ v=Math.abs(v); return '$'+v.toLocaleString('en-US',{maximumFractionDigits:0}); }
+  function usdC(v){ v=Math.abs(v); if(v>=1e6) return '$'+(v/1e6).toFixed(2)+'M'; if(v>=1e3) return '$'+(v/1e3).toFixed(1)+'K'; return '$'+Math.round(v); }
+  function cv(w,h){ var c=document.createElement('canvas'); c.width=w; c.height=h; return c; }
+  function raw(c){ return c.toDataURL('image/png').split(',')[1]; }
+  // donut — Settled / Not-yet-due / Overdue
+  var dc=cv(560,430), g=dc.getContext('2d'); g.fillStyle='#FFFFFF'; g.fillRect(0,0,560,430);
+  g.fillStyle='#101B2D'; g.font='bold 22px Georgia'; g.fillText('Portfolio breakdown',22,36);
+  var segs=[['Settled',Math.max(0,agg.settledValue),'#3E7C59'],['Not yet due',Math.max(0,agg.notDueValue),'#C1791F'],['Overdue',Math.max(0,agg.totOverdue),'#B3402F']];
+  var total=segs.reduce(function(s,x){return s+x[1];},0)||1, cx=170,cy=235,rO=132,rI=76,a0=-Math.PI/2;
+  segs.forEach(function(s){ var ang=s[1]/total*Math.PI*2; if(ang<=0) return; g.beginPath(); g.moveTo(cx,cy); g.arc(cx,cy,rO,a0,a0+ang); g.closePath(); g.fillStyle=s[2]; g.fill(); a0+=ang; });
+  g.beginPath(); g.arc(cx,cy,rI,0,Math.PI*2); g.fillStyle='#FFFFFF'; g.fill();
+  var ly=150;
+  segs.forEach(function(s){ g.fillStyle=s[2]; g.fillRect(345,ly,18,18); g.fillStyle='#101B2D'; g.font='bold 15px Calibri'; g.fillText(s[0],370,ly+15); g.fillStyle='#5C6B7A'; g.font='14px Calibri'; g.fillText(usd(s[1]),370,ly+34); ly+=66; });
+  // horizontal bar — overdue by vendor (top 8)
+  var top=vendors.filter(function(v){return v.overdue>0;}).slice(0,8);
+  var bc=cv(560,430), b=bc.getContext('2d'); b.fillStyle='#FFFFFF'; b.fillRect(0,0,560,430);
+  b.fillStyle='#101B2D'; b.font='bold 22px Georgia'; b.fillText('Overdue exposure by vendor',22,36);
+  if(!top.length){ b.fillStyle='#3E7C59'; b.font='16px Calibri'; b.fillText('No overdue balances under these parameters.',22,120); return {donut:raw(dc),bars:raw(bc)}; }
+  var maxV=top[0].overdue||1, x0=210, bw=290, y=66, bh=Math.min(32,(346/top.length)-8);
+  top.forEach(function(v){ var w=Math.max(2,v.overdue/maxV*bw); b.font='12px Calibri'; b.textAlign='right'; b.fillStyle='#101B2D'; var nm=v.name.length>28?v.name.slice(0,27)+'…':v.name; b.fillText(nm,200,y+bh/2+4); b.textAlign='left'; b.fillStyle='#B3402F'; b.fillRect(x0,y,w,bh); b.fillStyle='#5C6B7A'; b.fillText(usdC(v.overdue),x0+w+6,y+bh/2+4); y+=bh+10; });
+  return {donut:raw(dc),bars:raw(bc)};
+}
+
 document.getElementById('exportXlsxBtn').addEventListener('click',async function(){
   if(typeof ExcelJS==='undefined'){ alert('Excel library is still loading — please try again in a moment.'); return; }
   var btn=document.getElementById('exportXlsxBtn'), label=btn.textContent;
   try{
     btn.textContent='⏳ Building…'; btn.disabled=true;
+    var DATA = activeRows();
     var ref = (asOfDate && (viewMode==='asof'||viewMode==='compare')) ? asOfDate : today;
-    var wb = buildWorkbook(activeRows(), {rate:rate, creditOverride:creditOverride, refDate:ref, cmpDate:today, ExcelJS:ExcelJS});
+    var computed = DATA.map(function(r){ return computeRow(r, ref); });
+    var agg = aggregate(DATA, computed);
+    var groups = groupByVendor(DATA), vendors=[];
+    groups.forEach(function(idxs,vn){ var value=0,outstanding=0,overdue=0,interest=0; idxs.forEach(function(i){ var c=computed[i]; value+=Number(DATA[i].amt)||0; outstanding+=c.outstanding; overdue+=c.overdueAmt; interest+=c.interest; }); vendors.push({name:vn,value:value,outstanding:outstanding,overdue:overdue,interest:interest}); });
+    vendors.sort(function(a,b){ return b.overdue-a.overdue || b.outstanding-a.outstanding; });
+    var images=null; try{ images=makeCharts(agg,vendors); }catch(e){ images=null; }
+    var wb = buildWorkbook(DATA, {rate:rate, creditOverride:creditOverride, refDate:ref, cmpDate:today, ExcelJS:ExcelJS, images:images});
     var buf = await wb.xlsx.writeBuffer();
     var blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     var url = URL.createObjectURL(blob), a = document.createElement('a');
