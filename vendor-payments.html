@@ -475,8 +475,9 @@ function renderVendors(rows, computed){
         else if(c.bucket==='flag') badge='<span class="badge flag">Verify</span>';
         const effDueLabel = c.effDue?fmtDate(c.effDue):'—';
         return `<tr class="${trClass}" data-idx="${i}">
-          <td>${r.inv}</td><td>${r.it||''}</td>
+          <td>${r.inv}</td><td>${r.po||''}</td><td>${r.it||''}</td><td class="mono">${r.blno||''}</td>
           <td class="mono">${r.bl?fmtDate(parseD(r.bl)):'—'}</td><td class="mono">${effDueLabel}</td>
+          <td>${r.cqty||''}</td><td>${r.ship||''}</td><td>${r.pterm||''}</td>
           <td class="num" title="${fullMoney(r.amt,c.effDue)}">${money(r.amt,c.effDue)}</td>
           <td><select class="st-edit" data-field="st" data-idx="${i}">${['Paid','Yes','Pending','Partial'].map(s=>`<option value="${s}" ${r.st===s?'selected':''}>${s}</option>`).join('')}</select></td>
           <td><input class="date-edit" type="date" data-field="pd" data-idx="${i}" value="${r.pd||''}"></td>
@@ -487,7 +488,7 @@ function renderVendors(rows, computed){
           <td>${badge}${c.flagged?'<div class="flag-note">no payment date on file</div>':''}</td>
         </tr>`;
       }).join('');
-      ledger.innerHTML = `<table><thead><tr><th>Invoice</th><th>Item</th><th>BL date</th><th>Effective due</th><th>Amount</th><th>Status</th><th>Payment date</th><th>Outstanding</th><th>Overdue days</th><th>Overdue amt</th><th>Interest</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+      ledger.innerHTML = `<table><thead><tr><th>Invoice</th><th>PO no</th><th>Item</th><th>BL no</th><th>BL date</th><th>Effective due</th><th>Container</th><th>Shipment</th><th>Pay term</th><th>Amount</th><th>Status</th><th>Payment date</th><th>Outstanding</th><th>Overdue days</th><th>Overdue amt</th><th>Interest</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
       grid.appendChild(ledger);
       ledger.querySelectorAll('[data-field]').forEach(el=>el.addEventListener('change',e=>{ const idx=Number(e.target.dataset.idx),field=e.target.dataset.field; let val=e.target.value; if(field==='out') val=parseFloat(val)||0; rows[idx][field]=val; renderAll(); }));
     }
@@ -555,15 +556,21 @@ document.getElementById('useSampleBtn').addEventListener('click',()=>{ RAW=JSON.
 
 const FIELD_ALIASES = {
   v:['vendor','supplier','vendor name','supplier name','company','name of supplier'],
+  po:['po no','po number','po no.','po','purchase order','purchase order no'],
+  pod:['po date','po dt','purchase order date'],
   inv:['invoice','invoice no','invoice number','invoice #','inv','inv no'],
-  it:['item','description','product','material','item description'],
+  it:['item','item name','description','product','material','item description'],
+  blno:['bl no','bl number','bl no.','b/l no','bill of lading','bill of lading no'],
   bl:['bl date','bl','invoice date','bill date','billing date','date','invoice/bl date'],
+  cqty:['container qty','container quantity','container','containers'],
+  ship:['shipment status','shipment','ship status','status of shipment'],
+  pterm:['payment term','pay term'],
   cd:['credit days','payment terms','terms','terms (days)','credit period','credit period (days)','cd'],
   due:['due date','due','payment due date','effective due date'],
-  amt:['amount','invoice amount','amt','value','total','invoice value','amount (usd)','payable amount','total amount'],
+  amt:['amount','invoice amount','amt','value','total','invoice value','amount (usd)','payable amount','total amount','total value'],
   st:['status','payment status','st'],
   pd:['payment date','paid date','pd','date paid'],
-  out:['outstanding','balance','outstanding balance','out','open balance','amount due','outstanding (usd)']
+  out:['outstanding','outstanding amount','balance','outstanding balance','out','open balance','amount due','outstanding (usd)']
 };
 function normHeader(h){ return String(h||'').trim().toLowerCase().replace(/\s+/g,' '); }
 function buildHeaderMap(headers){ const map={}, normed=headers.map(normHeader); Object.keys(FIELD_ALIASES).forEach(f=>{ for(const a of FIELD_ALIASES[f]){ const i=normed.indexOf(a); if(i!==-1){ map[f]=headers[i]; return; } } }); return map; }
@@ -589,7 +596,8 @@ function mapUploadedRows(json, headerMap){
     const st=headerMap.st?String(r[headerMap.st]||'Pending').trim():'Pending';
     const pd=headerMap.pd?toISODate(r[headerMap.pd]):null;
     let out=(headerMap.out!=null && r[headerMap.out]!==undefined && r[headerMap.out]!=='')?num(r[headerMap.out]):(/paid|yes/i.test(st)?0:amt);
-    rows.push({v:String(vendor).trim(),inv:String(r[headerMap.inv]||'').trim(),it:String(r[headerMap.it]||'').trim(),bl,cd:cd||0,due,amt,st,pd,out});
+    const gs=(f)=>headerMap[f]?String(r[headerMap[f]]==null?'':r[headerMap[f]]).trim():'';
+    rows.push({v:String(vendor).trim(),po:gs('po'),pod:headerMap.pod?toISODate(r[headerMap.pod]):null,inv:gs('inv'),it:gs('it'),blno:gs('blno'),bl,cd:cd||0,due,cqty:gs('cqty'),ship:gs('ship'),pterm:gs('pterm'),amt,st,pd,out});
   });
   return {rows,error:null};
 }
@@ -600,16 +608,24 @@ function handleFile(file){
   reader.onload=evt=>{
     try{
       const wb=XLSX.read(evt.target.result,{type:'array',cellDates:true});
-      const sheet=wb.Sheets[wb.SheetNames[0]];
-      const json=XLSX.utils.sheet_to_json(sheet,{defval:''});
-      if(!json.length){ setDzLoaded('⚠ That file has no rows.'); return; }
-      const headerMap=buildHeaderMap(Object.keys(json[0]));
+      // Choose the sheet that best matches payment fields — not blindly the first sheet
+      // (files often have summary/reference sheets before the real data sheet).
+      let json=null, headerMap=null, bestScore=-1, bestName='';
+      wb.SheetNames.forEach(sn=>{
+        const ws=wb.Sheets[sn]; if(!ws) return;
+        const j=XLSX.utils.sheet_to_json(ws,{defval:''});
+        if(!j.length) return;
+        const hm=buildHeaderMap(Object.keys(j[0]));
+        const score=Object.keys(hm).length + (hm.v?3:0) + (hm.amt?3:0) + ((hm.due||hm.bl)?1:0);
+        if(score>bestScore){ bestScore=score; json=j; headerMap=hm; bestName=sn; }
+      });
+      if(!json){ setDzLoaded('⚠ That file has no rows.'); return; }
       const {rows,error}=mapUploadedRows(json,headerMap);
       if(error){ setDzLoaded('⚠ '+error); return; }
       if(!rows.length){ setDzLoaded('⚠ No usable rows found.'); return; }
       RAW=rows; openVendor=null;
-      const missOpt=['inv','it','bl','cd','due','st','pd','out'].filter(f=>!headerMap[f]);
-      setDzLoaded(`✅ ${rows.length} invoices from "${file.name}"`+(missOpt.length?` · defaults used for: ${missOpt.join(', ')}`:''));
+      const missOpt=['po','inv','it','blno','bl','cqty','ship','pterm','cd','due','st','pd','out'].filter(f=>!headerMap[f]);
+      setDzLoaded(`✅ ${rows.length} invoices from "${file.name}" (sheet: ${bestName})`+(missOpt.length?` · not found: ${missOpt.join(', ')}`:''));
       renderAll();
     }catch(err){ setDzLoaded('⚠ Could not read that file — is it a valid CSV/XLSX?'); }
   };
