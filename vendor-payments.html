@@ -246,6 +246,7 @@ input.date-edit{width:112px;}
     <button class="clear-btn" id="fxBtn" style="border-color:var(--gold);color:var(--gold);">⇅ FX rates</button>
     <button class="clear-btn" id="useSampleBtn">Use sample data</button>
     <button class="clear-btn" id="exportXlsxBtn" style="border-color:var(--green);color:var(--green);">⬇ Export Excel (live formulas)</button>
+    <button class="clear-btn" id="exportPptBtn" style="border-color:var(--rust);color:var(--rust);">⬇ Export PPT (management)</button>
     <button class="clear-btn" id="exportPdfBtn" style="border-color:var(--gold);color:var(--gold);">⬇ Export PDF</button>
   </div>
 </div>
@@ -304,6 +305,7 @@ input.date-edit{width:112px;}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <script id="vpLogic">
 let RAW = [{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2503A","it":"Junction Box","bl":"2025-06-03","cd":60,"due":"2025-08-02","amt":89280,"st":"Paid","pd":"2025-08-25","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2503B","it":"Junction Box","bl":"2025-07-06","cd":60,"due":"2025-09-04","amt":84960,"st":"Paid","pd":"2025-09-17","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2504","it":"Junction Box","bl":"2025-07-28","cd":60,"due":"2025-09-26","amt":200448,"st":"Paid","pd":"2025-09-17","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2505","it":"Junction Box","bl":"2025-08-08","cd":60,"due":"2025-10-07","amt":200448,"st":"Paid","pd":"2025-11-19","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2506","it":"Junction Box","bl":"2025-09-06","cd":60,"due":"2025-09-06","amt":200448,"st":"Paid","pd":"2025-11-19","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2509","it":"Junction Box","bl":"2025-12-30","cd":60,"due":"2026-02-28","amt":190080,"st":"Paid","pd":"2026-04-17","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2510","it":"Junction Box","bl":"2026-01-04","cd":60,"due":"2026-03-05","amt":79200,"st":"Paid","pd":"2026-05-27","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2601A","it":"Junction Box","bl":"2026-02-04","cd":60,"due":"2026-04-05","amt":179424,"st":"Pending","pd":null,"out":179424},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2601B","it":"Junction Box","bl":"2026-02-07","cd":60,"due":"2026-04-08","amt":179424,"st":"Pending","pd":null,"out":179424},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2601C","it":"Junction Box","bl":"2026-02-20","cd":60,"due":"2026-04-21","amt":179424,"st":"Pending","pd":null,"out":179424},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2601D","it":"Junction Box","bl":"2026-04-02","cd":60,"due":"2026-06-01","amt":414918,"st":"Paid","pd":"2026-06-18","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2602","it":"Junction Box","bl":"2026-03-02","cd":60,"due":"2026-05-01","amt":213120,"st":"Pending","pd":null,"out":213120},{"v":"Shanghai Huitian New Material Co. Ltd.","inv":"HT-SLX-20251210","it":"sealant","bl":"2026-01-21","cd":60,"due":"2026-03-22","amt":10373,"st":"Yes","pd":null,"out":10373},{"v":"Shanghai Huitian New Material Co. Ltd.","inv":"HT-SLX-20260119","it":"sealant","bl":"2026-02-10","cd":60,"due":"2026-04-11","amt":125507.36,"st":"Paid","pd":"2026-06-24","out":0},{"v":"Shanghai Huitian New Material Co. Ltd.","inv":"HT-SLX-20260119-1","it":"sealant","bl":"2026-02-10","cd":60,"due":"2026-04-11","amt":61023.88,"st":"Yes","pd":null,"out":61023.88},{"v":"Shanghai Huitian New Material Co. Ltd.","inv":"HT-SLX-20260119-2","it":"sealant","bl":"2026-02-07","cd":60,"due":"2026-04-08","amt":53184.6,"st":"Paid","pd":"2026-06-25","out":0},{"v":"Shanghai Huitian New Material Co. Ltd.","inv":"HT-SLX-20260330","it":"sealant","bl":"2026-04-25","cd":60,"due":"2026-06-24","amt":5145.6,"st":"Yes","pd":null,"out":5145.6},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS2502015C","it":"Ribbon","bl":"2026-02-04","cd":60,"due":"2026-04-05","amt":44844,"st":"Paid","pd":"2026-06-25","out":0},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS250250A&TLS250249A","it":"Ribbon","bl":"2026-01-01","cd":60,"due":"2026-03-02","amt":493596,"st":"Paid","pd":"2026-05-05","out":0},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS250269A","it":"Ribbon","bl":"2026-01-13","cd":60,"due":"2026-03-14","amt":234864,"st":"Paid","pd":"2026-05-05","out":0},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS26015A&TLS26017A","it":"Ribbon","bl":"2026-02-10","cd":60,"due":"2026-04-11","amt":233280,"st":"Yes","pd":null,"out":233280},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS26015B","it":"Ribbon","bl":"2026-02-16","cd":60,"due":"2026-04-17","amt":290856,"st":"Yes","pd":null,"out":290856},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS26017B-1","it":"Ribbon","bl":"2026-04-03","cd":60,"due":"2026-06-02","amt":64800,"st":"Yes","pd":null,"out":64800},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS26015A&TLS26017A","it":"Ribbon/BB","bl":"2026-02-10","cd":60,"due":"2026-04-11","amt":343760,"st":"Yes","pd":null,"out":343760},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS26017B-1","it":"Ribbon/BB","bl":"2026-04-03","cd":60,"due":"2026-06-02","amt":687520,"st":"Yes","pd":null,"out":687520},{"v":"Shenzhen Topray Solar Co., ltd","inv":"TPS-SOLEX-SHA-20260105-1","it":"Glass","bl":"2026-02-28","cd":60,"due":"2026-04-29","amt":239884.86,"st":"Paid","pd":"2026-05-07","out":0},{"v":"Shenzhen Topray Solar Co., ltd","inv":"TPS-SOLEX-SHA-20260105-2","it":"Glass","bl":"2026-02-12","cd":60,"due":"2026-04-13","amt":506423.59,"st":"Paid","pd":"2026-05-14","out":0},{"v":"Shenzhen Topray Solar Co., ltd","inv":"TPS-SOLEX-SHA-20260105-3","it":"Glass","bl":"2026-03-07","cd":60,"due":"2026-05-06","amt":159923.24,"st":"Paid","pd":"2026-05-22","out":0},{"v":"Shenzhen Topray Solar Co., ltd","inv":"TPS-SHA-20250929-7","it":"Glass","bl":"2026-01-19","cd":60,"due":"2026-03-20","amt":399808.09,"st":"Paid","pd":"2026-03-30","out":0},{"v":"Shenzhen Topray Solar Co., ltd","inv":"TPS-SHA-20250929-8","it":"Glass","bl":"2026-01-23","cd":60,"due":"2026-03-24","amt":399808.09,"st":"Paid","pd":"2026-03-30","out":0},{"v":"Shenzhen Topray Solar Co., ltd","inv":"TPS-SHA-20250929-9","it":"Glass","bl":"2026-01-29","cd":60,"due":"2026-03-30","amt":586386.6,"st":"Paid","pd":"2026-03-31","out":0},{"v":"Shaanxi Topray Solar Ltd","inv":"TPS-SX-SHA-20260331","it":"Glass","bl":"2026-04-11","cd":60,"due":"2026-06-10","amt":297950.4,"st":"Paid","pd":"2026-06-26","out":0},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO015C-2025","it":"Al. Frame","bl":"2026-01-17","cd":60,"due":"2026-03-18","amt":378000,"st":"Paid","pd":"2026-05-29","out":0},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO015E-2025","it":"Al. Frame","bl":"2026-01-23","cd":60,"due":"2026-03-24","amt":472500,"st":"Paid","pd":"2026-06-10","out":0},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO015F-2025","it":"Al. Frame","bl":"2026-01-29","cd":60,"due":"2026-03-30","amt":472500,"st":"Paid","pd":"2026-06-25","out":0},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO018019B-2026","it":"Al. Frame","bl":"2026-02-10","cd":60,"due":"2026-04-11","amt":746900,"st":"Pending","pd":null,"out":746900},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO019A-2026","it":"Al. Frame","bl":"2026-02-16","cd":60,"due":"2026-04-17","amt":640200,"st":"Pending","pd":null,"out":640200},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO015B-2025","it":"Al. Frame","bl":"2026-01-06","cd":60,"due":"2026-03-07","amt":283500,"st":"Paid","pd":"2026-04-06","out":0},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO015D-2025","it":"Al. Frame","bl":"2026-01-22","cd":60,"due":"2026-03-23","amt":283500,"st":"Paid","pd":"2026-04-06","out":0},{"v":"Xiangyu (Singapore) PTE. LTD.","inv":"XY-SOLEX-251029-CI-B","it":"EPE","bl":"2026-01-02","cd":60,"due":"2026-03-03","amt":218872.51,"st":"Paid","pd":"2026-05-07","out":0},{"v":"Xiangyu (Singapore) PTE. LTD.","inv":"XY-SOLEX-251029-CI-C","it":"EPE","bl":"2026-01-03","cd":60,"due":"2026-03-04","amt":145915.01,"st":"Paid","pd":"2026-05-07","out":0},{"v":"Xiangyu (Singapore) PTE. LTD.","inv":"XY-SOLEX-251230-VN-CI-A","it":"EPE","bl":"2026-02-07","cd":60,"due":"2026-04-08","amt":288600.11,"st":"Paid","pd":"2026-06-23","out":0},{"v":"Xiangyu (Singapore) PTE. LTD.","inv":"XY-SOLEX-251230-TH-CI","it":"EPE","bl":"2026-01-28","cd":60,"due":"2026-03-29","amt":180375.07,"st":"Paid","pd":"2026-04-06","out":0},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0415","it":"Al. Frame","bl":"2026-04-25","cd":60,"due":"2026-06-24","amt":319140,"st":"Yes","pd":null,"out":319140},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0123","it":"Al. Frame","bl":"2026-02-17","cd":60,"due":"2026-04-18","amt":288090,"st":"Paid","pd":"2026-06-23","out":0},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0124","it":"Al. Frame","bl":"2026-02-07","cd":60,"due":"2026-04-08","amt":192060,"st":"Paid","pd":"2026-05-27","out":0},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0125","it":"Al. Frame","bl":"2026-02-16","cd":60,"due":"2026-04-17","amt":288090,"st":"Paid","pd":"2026-04-17","out":0},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0401","it":"Al. Frame","bl":"2026-04-06","cd":60,"due":"2026-06-05","amt":405720,"st":"Yes","pd":null,"out":405720},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0402","it":"Al. Frame","bl":"2026-04-15","cd":60,"due":"2026-06-14","amt":507150,"st":"Yes","pd":null,"out":507150},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0403","it":"Al. Frame","bl":"2026-04-15","cd":60,"due":"2026-06-14","amt":202860,"st":"Yes","pd":null,"out":202860},{"v":"Anhui Krant Aluminum Products Co. Ltd","inv":"KLTM057-260111-1","it":"Al. Frame","bl":"2026-02-24","cd":60,"due":"2026-04-25","amt":484800,"st":"Yes","pd":null,"out":484800},{"v":"Anhui Krant Aluminum Products Co. Ltd","inv":"KLTM057-260111-2","it":"Al. Frame","bl":"2026-02-19","cd":60,"due":"2026-04-20","amt":484800,"st":"Paid","pd":"2026-06-17","out":0},{"v":"Anhui Krant Aluminum Products Co. Ltd","inv":"KLTM071-260311","it":"Al. Frame","bl":"2026-04-06","cd":60,"due":"2026-06-05","amt":511680,"st":"Yes","pd":null,"out":511680},{"v":"Jolywood (Jiangsu) Sunwatt Co Ltd","inv":"JS2600069","it":"Backsheet","bl":"2026-02-19","cd":60,"due":"2026-04-20","amt":85165.34,"st":"Pending","pd":null,"out":85165.34},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260312-1","it":"Glass","bl":"2026-03-25","cd":60,"due":"2026-05-24","amt":290056.85,"st":"Paid","pd":"2026-06-23","out":0},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260312-2","it":"Glass","bl":"2026-03-26","cd":60,"due":"2026-05-25","amt":290056.85,"st":"Paid","pd":"2026-06-23","out":0},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260312-3","it":"Glass","bl":"2026-03-25","cd":60,"due":"2026-05-24","amt":290056.85,"st":"Pending","pd":null,"out":290056.85},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260312-4","it":"Glass","bl":"2026-04-02","cd":60,"due":"2026-06-01","amt":290056.85,"st":"Pending","pd":null,"out":290056.85},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260312-5","it":"Glass","bl":"2026-04-02","cd":60,"due":"2026-06-01","amt":330093.95,"st":"Pending","pd":null,"out":330093.95},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260323-1","it":"Glass","bl":"2026-04-20","cd":60,"due":"2026-06-19","amt":290056.85,"st":"Pending","pd":null,"out":290056.85},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260323-2","it":"Glass","bl":"2026-03-31","cd":60,"due":"2026-05-30","amt":290056.85,"st":"Pending","pd":null,"out":290056.85},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260323-3","it":"Glass","bl":"2026-04-05","cd":60,"due":"2026-06-04","amt":174034.11,"st":"Pending","pd":null,"out":174034.11},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260323-4","it":"Glass","bl":"2026-04-04","cd":60,"due":"2026-06-03","amt":290056.85,"st":"Pending","pd":null,"out":290056.85},{"v":"Anhui CSG New Energy Material Technology Co Ltd","inv":"CSG2603022-1","it":"Glass","bl":"2026-04-15","cd":60,"due":"2026-06-14","amt":183030.12,"st":"Paid","pd":"2026-06-23","out":0},{"v":"Anhui CSG New Energy Material Technology Co Ltd","inv":"CSG2603022-2","it":"Glass","bl":"2026-04-15","cd":60,"due":"2026-06-14","amt":261471.6,"st":"Paid","pd":"2026-06-23","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2512034-1","it":"Glass","bl":"2026-01-03","cd":60,"due":"2026-03-04","amt":169322.4,"st":"Paid","pd":"2026-03-31","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2512034-2","it":"Glass","bl":"2026-01-11","cd":60,"due":"2026-03-12","amt":170769.6,"st":"Paid","pd":"2026-03-31","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2601007-1","it":"Glass","bl":"2026-01-18","cd":60,"due":"2026-03-19","amt":181382.4,"st":"Paid","pd":"2026-03-31","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2601027-2","it":"Glass","bl":"2026-02-21","cd":60,"due":"2026-04-22","amt":116864.4,"st":"Paid","pd":"2026-06-05","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2601007-2","it":"Glass","bl":"2026-01-22","cd":60,"due":"2026-03-23","amt":272073.6,"st":"Paid","pd":"2026-03-31","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2601027-1","it":"Glass","bl":"2026-02-06","cd":60,"due":"2026-04-07","amt":175296.61,"st":"Paid","pd":"2026-06-01","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2601027-3","it":"Glass","bl":"2026-02-27","cd":60,"due":"2026-04-28","amt":175296.61,"st":"Paid","pd":"2026-05-01","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2601027-4","it":"Glass","bl":"2026-02-27","cd":60,"due":"2026-04-28","amt":116864.41,"st":"Paid","pd":"2026-05-01","out":0},{"v":"Guangzhou MyTech New Materials Co., Ltd","inv":"MTCI260317","it":"Glass","bl":"2026-04-01","cd":45,"due":"2026-05-16","amt":1740,"st":"Paid","pd":"2026-05-22","out":0},{"v":"Guangzhou MyTech New Materials Co., Ltd","inv":"MTCI251229","it":"Edge Sealing Tape","bl":"2026-01-12","cd":45,"due":"2026-02-26","amt":914,"st":"Paid","pd":"2026-02-18","out":0},{"v":"Guangzhou MyTech New Materials Co., Ltd","inv":"MTCI260116A","it":"Edge Sealing Tape","bl":"2026-01-29","cd":45,"due":"2026-03-15","amt":7315.2,"st":"Paid","pd":"2026-04-24","out":0},{"v":"Guangzhou MyTech New Materials Co., Ltd","inv":"MTCI260211","it":"Edge Sealing Tape","bl":"2026-02-27","cd":45,"due":"2026-04-13","amt":696,"st":"Paid","pd":"2026-04-24","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-1","it":"Glass","bl":"2026-03-14","cd":90,"due":"2026-06-12","amt":290056.85,"st":"Paid","pd":"2026-06-11","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-2","it":"Glass","bl":"2026-03-14","cd":90,"due":"2026-06-12","amt":290056.85,"st":"Paid","pd":"2026-06-11","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-3","it":"Glass","bl":"2026-03-22","cd":90,"due":"2026-06-20","amt":696136.44,"st":"Paid","pd":"2026-06-18","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-6","it":"Glass","bl":"2026-03-22","cd":90,"due":"2026-06-20","amt":725142.12,"st":"Paid","pd":"2026-06-18","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-4","it":"Glass","bl":"2026-03-23","cd":90,"due":"2026-06-21","amt":290056.85,"st":"Paid","pd":"2026-06-18","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-5","it":"Glass","bl":"2026-03-23","cd":90,"due":"2026-06-21","amt":290056.85,"st":"Paid","pd":"2026-06-18","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-7","it":"Glass","bl":"2026-03-30","cd":90,"due":"2026-06-28","amt":145028.42,"st":"Paid","pd":"2026-06-23","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TWTYN-XSBJD-20260311-00002","it":"Solar Cell","bl":"2026-04-07","cd":90,"due":"2026-07-06","amt":2760941.57,"st":"Paid","pd":"2026-07-06","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"MSBV260059","it":"EPE","bl":"2026-04-14","cd":90,"due":"2026-07-13","amt":393951.55,"st":"Paid","pd":"2026-07-09","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"NS2604210179024","it":"Solar Cell","bl":"2026-04-25","cd":90,"due":"2026-07-24","amt":953013.6,"st":"Pending","pd":null,"out":953013.6},{"v":"LX International (Singapore) Pte. Ltd","inv":"MSBV260081","it":"EVA/EPE/POE","bl":"2026-04-27","cd":90,"due":"2026-07-26","amt":148663.96,"st":"Paid","pd":"2026-07-17","out":0},{"v":"Nantong DH Trading Co. Ltd","inv":"PO/U2/2526/02853","it":"Edge Sealing Tape","bl":"2026-03-13","cd":30,"due":"2026-04-12","amt":74000,"st":"Paid","pd":"2026-05-18","out":0},{"v":"Nantong DH Trading Co. Ltd","inv":"PO/U2/2526/02519","it":"Edge Sealing Tape","bl":"2026-01-27","cd":30,"due":"2026-02-26","amt":1475,"st":"Paid","pd":"2026-02-24","out":0},{"v":"Nantong DH Trading Co. Ltd","inv":"PO/U2/2526/02658","it":"Edge Sealing Tape","bl":"2026-02-19","cd":30,"due":"2026-03-21","amt":37760,"st":"Paid","pd":"2026-04-10","out":0},{"v":"PT Glass Max Power","inv":"PI-YN-Solex-20260128S0001","it":"Glass","bl":"2026-04-03","cd":60,"due":"2026-06-02","amt":94651.2,"st":"Pending","pd":null,"out":94651.2},{"v":"SBH Kibing Solar New Materials (M) SDN. BHD.","inv":"KBM-SLX-260127","it":"Glass","bl":"2026-03-01","cd":45,"due":"2026-04-15","amt":292161.02,"st":"Paid","pd":"2026-07-02","out":0},{"v":"Targray International Inc.","inv":"SO-03664","it":"Solar Cell","bl":"2026-02-10","cd":90,"due":"2026-05-11","amt":512500.01,"st":"Paid","pd":"2026-05-11","out":0},{"v":"HLA Supply Chain Solutions Inc.","inv":"INV-670-1","it":"Solar Cell","bl":"2026-05-07","cd":90,"due":"2026-08-05","amt":201312.9,"st":"Pending","pd":null,"out":201312.9},{"v":"HLA Supply Chain Solutions Inc.","inv":"NS2605110192012","it":"Solar Cell","bl":"2026-05-07","cd":90,"due":"2026-08-05","amt":801944.54,"st":"Pending","pd":null,"out":801944.54},{"v":"Targray International Inc.","inv":"SO-03701","it":"Solar Cell","bl":"2026-05-21","cd":90,"due":"2026-08-19","amt":678941.95,"st":"Pending","pd":null,"out":678941.95}];
 const SAMPLE_RAW = JSON.parse(JSON.stringify(RAW));
@@ -977,6 +979,224 @@ document.getElementById('exportXlsxBtn').addEventListener('click',function(){
     var stamp = fmtDate(today).replace(/\s/g,'-');
     XLSX.writeFile(wb, 'Vendor-Payments-Model-'+stamp+'.xlsx');
   }catch(err){ alert('Could not build the Excel file: '+(err&&err.message||err)); }
+});
+/*__PPT_START__*/
+// Build a colour-coded management deck (.pptx). model carries pre-computed numbers so this
+// stays pure/testable. model: {PptxGenJS, refLabel, isAsOf, genLabel, rate, rateYr, creditLabel,
+//   agg, vendors[], topInvs[], compare|null, money(fn), moneyC(fn)}
+function buildPptx(model){
+  var P = model.PptxGenJS, pptx = new P();
+  pptx.layout = 'LAYOUT_WIDE';                       // 13.33 x 7.5 in
+  pptx.author='SCM Ease'; pptx.company='SCM Ease'; pptx.title='Vendor Payment Management Summary';
+  var INK='101B2D',INK2='1C2B44',PAPER='F6F3EC',CARD='FFFFFF',LINE='DCD6C6',SLATE='5C6B7A',SLATESOFT='8A93A0',
+      RUST='B3402F',RUSTSOFT='F3DAD3',AMBER='C1791F',AMBERSOFT='F4E3C6',GREEN='3E7C59',GREENSOFT='DCEAE0',GOLD='C9A24B';
+  var SERIF='Georgia', SANS='Calibri', MONO='Consolas';
+  var RECT='rect', RR='roundRect', ELL='ellipse';   // PptxGenJS accepts shape-type strings
+  var a=model.agg, money=model.money, moneyC=model.moneyC;
+  var short=function(s){ s=String(s||''); return s.length<=30?s:s.slice(0,28)+'…'; };
+
+  function header(s, kicker, title){
+    s.background={color:PAPER};
+    s.addShape(RECT,{x:0,y:0,w:13.33,h:1.12,fill:{color:INK}});
+    s.addShape(RECT,{x:0,y:1.12,w:13.33,h:0.06,fill:{color:GOLD}});
+    s.addText(kicker.toUpperCase(),{x:0.6,y:0.18,w:12,h:0.3,fontFace:SANS,fontSize:11,color:GOLD,charSpacing:2});
+    s.addText(title,{x:0.6,y:0.44,w:12.1,h:0.6,fontFace:SERIF,fontSize:23,bold:true,color:'FFFFFF'});
+    s.addText('Vendor Payment & Interest  ·  Management Summary  ·  As of '+model.refLabel+'  ·  USD',
+      {x:0.6,y:7.06,w:12,h:0.3,fontFace:SANS,fontSize:9,color:SLATESOFT});
+  }
+  function card(s,x,y,w,h,accent,label,value,sub,valColor){
+    s.addShape(RR,{x:x,y:y,w:w,h:h,fill:{color:CARD},line:{color:LINE,width:1},rectRadius:0.07,
+      shadow:{type:'outer',color:'9AA0A8',blur:5,offset:2,angle:90,opacity:0.35}});
+    s.addShape(RECT,{x:x,y:y+0.06,w:0.09,h:h-0.12,fill:{color:accent}});
+    s.addText(String(label).toUpperCase(),{x:x+0.24,y:y+0.16,w:w-0.4,h:0.32,fontFace:SANS,fontSize:10.5,color:SLATE,charSpacing:1});
+    s.addText(value,{x:x+0.2,y:y+0.46,w:w-0.35,h:0.66,fontFace:SERIF,fontSize:24,bold:true,color:valColor||accent});
+    if(sub) s.addText(sub,{x:x+0.24,y:y+1.14,w:w-0.4,h:0.42,fontFace:SANS,fontSize:10,color:SLATESOFT});
+  }
+
+  /* ---- Slide 1: title ---- */
+  var s1=pptx.addSlide(); s1.background={color:INK};
+  s1.addShape(ELL,{x:9.5,y:-1.6,w:5.4,h:5.4,fill:{color:INK2},line:{color:'2A3B57',width:1}});
+  s1.addShape(ELL,{x:11.0,y:0.2,w:3.0,h:3.0,fill:{color:INK},line:{color:'2A3B57',width:1}});
+  s1.addShape(RECT,{x:0,y:0,w:13.33,h:0.16,fill:{color:GOLD}});
+  s1.addShape(RECT,{x:0,y:7.34,w:13.33,h:0.16,fill:{color:GOLD}});
+  s1.addText('ACCOUNTS PAYABLE · SOLAR CELL MANUFACTURING LINE',{x:0.75,y:2.1,w:11,h:0.4,fontFace:SANS,fontSize:12,color:GOLD,charSpacing:3});
+  s1.addText('Vendor Payment & Interest',{x:0.72,y:2.55,w:11.5,h:1.0,fontFace:SERIF,fontSize:46,bold:true,color:'FFFFFF'});
+  s1.addText('Management Summary',{x:0.75,y:3.6,w:11,h:0.8,fontFace:SERIF,fontSize:30,color:'E7DFCC'});
+  s1.addText([
+    {text:(model.isAsOf?'Snapshot as of ':'As of ')+model.refLabel,options:{color:GOLD,bold:true}},
+    {text:'     Generated '+model.genLabel+'     Amounts in USD',options:{color:'B9C0CC'}}
+  ],{x:0.75,y:4.75,w:11.5,h:0.5,fontFace:SANS,fontSize:14});
+  s1.addText('Overdue exposure '+money(a.totOverdue)+'  ·  '+a.overdueCount+' invoice'+(a.overdueCount!==1?'s':'')+' past due',
+    {x:0.75,y:5.5,w:11.5,h:0.5,fontFace:SANS,fontSize:13,color:(a.totOverdue>0?'E7A9A0':'A9D2B8')});
+
+  /* ---- Slide 2: executive KPIs ---- */
+  var s2=pptx.addSlide(); header(s2,'Executive Summary','The situation at a glance');
+  s2.addText('As of '+model.refLabel+', '+a.overdueCount+' invoice'+(a.overdueCount!==1?'s are':' is')+' overdue totalling '+money(a.totOverdue)+'.',
+    {x:0.6,y:1.35,w:12.1,h:0.45,fontFace:SANS,fontSize:14,color:(a.totOverdue>0?RUST:GREEN),bold:true});
+  var cw=3.83,ch=1.7,gx=0.6,gy=1.95,gap=0.32;
+  var cols=[gx, gx+cw+gap, gx+2*(cw+gap)];
+  card(s2,cols[0],gy,cw,ch,RUST,'Overdue amount',money(a.totOverdue),a.overdueCount+' invoices unpaid');
+  card(s2,cols[1],gy,cw,ch,INK,'Total outstanding',money(a.totOutstanding),'incl. not-yet-due',INK);
+  card(s2,cols[2],gy,cw,ch,GREEN,'Settled value',money(a.settledValue),(a.settledCount||0)+' invoices cleared');
+  var gy2=gy+ch+0.28;
+  card(s2,cols[0],gy2,cw,ch,AMBER,'Interest accruing',money(a.interestAccrued),'on unpaid overdue');
+  card(s2,cols[1],gy2,cw,ch,AMBER,'Interest — paid late',money(a.interestPaidLate),'already incurred');
+  card(s2,cols[2],gy2,cw,ch,(a.flagCount>0?RUST:GREEN),'Needs verification',String(a.flagCount),'marked paid, balance open');
+
+  /* ---- Slide 3: portfolio donut ---- */
+  var s3=pptx.addSlide(); header(s3,'Portfolio','Where the money sits today');
+  s3.addChart('doughnut',
+    [{name:'Portfolio',labels:['Settled','Not yet due','Overdue'],values:[Math.round(a.settledValue),Math.round(a.notDueValue),Math.round(a.totOverdue)]}],
+    {x:0.5,y:1.55,w:6.6,h:5.1,holeSize:60,chartColors:[GREEN,AMBER,RUST],showLegend:true,legendPos:'b',legendColor:INK,legendFontFace:SANS,legendFontSize:12,
+     showValue:false,showPercent:true,dataLabelColor:'FFFFFF',dataLabelFontFace:SANS,dataLabelFontSize:12,dataLabelFontBold:true,showTitle:false});
+  var lx=7.6, ly=1.9;
+  [['Settled',GREEN,a.settledValue],['Not yet due',AMBER,a.notDueValue],['Overdue',RUST,a.totOverdue]].forEach(function(row,ix){
+    var yy=ly+ix*0.95;
+    s3.addShape(RR,{x:lx,y:yy,w:5.1,h:0.8,fill:{color:CARD},line:{color:LINE,width:1},rectRadius:0.05});
+    s3.addShape(RECT,{x:lx+0.16,y:yy+0.22,w:0.36,h:0.36,fill:{color:row[1]}});
+    s3.addText(row[0],{x:lx+0.7,y:yy+0.1,w:2.6,h:0.6,fontFace:SANS,fontSize:14,color:INK,valign:'middle'});
+    s3.addText(money(row[2]),{x:lx+3.0,y:yy+0.1,w:2.0,h:0.6,fontFace:SERIF,fontSize:16,bold:true,color:row[1],align:'right',valign:'middle'});
+  });
+  s3.addShape(RECT,{x:lx,y:ly+3*0.95+0.15,w:5.1,h:0.02,fill:{color:LINE}});
+  s3.addText('Total invoice value',{x:lx+0.16,y:ly+3*0.95+0.25,w:2.8,h:0.5,fontFace:SANS,fontSize:13,color:SLATE,valign:'middle'});
+  s3.addText(money(a.totValue),{x:lx+3.0,y:ly+3*0.95+0.25,w:2.0,h:0.5,fontFace:SERIF,fontSize:17,bold:true,color:INK,align:'right',valign:'middle'});
+
+  /* ---- Slide 4: overdue by vendor ---- */
+  var s4=pptx.addSlide(); header(s4,'Risk Concentration','Overdue exposure by vendor');
+  var tv=model.vendors.filter(function(v){return v.overdue>0;}).slice(0,8);
+  if(tv.length===0){
+    s4.addShape(RR,{x:3.5,y:3,w:6.3,h:1.6,fill:{color:GREENSOFT},line:{color:GREEN,width:1},rectRadius:0.08});
+    s4.addText('No vendor currently carries an overdue balance.',{x:3.5,y:3,w:6.3,h:1.6,fontFace:SERIF,fontSize:18,bold:true,color:GREEN,align:'center',valign:'middle'});
+  } else {
+    s4.addChart('bar',
+      [{name:'Overdue',labels:tv.map(function(v){return short(v.name);}),values:tv.map(function(v){return Math.round(v.overdue);})}],
+      {x:0.5,y:1.5,w:12.3,h:5.3,barDir:'bar',chartColors:[RUST],showValue:true,dataLabelColor:INK,dataLabelFontFace:SANS,dataLabelFontSize:10,dataLabelPosition:'outEnd',
+       showLegend:false,catAxisLabelColor:INK,catAxisLabelFontFace:SANS,catAxisLabelFontSize:11,valAxisHidden:true,valGridLine:{style:'none'},catAxisLineShow:false});
+  }
+
+  /* ---- Slide 5: interest analysis ---- */
+  var s5=pptx.addSlide(); header(s5,'Cost of Delay','Interest analysis');
+  var iw=3.83,ih=1.9,iy=1.9;
+  card(s5,cols[0],iy,iw,ih,AMBER,'Paid late (incurred)',money(a.interestPaidLate),'interest on invoices already paid after their due date');
+  card(s5,cols[1],iy,iw,ih,RUST,'Accruing now',money(a.interestAccrued),'on unpaid, overdue invoices — grows each day');
+  card(s5,cols[2],iy,iw,ih,INK,'Total interest',money(a.interestTotal),'paid-late + accruing',INK);
+  s5.addShape(RR,{x:0.6,y:iy+ih+0.4,w:12.13,h:1.7,fill:{color:'FFFFFF'},line:{color:LINE,width:1},rectRadius:0.06});
+  s5.addText('How interest builds up',{x:0.85,y:iy+ih+0.55,w:11.6,h:0.4,fontFace:SERIF,fontSize:15,bold:true,color:INK});
+  s5.addText([
+    {text:'Rate applied: ',options:{color:SLATE}},{text:model.rate+' % per day',options:{color:AMBER,bold:true}},
+    {text:'  (≈ '+model.rateYr+' % per year).   Credit period: ',options:{color:SLATE}},{text:model.creditLabel+'.',options:{color:INK,bold:true}},
+    {text:'\nInterest is only ever counted on the days an invoice runs PAST its effective due date — never before.',options:{color:SLATE}}
+  ],{x:0.85,y:iy+ih+0.95,w:11.6,h:1.0,fontFace:SANS,fontSize:12.5,lineSpacingMultiple:1.15});
+
+  /* ---- Slide 6: compare (optional) ---- */
+  if(model.compare){
+    var c=model.compare, s6=pptx.addSlide(); header(s6,'Movement','What changed: '+c.thenLabel+'  →  '+c.nowLabel);
+    var rows=[[
+      {text:'Metric',options:{fill:{color:INK},color:'FFFFFF',bold:true,fontFace:SANS,fontSize:12}},
+      {text:c.thenLabel+' (then)',options:{fill:{color:INK},color:'FFFFFF',bold:true,align:'right',fontFace:SANS,fontSize:12}},
+      {text:c.nowLabel+' (now)',options:{fill:{color:INK},color:'FFFFFF',bold:true,align:'right',fontFace:SANS,fontSize:12}},
+      {text:'Change',options:{fill:{color:INK},color:'FFFFFF',bold:true,align:'right',fontFace:SANS,fontSize:12}}
+    ]];
+    function crow(label,thenV,nowV,isMoney,badUp){
+      var d=nowV-thenV; var worse=badUp?d>0:d<0;
+      var dtxt=(d>0?'▲ ':(d<0?'▼ ':''))+(isMoney?money(Math.abs(d)):Math.abs(d));
+      if(Math.abs(d)<(isMoney?0.5:0.5)) dtxt='no change';
+      var dcolor=Math.abs(d)<0.5?SLATE:(worse?RUST:GREEN);
+      rows.push([
+        {text:label,options:{fontFace:SANS,fontSize:12,color:INK}},
+        {text:isMoney?money(thenV):String(thenV),options:{align:'right',fontFace:SANS,fontSize:12,color:SLATE}},
+        {text:isMoney?money(nowV):String(nowV),options:{align:'right',fontFace:SANS,fontSize:12,color:INK,bold:true}},
+        {text:dtxt,options:{align:'right',fontFace:SANS,fontSize:12,color:dcolor,bold:true}}
+      ]);
+    }
+    crow('Overdue amount',c.then.totOverdue,c.now.totOverdue,true,true);
+    crow('Total outstanding',c.then.totOutstanding,c.now.totOutstanding,true,true);
+    crow('Interest accruing',c.then.interestAccrued,c.now.interestAccrued,true,true);
+    crow('Overdue invoices',c.then.overdueCount,c.now.overdueCount,false,true);
+    crow('Settled value',c.then.settledValue,c.now.settledValue,true,false);
+    s6.addTable(rows,{x:0.6,y:1.6,w:12.13,colW:[4.6,2.6,2.6,2.33],rowH:0.6,border:{type:'solid',pt:1,color:LINE},valign:'middle',fill:{color:'FFFFFF'}});
+  }
+
+  /* ---- Slide 7: methodology / formulas ---- */
+  var s7=pptx.addSlide(); header(s7,'Methodology','How these numbers are calculated');
+  var forms=[
+    ['Effective due date','BL date  +  credit period','…or the invoice\u2019s own due date from the sheet.',GOLD],
+    ['Overdue days','Reference date  −  effective due date','Counted only while unpaid and past due; otherwise 0.',RUST],
+    ['Outstanding','Full invoice amount until paid  →  0 once paid','On a past date, an invoice is \u201cpaid\u201d only if its payment date is on/before that date.',INK],
+    ['Overdue amount','Outstanding, when overdue days > 0','The exposure that is actually past due.',RUST],
+    ['Daily interest','Outstanding  ×  rate%/day  ×  overdue days','Accrues on unpaid, overdue invoices — grows each day.',AMBER],
+    ['Late-payment interest','Amount  ×  rate%/day  ×  (payment date − due date)','For invoices that were paid, but paid late.',AMBER]
+  ];
+  var fy=1.45, fh=0.82;
+  forms.forEach(function(f,ix){
+    var yy=fy+ix*(fh+0.09);
+    s7.addShape(RR,{x:0.6,y:yy,w:12.13,h:fh,fill:{color:CARD},line:{color:LINE,width:1},rectRadius:0.05});
+    s7.addShape(RECT,{x:0.6,y:yy,w:0.09,h:fh,fill:{color:f[3]}});
+    s7.addText(f[0],{x:0.85,y:yy+0.06,w:3.1,h:fh-0.12,fontFace:SERIF,fontSize:14,bold:true,color:INK,valign:'middle'});
+    s7.addText(f[1],{x:4.0,y:yy+0.06,w:4.7,h:fh-0.12,fontFace:MONO,fontSize:12.5,color:f[3],valign:'middle',bold:true});
+    s7.addText(f[2],{x:8.8,y:yy+0.06,w:3.7,h:fh-0.12,fontFace:SANS,fontSize:10,color:SLATESOFT,valign:'middle'});
+  });
+
+  /* ---- Slide 8: top overdue invoices ---- */
+  var s8=pptx.addSlide(); header(s8,'Detail','Top overdue invoices');
+  if(model.topInvs.length===0){
+    s8.addShape(RR,{x:3.5,y:3,w:6.3,h:1.6,fill:{color:GREENSOFT},line:{color:GREEN,width:1},rectRadius:0.08});
+    s8.addText('Nothing overdue — every invoice is within terms.',{x:3.5,y:3,w:6.3,h:1.6,fontFace:SERIF,fontSize:18,bold:true,color:GREEN,align:'center',valign:'middle'});
+  } else {
+    var hdr=['Vendor','Invoice','Due','Days','Overdue','Interest'].map(function(t,ix){
+      return {text:t,options:{fill:{color:INK},color:'FFFFFF',bold:true,fontFace:SANS,fontSize:11,align:(ix>=3?'right':'left')}};});
+    var trows=[hdr];
+    model.topInvs.forEach(function(iv,ix){
+      var band = ix%2? 'F2EFE7':'FFFFFF';
+      trows.push([
+        {text:short(iv.vendor),options:{fill:{color:band},color:INK,fontFace:SANS,fontSize:10.5}},
+        {text:String(iv.inv||''),options:{fill:{color:band},color:SLATE,fontFace:SANS,fontSize:10.5}},
+        {text:iv.dueLabel||'',options:{fill:{color:band},color:SLATE,fontFace:SANS,fontSize:10.5}},
+        {text:String(iv.days)+' d',options:{fill:{color:band},color:INK,fontFace:SANS,fontSize:10.5,align:'right'}},
+        {text:moneyC(iv.amt),options:{fill:{color:band},color:RUST,bold:true,fontFace:SANS,fontSize:10.5,align:'right'}},
+        {text:moneyC(iv.interest),options:{fill:{color:band},color:AMBER,fontFace:SANS,fontSize:10.5,align:'right'}}
+      ]);
+    });
+    s8.addTable(trows,{x:0.6,y:1.5,w:12.13,colW:[3.9,2.9,1.7,1.0,1.4,1.23],rowH:0.42,border:{type:'solid',pt:0.5,color:LINE},valign:'middle',autoPage:false});
+  }
+  return pptx;
+}
+/*__PPT_END__*/
+
+document.getElementById('exportPptBtn').addEventListener('click',function(){
+  if(typeof PptxGenJS==='undefined'){ alert('PowerPoint library is still loading — please try again in a moment.'); return; }
+  try{
+    var refDate = (asOfDate && (viewMode==='asof'||viewMode==='compare')) ? asOfDate : today;
+    var computedRef = RAW.map(function(r){ return computeRow(r, refDate); });
+    var A = aggregate(RAW, computedRef);
+    A.settledCount = computedRef.filter(function(c){return c.settled;}).length;
+    // vendors
+    var groups = groupByVendor(RAW), vendors=[];
+    groups.forEach(function(idxs,vendor){ var value=0,outstanding=0,overdue=0,interest=0;
+      idxs.forEach(function(i){ var r=RAW[i],c=computedRef[i]; value+=Number(r.amt)||0; outstanding+=c.outstanding; overdue+=c.overdueAmt; interest+=c.interest; });
+      vendors.push({name:vendor,value:value,outstanding:outstanding,overdue:overdue,interest:interest}); });
+    vendors.sort(function(x,y){ return y.overdue-x.overdue || y.outstanding-x.outstanding; });
+    // top overdue invoices
+    var invs=[];
+    RAW.forEach(function(r,i){ var c=computedRef[i]; if(c.overdueAmt>0.01){ invs.push({vendor:r.v,inv:r.inv,dueLabel:(c.effDue?fmtDate(c.effDue):''),days:c.overdueDays,amt:c.overdueAmt,interest:c.interest}); } });
+    invs.sort(function(x,y){ return y.amt-x.amt; });
+    // compare
+    var compare=null;
+    if(viewMode==='compare' && asOfDate){
+      var A2 = aggregate(RAW, RAW.map(function(r){ return computeRow(r, today); }));
+      compare = { then:A, now:A2, thenLabel:fmtDate(asOfDate), nowLabel:fmtDate(today) };
+    }
+    function usd(n){ n=Math.abs(Number(n)||0); return '$'+n.toLocaleString('en-US',{maximumFractionDigits:0}); }
+    function usdC(n){ n=Math.abs(Number(n)||0); if(n>=1e6) return '$'+(n/1e6).toFixed(2)+'M'; if(n>=1e3) return '$'+(n/1e3).toFixed(1)+'K'; return '$'+Math.round(n); }
+    var model = {
+      PptxGenJS:PptxGenJS, refLabel:fmtDate(refDate), isAsOf:(refDate.getTime()<today.getTime()),
+      genLabel:fmtDate(today), rate:rate, rateYr:(rate*365).toFixed(1),
+      creditLabel:(creditOverride!==null? creditOverride+' days from BL date' : "each invoice's own due date"),
+      agg:A, vendors:vendors, topInvs:invs.slice(0,10), compare:compare, money:usd, moneyC:usdC
+    };
+    var pptx = buildPptx(model);
+    pptx.writeFile({ fileName:'Vendor-Payments-Management-'+fmtDate(today).replace(/\s/g,'-')+'.pptx' });
+  }catch(err){ alert('Could not build the PowerPoint: '+(err&&err.message||err)); }
 });
 document.getElementById('exportPdfBtn').addEventListener('click',()=>window.print());
 
