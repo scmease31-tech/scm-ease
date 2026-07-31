@@ -245,6 +245,7 @@ input.date-edit{width:112px;}
     </label>
     <button class="clear-btn" id="fxBtn" style="border-color:var(--gold);color:var(--gold);">⇅ FX rates</button>
     <button class="clear-btn" id="useSampleBtn">Use sample data</button>
+    <button class="clear-btn" id="exportXlsxBtn" style="border-color:var(--green);color:var(--green);">⬇ Export Excel (live formulas)</button>
     <button class="clear-btn" id="exportPdfBtn" style="border-color:var(--gold);color:var(--gold);">⬇ Export PDF</button>
   </div>
 </div>
@@ -832,6 +833,151 @@ document.getElementById('fxResetBtn').addEventListener('click',()=>{ fxOverride=
 
 document.getElementById('searchBox').addEventListener('input',()=>renderVendors(currentRows||RAW, currentComputed||RAW.map(r=>computeRow(r,today))));
 document.getElementById('filterSel').addEventListener('change',()=>renderVendors(currentRows||RAW, currentComputed||RAW.map(r=>computeRow(r,today))));
+/*__BW_START__*/
+// Build a LIVE Excel model: every computed cell is a real formula referencing the raw
+// inputs + editable parameters (Reference date, Compare date, Interest %/day, Credit override).
+// opts: {rate, creditOverride, refDate(Date), cmpDate(Date), XLSX}
+function buildWorkbook(RAW, opts){
+  var XL = (opts && opts.XLSX) || (typeof XLSX!=='undefined' ? XLSX : null);
+  var rate = opts.rate, creditOverride = opts.creditOverride;
+  var refDate = opts.refDate, cmpDate = opts.cmpDate;
+  var n = RAW.length, lastRow = n + 1;             // header on row 1, data rows 2..n+1
+  var MONEY='"$"#,##0', MONEY2='"$"#,##0.00', DT='dd-mmm-yyyy', DAYS='0', PCT='0.0000';
+
+  // JS Date -> Excel serial (1900 system), tz-safe via UTC date parts.
+  function serial(d){ if(!d) return null; return Math.floor((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()) - Date.UTC(1899,11,30))/86400000); }
+  function sheetFromCells(cells, maxR, maxC){
+    var ws={}; for(var k in cells){ ws[k]=cells[k]; }
+    ws['!ref'] = XL.utils.encode_range({s:{r:0,c:0},e:{r:maxR,c:maxC}});
+    return ws;
+  }
+  function A(r,c){ return XL.utils.encode_cell({r:r,c:c}); }
+
+  /* ---------------- DETAIL SHEET ---------------- */
+  var dCells={}, dMaxC=23;                          // A..X = 24 cols (0..23)
+  var dHead=['Vendor','PO No','Invoice','Item','BL No','BL Date','Credit Days','Due Date','Amount (USD)','Status','Payment Date','Outstanding (sheet)',
+             'Effective Due','Settled? (Ref)','Outstanding (Ref)','Overdue Days (Ref)','Overdue Amt (Ref)','Interest (Ref)','State (Ref)',
+             'Settled? (Cmp)','Overdue Amt (Cmp)','Interest (Cmp)','Δ Overdue (Cmp-Ref)','Change'];
+  for(var c=0;c<dHead.length;c++){ dCells[A(0,c)]={t:'s',v:dHead[c]}; }
+  for(var i=0;i<n;i++){
+    var r=RAW[i], rr=i+2, R0=i+1;                   // rr = excel row number (1-based), R0 = 0-based grid row
+    var bl=parseD(r.bl), due=parseD(r.due), pd=parseD(r.pd);
+    // raw inputs
+    dCells[A(R0,0)]={t:'s',v:String(r.v||'')};
+    dCells[A(R0,1)]={t:'s',v:String(r.po||'')};
+    dCells[A(R0,2)]={t:'s',v:String(r.inv||'')};
+    dCells[A(R0,3)]={t:'s',v:String(r.it||'')};
+    dCells[A(R0,4)]={t:'s',v:String(r.blno||'')};
+    if(bl) dCells[A(R0,5)]={t:'n',v:serial(bl),z:DT};
+    dCells[A(R0,6)]={t:'n',v:Number(r.cd)||0,z:DAYS};
+    if(due) dCells[A(R0,7)]={t:'n',v:serial(due),z:DT};
+    dCells[A(R0,8)]={t:'n',v:Number(r.amt)||0,z:MONEY};
+    dCells[A(R0,9)]={t:'s',v:String(r.st||'')};
+    if(pd) dCells[A(R0,10)]={t:'n',v:serial(pd),z:DT};   // leave blank when unpaid -> ISBLANK works
+    dCells[A(R0,11)]={t:'n',v:Number(r.out)||0,z:MONEY};
+    // computed formulas (Reference date)
+    dCells[A(R0,12)]={t:'n',z:DT, f:'IF(CreditOv="",H'+rr+',F'+rr+'+CreditOv)'};
+    dCells[A(R0,13)]={t:'s', f:'IF(AND(NOT(ISBLANK(K'+rr+')),K'+rr+'<=RefDate),"Yes",IF(AND(RefDate>=TODAY(),L'+rr+'<=0.01),"Yes","No"))'};
+    dCells[A(R0,14)]={t:'n',z:MONEY, f:'IF(N'+rr+'="Yes",0,IF(RefDate>=TODAY(),L'+rr+',I'+rr+'))'};
+    dCells[A(R0,15)]={t:'n',z:DAYS, f:'IF(N'+rr+'="Yes",0,MAX(0,RefDate-M'+rr+'))'};
+    dCells[A(R0,16)]={t:'n',z:MONEY, f:'IF(P'+rr+'>0,O'+rr+',0)'};
+    dCells[A(R0,17)]={t:'n',z:MONEY2, f:'IF(N'+rr+'="Yes",IF(K'+rr+'>M'+rr+',I'+rr+'*(RatePct/100)*(K'+rr+'-M'+rr+'),0),IF(RefDate>M'+rr+',O'+rr+'*(RatePct/100)*(RefDate-M'+rr+'),0))'};
+    dCells[A(R0,18)]={t:'s', f:'IF(N'+rr+'="Yes",IF(K'+rr+'>M'+rr+',"Settled (late)","Settled"),IF(P'+rr+'>0,IF(OR(J'+rr+'="Paid",J'+rr+'="Yes"),"Verify (marked paid)","Overdue"),"Not yet due"))'};
+    // computed formulas (Compare date)
+    dCells[A(R0,19)]={t:'s', f:'IF(AND(NOT(ISBLANK(K'+rr+')),K'+rr+'<=CmpDate),"Yes",IF(AND(CmpDate>=TODAY(),L'+rr+'<=0.01),"Yes","No"))'};
+    dCells[A(R0,20)]={t:'n',z:MONEY, f:'IF(AND(T'+rr+'="No",CmpDate>M'+rr+'),IF(CmpDate>=TODAY(),L'+rr+',I'+rr+'),0)'};
+    dCells[A(R0,21)]={t:'n',z:MONEY2, f:'IF(T'+rr+'="Yes",IF(K'+rr+'>M'+rr+',I'+rr+'*(RatePct/100)*(K'+rr+'-M'+rr+'),0),IF(CmpDate>M'+rr+',IF(CmpDate>=TODAY(),L'+rr+',I'+rr+')*(RatePct/100)*(CmpDate-M'+rr+'),0))'};
+    dCells[A(R0,22)]={t:'n',z:MONEY, f:'U'+rr+'-Q'+rr};
+    dCells[A(R0,23)]={t:'s', f:'IF(AND(N'+rr+'="No",T'+rr+'="Yes"),"Paid since ref",IF(AND(Q'+rr+'=0,U'+rr+'>0),"Newly overdue",IF(U'+rr+'>Q'+rr+',"More overdue",IF(AND(Q'+rr+'>0,U'+rr+'=0),"Cleared","No change"))))'};
+  }
+  var wsDetail = sheetFromCells(dCells, n, dMaxC);
+  wsDetail['!cols']=[{wch:30},{wch:12},{wch:20},{wch:14},{wch:12},{wch:12},{wch:8},{wch:12},{wch:14},{wch:9},{wch:13},{wch:14},
+                     {wch:12},{wch:11},{wch:14},{wch:11},{wch:14},{wch:13},{wch:16},{wch:11},{wch:15},{wch:13},{wch:14},{wch:15}];
+
+  /* ---------------- SUMMARY SHEET ---------------- */
+  var sCells={}, sMaxC=5, row=0;
+  function put(r,c,cell){ sCells[A(r,c)]=cell; }
+  function txt(r,c,v){ put(r,c,{t:'s',v:v}); }
+  function numF(r,c,f,z){ put(r,c,{t:'n',f:f,z:z||MONEY}); }
+  var DET='Detail!';
+  var Icol=DET+'I2:I'+lastRow, Ocol=DET+'O2:O'+lastRow, Qcol=DET+'Q2:Q'+lastRow, Rcol=DET+'R2:R'+lastRow,
+      Ncol=DET+'N2:N'+lastRow, Scol=DET+'S2:S'+lastRow, Acol=DET+'A2:A'+lastRow,
+      Ucol=DET+'U2:U'+lastRow, Vcol=DET+'V2:V'+lastRow;
+
+  txt(row,0,'VENDOR PAYMENT & INTEREST — LIVE FORMULA MODEL'); row++;
+  txt(row,0,'Generated '+fmtDate(today)+' · amounts in USD · every computed cell is a live Excel formula — edit the parameters below and the whole book recalculates.'); row++;
+  row++;
+  txt(row,0,'PARAMETERS  (edit these)'); var pHdr=row; row++;
+  txt(row,1,'Reference (as-of) date'); put(row,2,{t:'n',v:serial(refDate),z:DT}); var rRef=row+1; row++;
+  txt(row,1,'Compare date');           put(row,2,{t:'n',v:serial(cmpDate),z:DT}); var rCmp=row+1; row++;
+  txt(row,1,'Interest rate (% per day)'); put(row,2,{t:'n',v:rate,z:PCT}); var rRate=row+1; row++;
+  txt(row,1,'Credit override (days; blank = use sheet due date)');
+  if(creditOverride!==null && creditOverride!==undefined) put(row,2,{t:'n',v:creditOverride,z:DAYS}); /* else leave blank */ var rCred=row+1; row++;
+  row++;
+
+  txt(row,0,'PORTFOLIO — AS OF REFERENCE DATE'); row++;
+  txt(row,1,'Total invoice value');      numF(row,2,'SUM('+Icol+')'); row++;
+  txt(row,1,'Settled value');            numF(row,2,'SUM('+Icol+')-SUM('+Ocol+')'); row++;
+  txt(row,1,'Not yet due');              numF(row,2,'SUM('+Ocol+')-SUM('+Qcol+')'); row++;
+  txt(row,1,'Overdue amount');           numF(row,2,'SUM('+Qcol+')'); row++;
+  txt(row,1,'Total outstanding');        numF(row,2,'SUM('+Ocol+')'); row++;
+  txt(row,1,'Interest — paid late');     numF(row,2,'SUMIF('+Scol+',"Settled (late)",'+Rcol+')',MONEY2); row++;
+  txt(row,1,'Interest — accruing');      numF(row,2,'SUM('+Rcol+')-SUMIF('+Scol+',"Settled (late)",'+Rcol+')',MONEY2); row++;
+  txt(row,1,'Interest — total');         numF(row,2,'SUM('+Rcol+')',MONEY2); row++;
+  txt(row,1,'Overdue invoices');         numF(row,2,'COUNTIF('+Qcol+',">0")',DAYS); row++;
+  txt(row,1,'Settled invoices');         numF(row,2,'COUNTIF('+Ncol+',"Yes")',DAYS); row++;
+  txt(row,1,'Needs verification');       numF(row,2,'COUNTIF('+Scol+',"Verify (marked paid)")',DAYS); row++;
+  row++;
+
+  txt(row,0,'THEN vs NOW  (Reference date → Compare date)'); row++;
+  txt(row,1,'Metric'); txt(row,2,'Reference'); txt(row,3,'Compare'); txt(row,4,'Change'); row++;
+  txt(row,1,'Overdue amount');   numF(row,2,'SUM('+Qcol+')'); numF(row,3,'SUM('+Ucol+')'); numF(row,4,'SUM('+Ucol+')-SUM('+Qcol+')'); row++;
+  txt(row,1,'Interest');         numF(row,2,'SUM('+Rcol+')',MONEY2); numF(row,3,'SUM('+Vcol+')',MONEY2); numF(row,4,'SUM('+Vcol+')-SUM('+Rcol+')',MONEY2); row++;
+  txt(row,1,'Overdue invoices'); numF(row,2,'COUNTIF('+Qcol+',">0")',DAYS); numF(row,3,'COUNTIF('+Ucol+',">0")',DAYS); numF(row,4,'COUNTIF('+Ucol+',">0")-COUNTIF('+Qcol+',">0")',DAYS); row++;
+  row++;
+
+  txt(row,0,'BY VENDOR  (as of Reference date)'); row++;
+  txt(row,0,'Vendor'); txt(row,1,'Value'); txt(row,2,'Outstanding'); txt(row,3,'Overdue'); txt(row,4,'Interest'); txt(row,5,'Overdue (Compare)'); row++;
+  var vendors=[]; RAW.forEach(function(r){ if(vendors.indexOf(r.v)===-1) vendors.push(r.v); });
+  vendors.forEach(function(vn){
+    var vc=A(row,0);
+    put(row,0,{t:'s',v:vn});
+    numF(row,1,'SUMIF('+Acol+','+vc+','+Icol+')');
+    numF(row,2,'SUMIF('+Acol+','+vc+','+Ocol+')');
+    numF(row,3,'SUMIF('+Acol+','+vc+','+Qcol+')');
+    numF(row,4,'SUMIF('+Acol+','+vc+','+Rcol+')',MONEY2);
+    numF(row,5,'SUMIF('+Acol+','+vc+','+Ucol+')');
+    row++;
+  });
+
+  var wsSum = sheetFromCells(sCells, row-1, sMaxC);
+  wsSum['!cols']=[{wch:34},{wch:34},{wch:18},{wch:16},{wch:16},{wch:18}];
+  wsSum['!merges']=[{s:{r:0,c:0},e:{r:0,c:5}},{s:{r:1,c:0},e:{r:1,c:5}}];
+
+  /* ---------------- WORKBOOK ---------------- */
+  var wb=XL.utils.book_new();
+  XL.utils.book_append_sheet(wb, wsSum, 'Summary');
+  XL.utils.book_append_sheet(wb, wsDetail, 'Detail');
+  wb.Workbook = wb.Workbook || {};
+  wb.Workbook.Names = [
+    {Name:'RefDate',  Ref:"Summary!$C$"+rRef},
+    {Name:'CmpDate',  Ref:"Summary!$C$"+rCmp},
+    {Name:'RatePct',  Ref:"Summary!$C$"+rRate},
+    {Name:'CreditOv', Ref:"Summary!$C$"+rCred}
+  ];
+  wb.Workbook.CalcPr = {fullCalcOnLoad:true};       // force Excel/Sheets to recompute on open
+  return wb;
+}
+/*__BW_END__*/
+
+document.getElementById('exportXlsxBtn').addEventListener('click',function(){
+  try{
+    var ref = (asOfDate && (viewMode==='asof'||viewMode==='compare')) ? asOfDate : today;
+    var wb = buildWorkbook(RAW, {rate:rate, creditOverride:creditOverride, refDate:ref, cmpDate:today, XLSX:XLSX});
+    var stamp = fmtDate(today).replace(/\s/g,'-');
+    XLSX.writeFile(wb, 'Vendor-Payments-Model-'+stamp+'.xlsx');
+  }catch(err){ alert('Could not build the Excel file: '+(err&&err.message||err)); }
+});
 document.getElementById('exportPdfBtn').addEventListener('click',()=>window.print());
 
 function setDzLoaded(text){ const dz=document.getElementById('dropzone'), h=document.getElementById('dzHint'); if(text){ dz.classList.add('loaded'); h.textContent=text; } else { dz.classList.remove('loaded'); h.textContent='CSV / XLSX · we auto-map Vendor, Amount, Dates, Status…'; } }
