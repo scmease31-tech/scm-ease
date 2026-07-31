@@ -202,6 +202,15 @@ input.date-edit{width:112px;}
 .src-default{background:#EAEAEA;color:var(--slate);}
 .fx-clear{background:none;border:none;color:var(--rust);cursor:pointer;font-size:11px;}
 
+/* exclude-vendors list */
+.excl-list{display:flex;flex-direction:column;gap:2px;}
+.excl-item{display:flex;align-items:center;gap:10px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;cursor:pointer;font-size:12.5px;color:var(--ink);background:#fff;}
+.excl-item:hover{border-color:var(--gold);background:rgba(201,162,75,0.06);}
+.excl-item.excluded{background:var(--rust-soft);border-color:var(--rust);color:var(--rust);text-decoration:line-through;}
+.excl-item input{accent-color:var(--rust);width:15px;height:15px;flex:none;}
+.excl-item .excl-n{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--slate-soft);text-decoration:none;}
+#exclBtn.has-excl{border-color:var(--rust);color:var(--rust);}
+
 .foot{max-width:1360px;margin:40px auto 0;padding:18px 32px 0;border-top:1px solid var(--line);font-size:11px;color:var(--slate-soft);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;}
 .foot .legend2 span{display:inline-flex;align-items:center;gap:5px;margin-right:14px;}
 .foot .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
@@ -244,6 +253,7 @@ input.date-edit{width:112px;}
       <input type="file" id="fileUpload" accept=".csv,.xlsx,.xls">
     </label>
     <button class="clear-btn" id="fxBtn" style="border-color:var(--gold);color:var(--gold);">⇅ FX rates</button>
+    <button class="clear-btn" id="exclBtn">⊘ Exclude vendors</button>
     <button class="clear-btn" id="useSampleBtn">Use sample data</button>
     <button class="clear-btn" id="exportXlsxBtn" style="border-color:var(--green);color:var(--green);">⬇ Export Excel (live formulas)</button>
     <button class="clear-btn" id="exportPptBtn" style="border-color:var(--rust);color:var(--rust);">⬇ Export PPT (management)</button>
@@ -304,8 +314,26 @@ input.date-edit{width:112px;}
   </div>
 </div>
 
+<div class="fx-overlay" id="exclOverlay">
+  <div class="fx-modal">
+    <div class="fx-head">
+      <h3>Exclude vendors from the analysis</h3>
+      <button class="x" id="exclClose">×</button>
+    </div>
+    <div class="fx-actions">
+      <button class="fx-btn sec" id="exclClear">Include all again</button>
+      <span class="fx-status" id="exclStatus"></span>
+    </div>
+    <div class="fx-body">
+      <p style="font-size:12px;color:var(--slate);margin:0 0 10px;">Ticked vendors are left OUT of every total, chart, the ledger, and the Excel/PPT exports. Untick to bring one back.</p>
+      <div id="exclList" class="excl-list"></div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script id="vpLogic">
 let RAW = [{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2503A","it":"Junction Box","bl":"2025-06-03","cd":60,"due":"2025-08-02","amt":89280,"st":"Paid","pd":"2025-08-25","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2503B","it":"Junction Box","bl":"2025-07-06","cd":60,"due":"2025-09-04","amt":84960,"st":"Paid","pd":"2025-09-17","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2504","it":"Junction Box","bl":"2025-07-28","cd":60,"due":"2025-09-26","amt":200448,"st":"Paid","pd":"2025-09-17","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2505","it":"Junction Box","bl":"2025-08-08","cd":60,"due":"2025-10-07","amt":200448,"st":"Paid","pd":"2025-11-19","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2506","it":"Junction Box","bl":"2025-09-06","cd":60,"due":"2025-09-06","amt":200448,"st":"Paid","pd":"2025-11-19","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2509","it":"Junction Box","bl":"2025-12-30","cd":60,"due":"2026-02-28","amt":190080,"st":"Paid","pd":"2026-04-17","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2510","it":"Junction Box","bl":"2026-01-04","cd":60,"due":"2026-03-05","amt":79200,"st":"Paid","pd":"2026-05-27","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2601A","it":"Junction Box","bl":"2026-02-04","cd":60,"due":"2026-04-05","amt":179424,"st":"Pending","pd":null,"out":179424},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2601B","it":"Junction Box","bl":"2026-02-07","cd":60,"due":"2026-04-08","amt":179424,"st":"Pending","pd":null,"out":179424},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2601C","it":"Junction Box","bl":"2026-02-20","cd":60,"due":"2026-04-21","amt":179424,"st":"Pending","pd":null,"out":179424},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2601D","it":"Junction Box","bl":"2026-04-02","cd":60,"due":"2026-06-01","amt":414918,"st":"Paid","pd":"2026-06-18","out":0},{"v":"Zhejiang Zhonghuan Sunter PV Technology Co.,Ltd","inv":"Solex2602","it":"Junction Box","bl":"2026-03-02","cd":60,"due":"2026-05-01","amt":213120,"st":"Pending","pd":null,"out":213120},{"v":"Shanghai Huitian New Material Co. Ltd.","inv":"HT-SLX-20251210","it":"sealant","bl":"2026-01-21","cd":60,"due":"2026-03-22","amt":10373,"st":"Yes","pd":null,"out":10373},{"v":"Shanghai Huitian New Material Co. Ltd.","inv":"HT-SLX-20260119","it":"sealant","bl":"2026-02-10","cd":60,"due":"2026-04-11","amt":125507.36,"st":"Paid","pd":"2026-06-24","out":0},{"v":"Shanghai Huitian New Material Co. Ltd.","inv":"HT-SLX-20260119-1","it":"sealant","bl":"2026-02-10","cd":60,"due":"2026-04-11","amt":61023.88,"st":"Yes","pd":null,"out":61023.88},{"v":"Shanghai Huitian New Material Co. Ltd.","inv":"HT-SLX-20260119-2","it":"sealant","bl":"2026-02-07","cd":60,"due":"2026-04-08","amt":53184.6,"st":"Paid","pd":"2026-06-25","out":0},{"v":"Shanghai Huitian New Material Co. Ltd.","inv":"HT-SLX-20260330","it":"sealant","bl":"2026-04-25","cd":60,"due":"2026-06-24","amt":5145.6,"st":"Yes","pd":null,"out":5145.6},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS2502015C","it":"Ribbon","bl":"2026-02-04","cd":60,"due":"2026-04-05","amt":44844,"st":"Paid","pd":"2026-06-25","out":0},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS250250A&TLS250249A","it":"Ribbon","bl":"2026-01-01","cd":60,"due":"2026-03-02","amt":493596,"st":"Paid","pd":"2026-05-05","out":0},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS250269A","it":"Ribbon","bl":"2026-01-13","cd":60,"due":"2026-03-14","amt":234864,"st":"Paid","pd":"2026-05-05","out":0},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS26015A&TLS26017A","it":"Ribbon","bl":"2026-02-10","cd":60,"due":"2026-04-11","amt":233280,"st":"Yes","pd":null,"out":233280},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS26015B","it":"Ribbon","bl":"2026-02-16","cd":60,"due":"2026-04-17","amt":290856,"st":"Yes","pd":null,"out":290856},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS26017B-1","it":"Ribbon","bl":"2026-04-03","cd":60,"due":"2026-06-02","amt":64800,"st":"Yes","pd":null,"out":64800},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS26015A&TLS26017A","it":"Ribbon/BB","bl":"2026-02-10","cd":60,"due":"2026-04-11","amt":343760,"st":"Yes","pd":null,"out":343760},{"v":"Jiangsu Telison New Materials Co. Ltd","inv":"TLS26017B-1","it":"Ribbon/BB","bl":"2026-04-03","cd":60,"due":"2026-06-02","amt":687520,"st":"Yes","pd":null,"out":687520},{"v":"Shenzhen Topray Solar Co., ltd","inv":"TPS-SOLEX-SHA-20260105-1","it":"Glass","bl":"2026-02-28","cd":60,"due":"2026-04-29","amt":239884.86,"st":"Paid","pd":"2026-05-07","out":0},{"v":"Shenzhen Topray Solar Co., ltd","inv":"TPS-SOLEX-SHA-20260105-2","it":"Glass","bl":"2026-02-12","cd":60,"due":"2026-04-13","amt":506423.59,"st":"Paid","pd":"2026-05-14","out":0},{"v":"Shenzhen Topray Solar Co., ltd","inv":"TPS-SOLEX-SHA-20260105-3","it":"Glass","bl":"2026-03-07","cd":60,"due":"2026-05-06","amt":159923.24,"st":"Paid","pd":"2026-05-22","out":0},{"v":"Shenzhen Topray Solar Co., ltd","inv":"TPS-SHA-20250929-7","it":"Glass","bl":"2026-01-19","cd":60,"due":"2026-03-20","amt":399808.09,"st":"Paid","pd":"2026-03-30","out":0},{"v":"Shenzhen Topray Solar Co., ltd","inv":"TPS-SHA-20250929-8","it":"Glass","bl":"2026-01-23","cd":60,"due":"2026-03-24","amt":399808.09,"st":"Paid","pd":"2026-03-30","out":0},{"v":"Shenzhen Topray Solar Co., ltd","inv":"TPS-SHA-20250929-9","it":"Glass","bl":"2026-01-29","cd":60,"due":"2026-03-30","amt":586386.6,"st":"Paid","pd":"2026-03-31","out":0},{"v":"Shaanxi Topray Solar Ltd","inv":"TPS-SX-SHA-20260331","it":"Glass","bl":"2026-04-11","cd":60,"due":"2026-06-10","amt":297950.4,"st":"Paid","pd":"2026-06-26","out":0},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO015C-2025","it":"Al. Frame","bl":"2026-01-17","cd":60,"due":"2026-03-18","amt":378000,"st":"Paid","pd":"2026-05-29","out":0},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO015E-2025","it":"Al. Frame","bl":"2026-01-23","cd":60,"due":"2026-03-24","amt":472500,"st":"Paid","pd":"2026-06-10","out":0},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO015F-2025","it":"Al. Frame","bl":"2026-01-29","cd":60,"due":"2026-03-30","amt":472500,"st":"Paid","pd":"2026-06-25","out":0},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO018019B-2026","it":"Al. Frame","bl":"2026-02-10","cd":60,"due":"2026-04-11","amt":746900,"st":"Pending","pd":null,"out":746900},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO019A-2026","it":"Al. Frame","bl":"2026-02-16","cd":60,"due":"2026-04-17","amt":640200,"st":"Pending","pd":null,"out":640200},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO015B-2025","it":"Al. Frame","bl":"2026-01-06","cd":60,"due":"2026-03-07","amt":283500,"st":"Paid","pd":"2026-04-06","out":0},{"v":"Wuxi U Plus Technology Co.Ltd","inv":"UPSO015D-2025","it":"Al. Frame","bl":"2026-01-22","cd":60,"due":"2026-03-23","amt":283500,"st":"Paid","pd":"2026-04-06","out":0},{"v":"Xiangyu (Singapore) PTE. LTD.","inv":"XY-SOLEX-251029-CI-B","it":"EPE","bl":"2026-01-02","cd":60,"due":"2026-03-03","amt":218872.51,"st":"Paid","pd":"2026-05-07","out":0},{"v":"Xiangyu (Singapore) PTE. LTD.","inv":"XY-SOLEX-251029-CI-C","it":"EPE","bl":"2026-01-03","cd":60,"due":"2026-03-04","amt":145915.01,"st":"Paid","pd":"2026-05-07","out":0},{"v":"Xiangyu (Singapore) PTE. LTD.","inv":"XY-SOLEX-251230-VN-CI-A","it":"EPE","bl":"2026-02-07","cd":60,"due":"2026-04-08","amt":288600.11,"st":"Paid","pd":"2026-06-23","out":0},{"v":"Xiangyu (Singapore) PTE. LTD.","inv":"XY-SOLEX-251230-TH-CI","it":"EPE","bl":"2026-01-28","cd":60,"due":"2026-03-29","amt":180375.07,"st":"Paid","pd":"2026-04-06","out":0},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0415","it":"Al. Frame","bl":"2026-04-25","cd":60,"due":"2026-06-24","amt":319140,"st":"Yes","pd":null,"out":319140},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0123","it":"Al. Frame","bl":"2026-02-17","cd":60,"due":"2026-04-18","amt":288090,"st":"Paid","pd":"2026-06-23","out":0},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0124","it":"Al. Frame","bl":"2026-02-07","cd":60,"due":"2026-04-08","amt":192060,"st":"Paid","pd":"2026-05-27","out":0},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0125","it":"Al. Frame","bl":"2026-02-16","cd":60,"due":"2026-04-17","amt":288090,"st":"Paid","pd":"2026-04-17","out":0},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0401","it":"Al. Frame","bl":"2026-04-06","cd":60,"due":"2026-06-05","amt":405720,"st":"Yes","pd":null,"out":405720},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0402","it":"Al. Frame","bl":"2026-04-15","cd":60,"due":"2026-06-14","amt":507150,"st":"Yes","pd":null,"out":507150},{"v":"JIANGYIN TINZE NEW ENERGY TECHNOLOGY CO.,LTD","inv":"STE2026-0403","it":"Al. Frame","bl":"2026-04-15","cd":60,"due":"2026-06-14","amt":202860,"st":"Yes","pd":null,"out":202860},{"v":"Anhui Krant Aluminum Products Co. Ltd","inv":"KLTM057-260111-1","it":"Al. Frame","bl":"2026-02-24","cd":60,"due":"2026-04-25","amt":484800,"st":"Yes","pd":null,"out":484800},{"v":"Anhui Krant Aluminum Products Co. Ltd","inv":"KLTM057-260111-2","it":"Al. Frame","bl":"2026-02-19","cd":60,"due":"2026-04-20","amt":484800,"st":"Paid","pd":"2026-06-17","out":0},{"v":"Anhui Krant Aluminum Products Co. Ltd","inv":"KLTM071-260311","it":"Al. Frame","bl":"2026-04-06","cd":60,"due":"2026-06-05","amt":511680,"st":"Yes","pd":null,"out":511680},{"v":"Jolywood (Jiangsu) Sunwatt Co Ltd","inv":"JS2600069","it":"Backsheet","bl":"2026-02-19","cd":60,"due":"2026-04-20","amt":85165.34,"st":"Pending","pd":null,"out":85165.34},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260312-1","it":"Glass","bl":"2026-03-25","cd":60,"due":"2026-05-24","amt":290056.85,"st":"Paid","pd":"2026-06-23","out":0},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260312-2","it":"Glass","bl":"2026-03-26","cd":60,"due":"2026-05-25","amt":290056.85,"st":"Paid","pd":"2026-06-23","out":0},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260312-3","it":"Glass","bl":"2026-03-25","cd":60,"due":"2026-05-24","amt":290056.85,"st":"Pending","pd":null,"out":290056.85},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260312-4","it":"Glass","bl":"2026-04-02","cd":60,"due":"2026-06-01","amt":290056.85,"st":"Pending","pd":null,"out":290056.85},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260312-5","it":"Glass","bl":"2026-04-02","cd":60,"due":"2026-06-01","amt":330093.95,"st":"Pending","pd":null,"out":330093.95},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260323-1","it":"Glass","bl":"2026-04-20","cd":60,"due":"2026-06-19","amt":290056.85,"st":"Pending","pd":null,"out":290056.85},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260323-2","it":"Glass","bl":"2026-03-31","cd":60,"due":"2026-05-30","amt":290056.85,"st":"Pending","pd":null,"out":290056.85},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260323-3","it":"Glass","bl":"2026-04-05","cd":60,"due":"2026-06-04","amt":174034.11,"st":"Pending","pd":null,"out":174034.11},{"v":"Guangxi Xinfuxing Silicon Technology Co Ltd","inv":"XFX260323-4","it":"Glass","bl":"2026-04-04","cd":60,"due":"2026-06-03","amt":290056.85,"st":"Pending","pd":null,"out":290056.85},{"v":"Anhui CSG New Energy Material Technology Co Ltd","inv":"CSG2603022-1","it":"Glass","bl":"2026-04-15","cd":60,"due":"2026-06-14","amt":183030.12,"st":"Paid","pd":"2026-06-23","out":0},{"v":"Anhui CSG New Energy Material Technology Co Ltd","inv":"CSG2603022-2","it":"Glass","bl":"2026-04-15","cd":60,"due":"2026-06-14","amt":261471.6,"st":"Paid","pd":"2026-06-23","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2512034-1","it":"Glass","bl":"2026-01-03","cd":60,"due":"2026-03-04","amt":169322.4,"st":"Paid","pd":"2026-03-31","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2512034-2","it":"Glass","bl":"2026-01-11","cd":60,"due":"2026-03-12","amt":170769.6,"st":"Paid","pd":"2026-03-31","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2601007-1","it":"Glass","bl":"2026-01-18","cd":60,"due":"2026-03-19","amt":181382.4,"st":"Paid","pd":"2026-03-31","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2601027-2","it":"Glass","bl":"2026-02-21","cd":60,"due":"2026-04-22","amt":116864.4,"st":"Paid","pd":"2026-06-05","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2601007-2","it":"Glass","bl":"2026-01-22","cd":60,"due":"2026-03-23","amt":272073.6,"st":"Paid","pd":"2026-03-31","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2601027-1","it":"Glass","bl":"2026-02-06","cd":60,"due":"2026-04-07","amt":175296.61,"st":"Paid","pd":"2026-06-01","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2601027-3","it":"Glass","bl":"2026-02-27","cd":60,"due":"2026-04-28","amt":175296.61,"st":"Paid","pd":"2026-05-01","out":0},{"v":"Guangxi CSG New Energy Material Technology Co. Ltd.","inv":"CSG2601027-4","it":"Glass","bl":"2026-02-27","cd":60,"due":"2026-04-28","amt":116864.41,"st":"Paid","pd":"2026-05-01","out":0},{"v":"Guangzhou MyTech New Materials Co., Ltd","inv":"MTCI260317","it":"Glass","bl":"2026-04-01","cd":45,"due":"2026-05-16","amt":1740,"st":"Paid","pd":"2026-05-22","out":0},{"v":"Guangzhou MyTech New Materials Co., Ltd","inv":"MTCI251229","it":"Edge Sealing Tape","bl":"2026-01-12","cd":45,"due":"2026-02-26","amt":914,"st":"Paid","pd":"2026-02-18","out":0},{"v":"Guangzhou MyTech New Materials Co., Ltd","inv":"MTCI260116A","it":"Edge Sealing Tape","bl":"2026-01-29","cd":45,"due":"2026-03-15","amt":7315.2,"st":"Paid","pd":"2026-04-24","out":0},{"v":"Guangzhou MyTech New Materials Co., Ltd","inv":"MTCI260211","it":"Edge Sealing Tape","bl":"2026-02-27","cd":45,"due":"2026-04-13","amt":696,"st":"Paid","pd":"2026-04-24","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-1","it":"Glass","bl":"2026-03-14","cd":90,"due":"2026-06-12","amt":290056.85,"st":"Paid","pd":"2026-06-11","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-2","it":"Glass","bl":"2026-03-14","cd":90,"due":"2026-06-12","amt":290056.85,"st":"Paid","pd":"2026-06-11","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-3","it":"Glass","bl":"2026-03-22","cd":90,"due":"2026-06-20","amt":696136.44,"st":"Paid","pd":"2026-06-18","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-6","it":"Glass","bl":"2026-03-22","cd":90,"due":"2026-06-20","amt":725142.12,"st":"Paid","pd":"2026-06-18","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-4","it":"Glass","bl":"2026-03-23","cd":90,"due":"2026-06-21","amt":290056.85,"st":"Paid","pd":"2026-06-18","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-5","it":"Glass","bl":"2026-03-23","cd":90,"due":"2026-06-21","amt":290056.85,"st":"Paid","pd":"2026-06-18","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TPS-SX-SHA-20260209-7","it":"Glass","bl":"2026-03-30","cd":90,"due":"2026-06-28","amt":145028.42,"st":"Paid","pd":"2026-06-23","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"TWTYN-XSBJD-20260311-00002","it":"Solar Cell","bl":"2026-04-07","cd":90,"due":"2026-07-06","amt":2760941.57,"st":"Paid","pd":"2026-07-06","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"MSBV260059","it":"EPE","bl":"2026-04-14","cd":90,"due":"2026-07-13","amt":393951.55,"st":"Paid","pd":"2026-07-09","out":0},{"v":"LX International (Singapore) Pte. Ltd","inv":"NS2604210179024","it":"Solar Cell","bl":"2026-04-25","cd":90,"due":"2026-07-24","amt":953013.6,"st":"Pending","pd":null,"out":953013.6},{"v":"LX International (Singapore) Pte. Ltd","inv":"MSBV260081","it":"EVA/EPE/POE","bl":"2026-04-27","cd":90,"due":"2026-07-26","amt":148663.96,"st":"Paid","pd":"2026-07-17","out":0},{"v":"Nantong DH Trading Co. Ltd","inv":"PO/U2/2526/02853","it":"Edge Sealing Tape","bl":"2026-03-13","cd":30,"due":"2026-04-12","amt":74000,"st":"Paid","pd":"2026-05-18","out":0},{"v":"Nantong DH Trading Co. Ltd","inv":"PO/U2/2526/02519","it":"Edge Sealing Tape","bl":"2026-01-27","cd":30,"due":"2026-02-26","amt":1475,"st":"Paid","pd":"2026-02-24","out":0},{"v":"Nantong DH Trading Co. Ltd","inv":"PO/U2/2526/02658","it":"Edge Sealing Tape","bl":"2026-02-19","cd":30,"due":"2026-03-21","amt":37760,"st":"Paid","pd":"2026-04-10","out":0},{"v":"PT Glass Max Power","inv":"PI-YN-Solex-20260128S0001","it":"Glass","bl":"2026-04-03","cd":60,"due":"2026-06-02","amt":94651.2,"st":"Pending","pd":null,"out":94651.2},{"v":"SBH Kibing Solar New Materials (M) SDN. BHD.","inv":"KBM-SLX-260127","it":"Glass","bl":"2026-03-01","cd":45,"due":"2026-04-15","amt":292161.02,"st":"Paid","pd":"2026-07-02","out":0},{"v":"Targray International Inc.","inv":"SO-03664","it":"Solar Cell","bl":"2026-02-10","cd":90,"due":"2026-05-11","amt":512500.01,"st":"Paid","pd":"2026-05-11","out":0},{"v":"HLA Supply Chain Solutions Inc.","inv":"INV-670-1","it":"Solar Cell","bl":"2026-05-07","cd":90,"due":"2026-08-05","amt":201312.9,"st":"Pending","pd":null,"out":201312.9},{"v":"HLA Supply Chain Solutions Inc.","inv":"NS2605110192012","it":"Solar Cell","bl":"2026-05-07","cd":90,"due":"2026-08-05","amt":801944.54,"st":"Pending","pd":null,"out":801944.54},{"v":"Targray International Inc.","inv":"SO-03701","it":"Solar Cell","bl":"2026-05-21","cd":90,"due":"2026-08-19","amt":678941.95,"st":"Pending","pd":null,"out":678941.95}];
 const SAMPLE_RAW = JSON.parse(JSON.stringify(RAW));
@@ -323,6 +351,7 @@ let viewMode = 'today';       // 'today' | 'asof' | 'compare'
 let currentComputed = null;   // computed set currently shown in the ledger (for search/filter re-render)
 let currentRows = null;
 let compareThen = null;       // in compare mode: the as-of computed set (null otherwise) → vendors render then-vs-now
+let excludedVendors = new Set(); // vendors the user has chosen to leave OUT of every calculation/export
 const today = new Date(); today.setHours(0,0,0,0);
 
 function fmtDate(d){ return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
@@ -359,6 +388,10 @@ document.getElementById('todayLabel').textContent = fmtDate(today);
 //  - asOf a past date          → reconstruct that day: an invoice counts as settled
 //    only if it has a payment date on/before asOf; otherwise its FULL amount was still
 //    outstanding on that day, and overdue/interest are measured against asOf.
+// The working dataset with any user-excluded vendors removed. filter() preserves the same
+// row-object references, so inline ledger edits still write straight back into RAW.
+function activeRows(){ return excludedVendors.size ? RAW.filter(function(r){ return !excludedVendors.has(r.v); }) : RAW; }
+
 function computeRow(r, asOf){
   asOf = asOf || today;
   const isToday = asOf.getTime() >= today.getTime();
@@ -519,7 +552,7 @@ function renderParams(){
 
 function renderAll(){
   renderParams();
-  const rows = RAW;
+  const rows = activeRows();
   const computedToday = rows.map(r=>computeRow(r, today));
   const banner = document.getElementById('modeBanner');
 
@@ -833,152 +866,214 @@ document.getElementById('fxOverlay').addEventListener('click',e=>{ if(e.target==
 document.getElementById('fxFetchBtn').addEventListener('click',refreshFx);
 document.getElementById('fxResetBtn').addEventListener('click',()=>{ fxOverride={}; saveFx(); renderFxTable(); renderAll(); });
 
-document.getElementById('searchBox').addEventListener('input',()=>renderVendors(currentRows||RAW, currentComputed||RAW.map(r=>computeRow(r,today))));
-document.getElementById('filterSel').addEventListener('change',()=>renderVendors(currentRows||RAW, currentComputed||RAW.map(r=>computeRow(r,today))));
+/* ---------- exclude vendors ---------- */
+function updateExclBtn(){
+  const b=document.getElementById('exclBtn'); if(!b) return;
+  const n=excludedVendors.size;
+  b.textContent = n ? ('⊘ Excluded: '+n) : '⊘ Exclude vendors';
+  b.classList.toggle('has-excl', n>0);
+}
+function renderExclList(){
+  const host=document.getElementById('exclList'); if(!host) return;
+  const counts=new Map(); RAW.forEach(r=>counts.set(r.v,(counts.get(r.v)||0)+1));
+  const vendors=Array.from(counts.keys()).sort((a,b)=>a.localeCompare(b));
+  host.innerHTML = vendors.map(v=>{
+    const ex=excludedVendors.has(v);
+    return `<label class="excl-item ${ex?'excluded':''}" data-v="${encodeURIComponent(v)}">
+      <input type="checkbox" ${ex?'checked':''}>
+      <span class="excl-name">${v}</span>
+      <span class="excl-n">${counts.get(v)} inv</span>
+    </label>`;
+  }).join('');
+  host.querySelectorAll('.excl-item input').forEach(inp=>inp.addEventListener('change',e=>{
+    const item=e.target.closest('.excl-item'), v=decodeURIComponent(item.dataset.v);
+    if(e.target.checked) excludedVendors.add(v); else excludedVendors.delete(v);
+    item.classList.toggle('excluded', e.target.checked);
+    document.getElementById('exclStatus').textContent = excludedVendors.size ? (excludedVendors.size+' vendor'+(excludedVendors.size!==1?'s':'')+' excluded') : '';
+    updateExclBtn(); openVendor=null; renderAll();
+  }));
+  document.getElementById('exclStatus').textContent = excludedVendors.size ? (excludedVendors.size+' vendor'+(excludedVendors.size!==1?'s':'')+' excluded') : '';
+}
+document.getElementById('exclBtn').addEventListener('click',()=>{ renderExclList(); document.getElementById('exclOverlay').classList.add('show'); });
+document.getElementById('exclClose').addEventListener('click',()=>document.getElementById('exclOverlay').classList.remove('show'));
+document.getElementById('exclOverlay').addEventListener('click',e=>{ if(e.target===e.currentTarget) e.currentTarget.classList.remove('show'); });
+document.getElementById('exclClear').addEventListener('click',()=>{ excludedVendors.clear(); updateExclBtn(); renderExclList(); openVendor=null; renderAll(); });
+
+document.getElementById('searchBox').addEventListener('input',()=>renderVendors(currentRows||activeRows(), currentComputed||activeRows().map(r=>computeRow(r,today))));
+document.getElementById('filterSel').addEventListener('change',()=>renderVendors(currentRows||activeRows(), currentComputed||activeRows().map(r=>computeRow(r,today))));
 /*__BW_START__*/
-// Build a LIVE Excel model: every computed cell is a real formula referencing the raw
-// inputs + editable parameters (Reference date, Compare date, Interest %/day, Credit override).
-// opts: {rate, creditOverride, refDate(Date), cmpDate(Date), XLSX}
+// Build a LIVE, colour-coded Excel model with ExcelJS: frozen header row, autofilter dropdowns,
+// colour-coded state (conditional formatting), banded rows, and every computed cell a real formula
+// referencing the raw inputs + editable named parameters (RefDate, CmpDate, RatePct, CreditOv).
+// opts: {rate, creditOverride, refDate(Date), cmpDate(Date), ExcelJS}
 function buildWorkbook(RAW, opts){
-  var XL = (opts && opts.XLSX) || (typeof XLSX!=='undefined' ? XLSX : null);
-  var rate = opts.rate, creditOverride = opts.creditOverride;
-  var refDate = opts.refDate, cmpDate = opts.cmpDate;
-  var n = RAW.length, lastRow = n + 1;             // header on row 1, data rows 2..n+1
+  var XLJS = (opts && opts.ExcelJS) || (typeof ExcelJS!=='undefined' ? ExcelJS : null);
+  var rate = opts.rate, creditOverride = opts.creditOverride, refDate = opts.refDate, cmpDate = opts.cmpDate;
+  var n = RAW.length, last = n + 1;                 // header row 1, data rows 2..n+1
   var MONEY='"$"#,##0', MONEY2='"$"#,##0.00', DT='dd-mmm-yyyy', DAYS='0', PCT='0.0000';
+  var INK='FF101B2D', SLATE='FF5C6B7A', LINE='FFDCD6C6', GOLD='FFC9A24B', PARAM='FFFBF3DF',
+      RUST='FFB3402F', RUSTSOFT='FFF6DED8', AMBER='FFB9791F', AMBERSOFT='FFF7ECD3',
+      GREEN='FF3E7C59', GREENSOFT='FFE1EFE6', GRAY='FFECECEC', BAND='FFF7F4EC', WHITE='FFFFFFFF';
 
-  // JS Date -> Excel serial (1900 system), tz-safe via UTC date parts.
+  // JS Date -> Excel serial (1900 system), tz-safe via UTC date parts (stored as numbers + date format).
   function serial(d){ if(!d) return null; return Math.floor((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()) - Date.UTC(1899,11,30))/86400000); }
-  function sheetFromCells(cells, maxR, maxC){
-    var ws={}; for(var k in cells){ ws[k]=cells[k]; }
-    ws['!ref'] = XL.utils.encode_range({s:{r:0,c:0},e:{r:maxR,c:maxC}});
-    return ws;
-  }
-  function A(r,c){ return XL.utils.encode_cell({r:r,c:c}); }
+  function colL(c){ var s=''; c++; while(c>0){ var m=(c-1)%26; s=String.fromCharCode(65+m)+s; c=Math.floor((c-1)/26); } return s; }
+  function bdr(argb){ var e={style:'thin',color:{argb:argb}}; return {top:e,left:e,bottom:e,right:e}; }
+  function solid(argb){ return {type:'pattern',pattern:'solid',fgColor:{argb:argb}}; }
 
-  /* ---------------- DETAIL SHEET ---------------- */
-  var dCells={}, dMaxC=23;                          // A..X = 24 cols (0..23)
+  var wb = new XLJS.Workbook();
+  wb.calcProperties.fullCalcOnLoad = true;          // force Excel/Sheets to recompute on open
+
+  /* ---------------- SUMMARY ---------------- */
+  var sum = wb.addWorksheet('Summary');
+  var DET='Detail!';
+  var Icol=DET+'I2:I'+last, Ocol=DET+'O2:O'+last, Qcol=DET+'Q2:Q'+last, Rcol=DET+'R2:R'+last,
+      Ncol=DET+'N2:N'+last, Scol=DET+'S2:S'+last, Acol=DET+'A2:A'+last, Ucol=DET+'U2:U'+last, Vcol=DET+'V2:V'+last;
+
+  function sSection(r,text){ sum.mergeCells('A'+r+':F'+r); var c=sum.getCell('A'+r); c.value=text; c.font={name:'Calibri',size:11,bold:true,color:{argb:WHITE}}; c.fill=solid(INK); c.alignment={vertical:'middle',horizontal:'left',indent:1}; sum.getRow(r).height=19; }
+  function sMetric(r,label,formula,fmt,argb){ var la=sum.getCell('A'+r); la.value=label; la.font={name:'Calibri',size:11,color:{argb:'FF1C2B44'}}; la.alignment={vertical:'middle',indent:1}; var c=sum.getCell('B'+r); c.value={formula:formula}; c.numFmt=fmt||MONEY; c.font={name:'Calibri',size:12,bold:true,color:{argb:argb||INK}}; c.alignment={vertical:'middle',horizontal:'right'}; }
+  function sParam(r,label,value,fmt){ var la=sum.getCell('A'+r); la.value=label; la.font={name:'Calibri',size:11,color:{argb:'FF1C2B44'}}; la.alignment={vertical:'middle',indent:1}; var c=sum.getCell('B'+r); if(value!==null&&value!==undefined) c.value=value; if(fmt) c.numFmt=fmt; c.font={name:'Calibri',size:12,bold:true,color:{argb:INK}}; c.alignment={vertical:'middle',horizontal:'right'}; c.fill=solid(PARAM); c.border=bdr(GOLD); }
+
+  sum.mergeCells('A1:F1'); var t1=sum.getCell('A1'); t1.value='VENDOR PAYMENT & INTEREST  —  LIVE FORMULA MODEL'; t1.font={name:'Georgia',size:15,bold:true,color:{argb:GOLD}}; t1.fill=solid(INK); t1.alignment={vertical:'middle',horizontal:'left',indent:1}; sum.getRow(1).height=28;
+  sum.mergeCells('A2:F2'); var t2=sum.getCell('A2'); t2.value='Generated '+fmtDate(today)+'  ·  USD  ·  edit the gold parameter cells and the whole workbook recalculates.'; t2.font={name:'Calibri',size:10,italic:true,color:{argb:'FFB9C0CC'}}; t2.fill=solid(INK); t2.alignment={vertical:'middle',horizontal:'left',indent:1};
+
+  sSection(4,'PARAMETERS   (edit these)');
+  var rRef=5,rCmp=6,rRate=7,rCred=8;
+  sParam(rRef,'Reference (as-of) date', serial(refDate), DT);
+  sParam(rCmp,'Compare date', serial(cmpDate), DT);
+  sParam(rRate,'Interest rate (% per day)', rate, PCT);
+  sParam(rCred,'Credit override (days; blank = use sheet due date)', (creditOverride!=null?creditOverride:null), DAYS);
+  sum.getCell('B'+rRef).name='RefDate';
+  sum.getCell('B'+rCmp).name='CmpDate';
+  sum.getCell('B'+rRate).name='RatePct';
+  sum.getCell('B'+rCred).name='CreditOv';
+
+  sSection(10,'PORTFOLIO   —   AS OF REFERENCE DATE');
+  sMetric(11,'Total invoice value','SUM('+Icol+')',MONEY,INK);
+  sMetric(12,'Settled value','SUM('+Icol+')-SUM('+Ocol+')',MONEY,GREEN);
+  sMetric(13,'Not yet due','SUM('+Ocol+')-SUM('+Qcol+')',MONEY,AMBER);
+  sMetric(14,'Overdue amount','SUM('+Qcol+')',MONEY,RUST);
+  sMetric(15,'Total outstanding','SUM('+Ocol+')',MONEY,INK);
+  sMetric(16,'Interest — paid late','SUMIF('+Scol+',"Settled (late)",'+Rcol+')',MONEY2,AMBER);
+  sMetric(17,'Interest — accruing','SUM('+Rcol+')-SUMIF('+Scol+',"Settled (late)",'+Rcol+')',MONEY2,AMBER);
+  sMetric(18,'Interest — total','SUM('+Rcol+')',MONEY2,AMBER);
+  sMetric(19,'Overdue invoices','COUNTIF('+Qcol+',">0")',DAYS,RUST);
+  sMetric(20,'Settled invoices','COUNTIF('+Ncol+',"Yes")',DAYS,GREEN);
+  sMetric(21,'Needs verification','COUNTIF('+Scol+',"Verify (marked paid)")',DAYS,AMBER);
+
+  sSection(23,'THEN vs NOW   (Reference  →  Compare date)');
+  ['Metric','Reference','Compare','Change'].forEach(function(h,i){ var c=sum.getCell(colL(i)+'24'); c.value=h; c.font={name:'Calibri',size:10,bold:true,color:{argb:WHITE}}; c.fill=solid(SLATE); c.alignment={horizontal:i?'right':'left',vertical:'middle'}; });
+  var tr=25;
+  function cmpRow(label,rf,cf,gf,fmt){
+    var a=sum.getCell('A'+tr); a.value=label; a.font={name:'Calibri',size:11}; a.alignment={indent:1,vertical:'middle'};
+    var b=sum.getCell('B'+tr); b.value={formula:rf}; b.numFmt=fmt; b.alignment={horizontal:'right'}; b.font={color:{argb:SLATE}};
+    var c=sum.getCell('C'+tr); c.value={formula:cf}; c.numFmt=fmt; c.alignment={horizontal:'right'}; c.font={bold:true,color:{argb:INK}};
+    var d=sum.getCell('D'+tr); d.value={formula:gf}; d.numFmt=fmt; d.alignment={horizontal:'right'}; d.font={bold:true,color:{argb:INK}}; tr++;
+  }
+  cmpRow('Overdue amount','SUM('+Qcol+')','SUM('+Ucol+')','SUM('+Ucol+')-SUM('+Qcol+')',MONEY);
+  cmpRow('Interest','SUM('+Rcol+')','SUM('+Vcol+')','SUM('+Vcol+')-SUM('+Rcol+')',MONEY2);
+  cmpRow('Overdue invoices','COUNTIF('+Qcol+',">0")','COUNTIF('+Ucol+',">0")','COUNTIF('+Ucol+',">0")-COUNTIF('+Qcol+',">0")',DAYS);
+
+  var bvHead=tr+1;
+  sSection(bvHead,'BY VENDOR   (as of Reference date)');
+  var hr=bvHead+1;
+  ['Vendor','Value','Outstanding','Overdue','Interest','Overdue (Compare)'].forEach(function(h,i){ var c=sum.getCell(colL(i)+hr); c.value=h; c.font={name:'Calibri',size:10,bold:true,color:{argb:WHITE}}; c.fill=solid(INK); c.alignment={horizontal:i?'right':'left',vertical:'middle'}; });
+  var vendors=[]; RAW.forEach(function(r){ if(vendors.indexOf(r.v)===-1) vendors.push(r.v); });
+  var vr=hr+1;
+  vendors.forEach(function(vn,ix){
+    var band=(ix%2===1), vc='A'+vr;
+    var nc=sum.getCell(vc); nc.value=vn; nc.font={name:'Calibri',size:10}; nc.alignment={vertical:'middle'};
+    sum.getCell('B'+vr).value={formula:'SUMIF('+Acol+','+vc+','+Icol+')'};
+    sum.getCell('C'+vr).value={formula:'SUMIF('+Acol+','+vc+','+Ocol+')'};
+    sum.getCell('D'+vr).value={formula:'SUMIF('+Acol+','+vc+','+Qcol+')'};
+    sum.getCell('E'+vr).value={formula:'SUMIF('+Acol+','+vc+','+Rcol+')'};
+    sum.getCell('F'+vr).value={formula:'SUMIF('+Acol+','+vc+','+Ucol+')'};
+    ['B','C','D','F'].forEach(function(cl){ sum.getCell(cl+vr).numFmt=MONEY; });
+    sum.getCell('E'+vr).numFmt=MONEY2;
+    for(var cc=0;cc<6;cc++){ var cell=sum.getCell(colL(cc)+vr); cell.alignment={horizontal:cc?'right':'left',vertical:'middle'}; if(!cell.font) cell.font={name:'Calibri',size:10}; if(band) cell.fill=solid(BAND); }
+    vr++;
+  });
+  if(vendors.length){ sum.addConditionalFormatting({ ref:'D'+(hr+1)+':D'+(vr-1), rules:[{type:'cellIs',operator:'greaterThan',formulae:['0'],priority:1,style:{font:{color:{argb:RUST},bold:true}}}] }); }
+  [36,17,16,15,15,18].forEach(function(w,i){ sum.getColumn(i+1).width=w; });
+  sum.views=[{state:'frozen', ySplit:2}];
+
+  /* ---------------- DETAIL ---------------- */
+  var det = wb.addWorksheet('Detail', {views:[{state:'frozen', ySplit:1}]});
   var dHead=['Vendor','PO No','Invoice','Item','BL No','BL Date','Credit Days','Due Date','Amount (USD)','Status','Payment Date','Outstanding (sheet)',
              'Effective Due','Settled? (Ref)','Outstanding (Ref)','Overdue Days (Ref)','Overdue Amt (Ref)','Interest (Ref)','State (Ref)',
              'Settled? (Cmp)','Overdue Amt (Cmp)','Interest (Cmp)','Δ Overdue (Cmp-Ref)','Change'];
-  for(var c=0;c<dHead.length;c++){ dCells[A(0,c)]={t:'s',v:dHead[c]}; }
+  var W=[30,12,22,15,13,12,8,12,14,9,13,15,12,12,14,12,14,13,17,12,15,13,15,15];
+  dHead.forEach(function(h,ci){ var c=det.getCell(colL(ci)+'1'); c.value=h; c.font={name:'Calibri',size:10,bold:true,color:{argb:WHITE}}; c.fill=solid(INK); c.alignment={vertical:'middle',horizontal:'center',wrapText:true}; c.border=bdr(LINE); });
+  det.getRow(1).height=30;
+  W.forEach(function(w,i){ det.getColumn(i+1).width=w; });
+
+  function dset(rr,c0,val,fmt,isF,align,band){ var cell=det.getCell(colL(c0)+rr); if(isF) cell.value={formula:val}; else if(val!==null&&val!==undefined) cell.value=val; if(fmt) cell.numFmt=fmt; cell.font={name:'Calibri',size:10}; cell.alignment={vertical:'middle',horizontal:align||'left'}; if(band) cell.fill=solid(BAND); cell.border={bottom:{style:'hair',color:{argb:LINE}}}; }
+
   for(var i=0;i<n;i++){
-    var r=RAW[i], rr=i+2, R0=i+1;                   // rr = excel row number (1-based), R0 = 0-based grid row
+    var r=RAW[i], rr=i+2, band=(i%2===1);
     var bl=parseD(r.bl), due=parseD(r.due), pd=parseD(r.pd);
-    // raw inputs
-    dCells[A(R0,0)]={t:'s',v:String(r.v||'')};
-    dCells[A(R0,1)]={t:'s',v:String(r.po||'')};
-    dCells[A(R0,2)]={t:'s',v:String(r.inv||'')};
-    dCells[A(R0,3)]={t:'s',v:String(r.it||'')};
-    dCells[A(R0,4)]={t:'s',v:String(r.blno||'')};
-    if(bl) dCells[A(R0,5)]={t:'n',v:serial(bl),z:DT};
-    dCells[A(R0,6)]={t:'n',v:Number(r.cd)||0,z:DAYS};
-    if(due) dCells[A(R0,7)]={t:'n',v:serial(due),z:DT};
-    dCells[A(R0,8)]={t:'n',v:Number(r.amt)||0,z:MONEY};
-    dCells[A(R0,9)]={t:'s',v:String(r.st||'')};
-    if(pd) dCells[A(R0,10)]={t:'n',v:serial(pd),z:DT};   // leave blank when unpaid -> ISBLANK works
-    dCells[A(R0,11)]={t:'n',v:Number(r.out)||0,z:MONEY};
-    // computed formulas (Reference date)
-    dCells[A(R0,12)]={t:'n',z:DT, f:'IF(CreditOv="",H'+rr+',F'+rr+'+CreditOv)'};
-    dCells[A(R0,13)]={t:'s', f:'IF(AND(NOT(ISBLANK(K'+rr+')),K'+rr+'<=RefDate),"Yes",IF(AND(RefDate>=TODAY(),L'+rr+'<=0.01),"Yes","No"))'};
-    dCells[A(R0,14)]={t:'n',z:MONEY, f:'IF(N'+rr+'="Yes",0,IF(RefDate>=TODAY(),L'+rr+',I'+rr+'))'};
-    dCells[A(R0,15)]={t:'n',z:DAYS, f:'IF(N'+rr+'="Yes",0,MAX(0,RefDate-M'+rr+'))'};
-    dCells[A(R0,16)]={t:'n',z:MONEY, f:'IF(P'+rr+'>0,O'+rr+',0)'};
-    dCells[A(R0,17)]={t:'n',z:MONEY2, f:'IF(N'+rr+'="Yes",IF(K'+rr+'>M'+rr+',I'+rr+'*(RatePct/100)*(K'+rr+'-M'+rr+'),0),IF(RefDate>M'+rr+',O'+rr+'*(RatePct/100)*(RefDate-M'+rr+'),0))'};
-    dCells[A(R0,18)]={t:'s', f:'IF(N'+rr+'="Yes",IF(K'+rr+'>M'+rr+',"Settled (late)","Settled"),IF(P'+rr+'>0,IF(OR(J'+rr+'="Paid",J'+rr+'="Yes"),"Verify (marked paid)","Overdue"),"Not yet due"))'};
-    // computed formulas (Compare date)
-    dCells[A(R0,19)]={t:'s', f:'IF(AND(NOT(ISBLANK(K'+rr+')),K'+rr+'<=CmpDate),"Yes",IF(AND(CmpDate>=TODAY(),L'+rr+'<=0.01),"Yes","No"))'};
-    dCells[A(R0,20)]={t:'n',z:MONEY, f:'IF(AND(T'+rr+'="No",CmpDate>M'+rr+'),IF(CmpDate>=TODAY(),L'+rr+',I'+rr+'),0)'};
-    dCells[A(R0,21)]={t:'n',z:MONEY2, f:'IF(T'+rr+'="Yes",IF(K'+rr+'>M'+rr+',I'+rr+'*(RatePct/100)*(K'+rr+'-M'+rr+'),0),IF(CmpDate>M'+rr+',IF(CmpDate>=TODAY(),L'+rr+',I'+rr+')*(RatePct/100)*(CmpDate-M'+rr+'),0))'};
-    dCells[A(R0,22)]={t:'n',z:MONEY, f:'U'+rr+'-Q'+rr};
-    dCells[A(R0,23)]={t:'s', f:'IF(AND(N'+rr+'="No",T'+rr+'="Yes"),"Paid since ref",IF(AND(Q'+rr+'=0,U'+rr+'>0),"Newly overdue",IF(U'+rr+'>Q'+rr+',"More overdue",IF(AND(Q'+rr+'>0,U'+rr+'=0),"Cleared","No change"))))'};
+    dset(rr,0,String(r.v||''),null,false,'left',band);
+    dset(rr,1,String(r.po||''),null,false,'left',band);
+    dset(rr,2,String(r.inv||''),null,false,'left',band);
+    dset(rr,3,String(r.it||''),null,false,'left',band);
+    dset(rr,4,String(r.blno||''),null,false,'left',band);
+    dset(rr,5,serial(bl),DT,false,'center',band);
+    dset(rr,6,Number(r.cd)||0,DAYS,false,'center',band);
+    dset(rr,7,serial(due),DT,false,'center',band);
+    dset(rr,8,Number(r.amt)||0,MONEY,false,'right',band);
+    dset(rr,9,String(r.st||''),null,false,'center',band);
+    dset(rr,10,serial(pd),DT,false,'center',band);      // blank when unpaid -> ISBLANK works
+    dset(rr,11,Number(r.out)||0,MONEY,false,'right',band);
+    dset(rr,12,'IF(CreditOv="",H'+rr+',F'+rr+'+CreditOv)',DT,true,'center',band);
+    dset(rr,13,'IF(AND(NOT(ISBLANK(K'+rr+')),K'+rr+'<=RefDate),"Yes",IF(AND(RefDate>=TODAY(),L'+rr+'<=0.01),"Yes","No"))',null,true,'center',band);
+    dset(rr,14,'IF(N'+rr+'="Yes",0,IF(RefDate>=TODAY(),L'+rr+',I'+rr+'))',MONEY,true,'right',band);
+    dset(rr,15,'IF(N'+rr+'="Yes",0,MAX(0,RefDate-M'+rr+'))',DAYS,true,'right',band);
+    dset(rr,16,'IF(P'+rr+'>0,O'+rr+',0)',MONEY,true,'right',band);
+    dset(rr,17,'IF(N'+rr+'="Yes",IF(K'+rr+'>M'+rr+',I'+rr+'*(RatePct/100)*(K'+rr+'-M'+rr+'),0),IF(RefDate>M'+rr+',O'+rr+'*(RatePct/100)*(RefDate-M'+rr+'),0))',MONEY2,true,'right',band);
+    dset(rr,18,'IF(N'+rr+'="Yes",IF(K'+rr+'>M'+rr+',"Settled (late)","Settled"),IF(P'+rr+'>0,IF(OR(J'+rr+'="Paid",J'+rr+'="Yes"),"Verify (marked paid)","Overdue"),"Not yet due"))',null,true,'left',band);
+    dset(rr,19,'IF(AND(NOT(ISBLANK(K'+rr+')),K'+rr+'<=CmpDate),"Yes",IF(AND(CmpDate>=TODAY(),L'+rr+'<=0.01),"Yes","No"))',null,true,'center',band);
+    dset(rr,20,'IF(AND(T'+rr+'="No",CmpDate>M'+rr+'),IF(CmpDate>=TODAY(),L'+rr+',I'+rr+'),0)',MONEY,true,'right',band);
+    dset(rr,21,'IF(T'+rr+'="Yes",IF(K'+rr+'>M'+rr+',I'+rr+'*(RatePct/100)*(K'+rr+'-M'+rr+'),0),IF(CmpDate>M'+rr+',IF(CmpDate>=TODAY(),L'+rr+',I'+rr+')*(RatePct/100)*(CmpDate-M'+rr+'),0))',MONEY2,true,'right',band);
+    dset(rr,22,'U'+rr+'-Q'+rr,MONEY,true,'right',band);
+    dset(rr,23,'IF(AND(N'+rr+'="No",T'+rr+'="Yes"),"Paid since ref",IF(AND(Q'+rr+'=0,U'+rr+'>0),"Newly overdue",IF(U'+rr+'>Q'+rr+',"More overdue",IF(AND(Q'+rr+'>0,U'+rr+'=0),"Cleared","No change"))))',null,true,'left',band);
   }
-  var wsDetail = sheetFromCells(dCells, n, dMaxC);
-  wsDetail['!cols']=[{wch:30},{wch:12},{wch:20},{wch:14},{wch:12},{wch:12},{wch:8},{wch:12},{wch:14},{wch:9},{wch:13},{wch:14},
-                     {wch:12},{wch:11},{wch:14},{wch:11},{wch:14},{wch:13},{wch:16},{wch:11},{wch:15},{wch:13},{wch:14},{wch:15}];
+  det.autoFilter = 'A1:'+colL(23)+'1';
 
-  /* ---------------- SUMMARY SHEET ---------------- */
-  var sCells={}, sMaxC=5, row=0;
-  function put(r,c,cell){ sCells[A(r,c)]=cell; }
-  function txt(r,c,v){ put(r,c,{t:'s',v:v}); }
-  function numF(r,c,f,z){ put(r,c,{t:'n',f:f,z:z||MONEY}); }
-  var DET='Detail!';
-  var Icol=DET+'I2:I'+lastRow, Ocol=DET+'O2:O'+lastRow, Qcol=DET+'Q2:Q'+lastRow, Rcol=DET+'R2:R'+lastRow,
-      Ncol=DET+'N2:N'+lastRow, Scol=DET+'S2:S'+lastRow, Acol=DET+'A2:A'+lastRow,
-      Ucol=DET+'U2:U'+lastRow, Vcol=DET+'V2:V'+lastRow;
-
-  txt(row,0,'VENDOR PAYMENT & INTEREST — LIVE FORMULA MODEL'); row++;
-  txt(row,0,'Generated '+fmtDate(today)+' · amounts in USD · every computed cell is a live Excel formula — edit the parameters below and the whole book recalculates.'); row++;
-  row++;
-  txt(row,0,'PARAMETERS  (edit these)'); var pHdr=row; row++;
-  txt(row,1,'Reference (as-of) date'); put(row,2,{t:'n',v:serial(refDate),z:DT}); var rRef=row+1; row++;
-  txt(row,1,'Compare date');           put(row,2,{t:'n',v:serial(cmpDate),z:DT}); var rCmp=row+1; row++;
-  txt(row,1,'Interest rate (% per day)'); put(row,2,{t:'n',v:rate,z:PCT}); var rRate=row+1; row++;
-  txt(row,1,'Credit override (days; blank = use sheet due date)');
-  if(creditOverride!==null && creditOverride!==undefined) put(row,2,{t:'n',v:creditOverride,z:DAYS}); /* else leave blank */ var rCred=row+1; row++;
-  row++;
-
-  txt(row,0,'PORTFOLIO — AS OF REFERENCE DATE'); row++;
-  txt(row,1,'Total invoice value');      numF(row,2,'SUM('+Icol+')'); row++;
-  txt(row,1,'Settled value');            numF(row,2,'SUM('+Icol+')-SUM('+Ocol+')'); row++;
-  txt(row,1,'Not yet due');              numF(row,2,'SUM('+Ocol+')-SUM('+Qcol+')'); row++;
-  txt(row,1,'Overdue amount');           numF(row,2,'SUM('+Qcol+')'); row++;
-  txt(row,1,'Total outstanding');        numF(row,2,'SUM('+Ocol+')'); row++;
-  txt(row,1,'Interest — paid late');     numF(row,2,'SUMIF('+Scol+',"Settled (late)",'+Rcol+')',MONEY2); row++;
-  txt(row,1,'Interest — accruing');      numF(row,2,'SUM('+Rcol+')-SUMIF('+Scol+',"Settled (late)",'+Rcol+')',MONEY2); row++;
-  txt(row,1,'Interest — total');         numF(row,2,'SUM('+Rcol+')',MONEY2); row++;
-  txt(row,1,'Overdue invoices');         numF(row,2,'COUNTIF('+Qcol+',">0")',DAYS); row++;
-  txt(row,1,'Settled invoices');         numF(row,2,'COUNTIF('+Ncol+',"Yes")',DAYS); row++;
-  txt(row,1,'Needs verification');       numF(row,2,'COUNTIF('+Scol+',"Verify (marked paid)")',DAYS); row++;
-  row++;
-
-  txt(row,0,'THEN vs NOW  (Reference date → Compare date)'); row++;
-  txt(row,1,'Metric'); txt(row,2,'Reference'); txt(row,3,'Compare'); txt(row,4,'Change'); row++;
-  txt(row,1,'Overdue amount');   numF(row,2,'SUM('+Qcol+')'); numF(row,3,'SUM('+Ucol+')'); numF(row,4,'SUM('+Ucol+')-SUM('+Qcol+')'); row++;
-  txt(row,1,'Interest');         numF(row,2,'SUM('+Rcol+')',MONEY2); numF(row,3,'SUM('+Vcol+')',MONEY2); numF(row,4,'SUM('+Vcol+')-SUM('+Rcol+')',MONEY2); row++;
-  txt(row,1,'Overdue invoices'); numF(row,2,'COUNTIF('+Qcol+',">0")',DAYS); numF(row,3,'COUNTIF('+Ucol+',">0")',DAYS); numF(row,4,'COUNTIF('+Ucol+',">0")-COUNTIF('+Qcol+',">0")',DAYS); row++;
-  row++;
-
-  txt(row,0,'BY VENDOR  (as of Reference date)'); row++;
-  txt(row,0,'Vendor'); txt(row,1,'Value'); txt(row,2,'Outstanding'); txt(row,3,'Overdue'); txt(row,4,'Interest'); txt(row,5,'Overdue (Compare)'); row++;
-  var vendors=[]; RAW.forEach(function(r){ if(vendors.indexOf(r.v)===-1) vendors.push(r.v); });
-  vendors.forEach(function(vn){
-    var vc=A(row,0);
-    put(row,0,{t:'s',v:vn});
-    numF(row,1,'SUMIF('+Acol+','+vc+','+Icol+')');
-    numF(row,2,'SUMIF('+Acol+','+vc+','+Ocol+')');
-    numF(row,3,'SUMIF('+Acol+','+vc+','+Qcol+')');
-    numF(row,4,'SUMIF('+Acol+','+vc+','+Rcol+')',MONEY2);
-    numF(row,5,'SUMIF('+Acol+','+vc+','+Ucol+')');
-    row++;
-  });
-
-  var wsSum = sheetFromCells(sCells, row-1, sMaxC);
-  wsSum['!cols']=[{wch:34},{wch:34},{wch:18},{wch:16},{wch:16},{wch:18}];
-  wsSum['!merges']=[{s:{r:0,c:0},e:{r:0,c:5}},{s:{r:1,c:0},e:{r:1,c:5}}];
-
-  /* ---------------- WORKBOOK ---------------- */
-  var wb=XL.utils.book_new();
-  XL.utils.book_append_sheet(wb, wsSum, 'Summary');
-  XL.utils.book_append_sheet(wb, wsDetail, 'Detail');
-  wb.Workbook = wb.Workbook || {};
-  wb.Workbook.Names = [
-    {Name:'RefDate',  Ref:"Summary!$C$"+rRef},
-    {Name:'CmpDate',  Ref:"Summary!$C$"+rCmp},
-    {Name:'RatePct',  Ref:"Summary!$C$"+rRate},
-    {Name:'CreditOv', Ref:"Summary!$C$"+rCred}
-  ];
-  wb.Workbook.CalcPr = {fullCalcOnLoad:true};       // force Excel/Sheets to recompute on open
+  // colour coding via conditional formatting (updates live as the parameters change)
+  if(n>0){
+    det.addConditionalFormatting({ ref:'S2:S'+last, rules:[
+      {type:'containsText',operator:'containsText',text:'Overdue',priority:1,style:{font:{color:{argb:RUST},bold:true},fill:{type:'pattern',pattern:'solid',bgColor:{argb:RUSTSOFT}}}},
+      {type:'containsText',operator:'containsText',text:'Verify',priority:2,style:{font:{color:{argb:AMBER},bold:true},fill:{type:'pattern',pattern:'solid',bgColor:{argb:AMBERSOFT}}}},
+      {type:'containsText',operator:'containsText',text:'Not yet due',priority:3,style:{font:{color:{argb:SLATE}},fill:{type:'pattern',pattern:'solid',bgColor:{argb:GRAY}}}},
+      {type:'containsText',operator:'containsText',text:'Settled',priority:4,style:{font:{color:{argb:GREEN}},fill:{type:'pattern',pattern:'solid',bgColor:{argb:GREENSOFT}}}}
+    ]});
+    det.addConditionalFormatting({ ref:'Q2:Q'+last, rules:[
+      {type:'cellIs',operator:'greaterThan',formulae:['0'],priority:5,style:{font:{color:{argb:RUST},bold:true}}}
+    ]});
+    det.addConditionalFormatting({ ref:'X2:X'+last, rules:[
+      {type:'containsText',operator:'containsText',text:'overdue',priority:6,style:{font:{color:{argb:RUST},bold:true}}},
+      {type:'containsText',operator:'containsText',text:'Paid since',priority:7,style:{font:{color:{argb:GREEN},bold:true}}},
+      {type:'containsText',operator:'containsText',text:'Cleared',priority:8,style:{font:{color:{argb:GREEN}}}}
+    ]});
+  }
   return wb;
 }
 /*__BW_END__*/
 
-document.getElementById('exportXlsxBtn').addEventListener('click',function(){
+document.getElementById('exportXlsxBtn').addEventListener('click',async function(){
+  if(typeof ExcelJS==='undefined'){ alert('Excel library is still loading — please try again in a moment.'); return; }
+  var btn=document.getElementById('exportXlsxBtn'), label=btn.textContent;
   try{
+    btn.textContent='⏳ Building…'; btn.disabled=true;
     var ref = (asOfDate && (viewMode==='asof'||viewMode==='compare')) ? asOfDate : today;
-    var wb = buildWorkbook(RAW, {rate:rate, creditOverride:creditOverride, refDate:ref, cmpDate:today, XLSX:XLSX});
-    var stamp = fmtDate(today).replace(/\s/g,'-');
-    XLSX.writeFile(wb, 'Vendor-Payments-Model-'+stamp+'.xlsx');
+    var wb = buildWorkbook(activeRows(), {rate:rate, creditOverride:creditOverride, refDate:ref, cmpDate:today, ExcelJS:ExcelJS});
+    var buf = await wb.xlsx.writeBuffer();
+    var blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    var url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href=url; a.download='Vendor-Payments-Model-'+fmtDate(today).replace(/\s/g,'-')+'.xlsx';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); },1500);
   }catch(err){ alert('Could not build the Excel file: '+(err&&err.message||err)); }
+  finally{ btn.textContent=label; btn.disabled=false; }
 });
 /*__PPT_START__*/
 // Build a colour-coded management deck (.pptx). model carries pre-computed numbers so this
@@ -1166,24 +1261,25 @@ function buildPptx(model){
 document.getElementById('exportPptBtn').addEventListener('click',function(){
   if(typeof PptxGenJS==='undefined'){ alert('PowerPoint library is still loading — please try again in a moment.'); return; }
   try{
+    var DATA = activeRows();      // honour excluded vendors
     var refDate = (asOfDate && (viewMode==='asof'||viewMode==='compare')) ? asOfDate : today;
-    var computedRef = RAW.map(function(r){ return computeRow(r, refDate); });
-    var A = aggregate(RAW, computedRef);
+    var computedRef = DATA.map(function(r){ return computeRow(r, refDate); });
+    var A = aggregate(DATA, computedRef);
     A.settledCount = computedRef.filter(function(c){return c.settled;}).length;
     // vendors
-    var groups = groupByVendor(RAW), vendors=[];
+    var groups = groupByVendor(DATA), vendors=[];
     groups.forEach(function(idxs,vendor){ var value=0,outstanding=0,overdue=0,interest=0;
-      idxs.forEach(function(i){ var r=RAW[i],c=computedRef[i]; value+=Number(r.amt)||0; outstanding+=c.outstanding; overdue+=c.overdueAmt; interest+=c.interest; });
+      idxs.forEach(function(i){ var r=DATA[i],c=computedRef[i]; value+=Number(r.amt)||0; outstanding+=c.outstanding; overdue+=c.overdueAmt; interest+=c.interest; });
       vendors.push({name:vendor,value:value,outstanding:outstanding,overdue:overdue,interest:interest}); });
     vendors.sort(function(x,y){ return y.overdue-x.overdue || y.outstanding-x.outstanding; });
     // top overdue invoices
     var invs=[];
-    RAW.forEach(function(r,i){ var c=computedRef[i]; if(c.overdueAmt>0.01){ invs.push({vendor:r.v,inv:r.inv,dueLabel:(c.effDue?fmtDate(c.effDue):''),days:c.overdueDays,amt:c.overdueAmt,interest:c.interest}); } });
+    DATA.forEach(function(r,i){ var c=computedRef[i]; if(c.overdueAmt>0.01){ invs.push({vendor:r.v,inv:r.inv,dueLabel:(c.effDue?fmtDate(c.effDue):''),days:c.overdueDays,amt:c.overdueAmt,interest:c.interest}); } });
     invs.sort(function(x,y){ return y.amt-x.amt; });
     // compare
     var compare=null;
     if(viewMode==='compare' && asOfDate){
-      var A2 = aggregate(RAW, RAW.map(function(r){ return computeRow(r, today); }));
+      var A2 = aggregate(DATA, DATA.map(function(r){ return computeRow(r, today); }));
       compare = { then:A, now:A2, thenLabel:fmtDate(asOfDate), nowLabel:fmtDate(today) };
     }
     function usd(n){ n=Math.abs(Number(n)||0); return '$'+n.toLocaleString('en-US',{maximumFractionDigits:0}); }
@@ -1201,7 +1297,7 @@ document.getElementById('exportPptBtn').addEventListener('click',function(){
 document.getElementById('exportPdfBtn').addEventListener('click',()=>window.print());
 
 function setDzLoaded(text){ const dz=document.getElementById('dropzone'), h=document.getElementById('dzHint'); if(text){ dz.classList.add('loaded'); h.textContent=text; } else { dz.classList.remove('loaded'); h.textContent='CSV / XLSX · we auto-map Vendor, Amount, Dates, Status…'; } }
-document.getElementById('useSampleBtn').addEventListener('click',()=>{ RAW=JSON.parse(JSON.stringify(SAMPLE_RAW)); openVendor=null; setDzLoaded(`Sample data — ${RAW.length} invoices.`); document.getElementById('fileUpload').value=''; renderAll(); });
+document.getElementById('useSampleBtn').addEventListener('click',()=>{ RAW=JSON.parse(JSON.stringify(SAMPLE_RAW)); openVendor=null; excludedVendors.clear(); updateExclBtn(); setDzLoaded(`Sample data — ${RAW.length} invoices.`); document.getElementById('fileUpload').value=''; renderAll(); });
 
 const FIELD_ALIASES = {
   v:['vendor','supplier','vendor name','supplier name','company','name of supplier'],
@@ -1272,7 +1368,7 @@ function handleFile(file){
       const {rows,error}=mapUploadedRows(json,headerMap);
       if(error){ setDzLoaded('⚠ '+error); return; }
       if(!rows.length){ setDzLoaded('⚠ No usable rows found.'); return; }
-      RAW=rows; openVendor=null;
+      RAW=rows; openVendor=null; excludedVendors.clear(); updateExclBtn();
       const missOpt=['po','inv','it','blno','bl','cqty','ship','pterm','cd','due','st','pd','out'].filter(f=>!headerMap[f]);
       setDzLoaded(`✅ ${rows.length} invoices from "${file.name}" (sheet: ${bestName})`+(missOpt.length?` · not found: ${missOpt.join(', ')}`:''));
       renderAll();
@@ -1289,6 +1385,7 @@ function handleFile(file){
 })();
 
 setDzLoaded(`Sample data — ${RAW.length} invoices. Drop your file to replace it.`);
+updateExclBtn();
 renderAll();
 </script>
 </body>
