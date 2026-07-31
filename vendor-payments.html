@@ -166,6 +166,17 @@ input.date-edit{width:112px;}
 .kpi .k-arrow{color:var(--slate-soft);font-size:11px;}
 .kpi .k-now{font-family:'Fraunces',serif;font-size:18px;font-weight:600;color:var(--ink);}
 
+/* compare mode: vendor card then/now bars + comparative ledger */
+.cmp-bars{margin:10px 0 12px;display:flex;flex-direction:column;gap:6px;}
+.cmp-bar-row{display:flex;align-items:center;gap:8px;}
+.cmp-bar-tag{font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.04em;text-transform:uppercase;padding:2px 6px;border-radius:20px;white-space:nowrap;flex:none;min-width:64px;text-align:center;}
+.cmp-bar-tag.then{background:var(--amber-soft);color:var(--amber);}
+.cmp-bar-tag.now{background:var(--ink);color:#F4EFE2;}
+.cmp-bar-row .bar{flex:1;margin:0;}
+.vnums.cmp{grid-template-columns:1fr 1fr;}
+.vnums.cmp b{font-size:11px;line-height:1.35;}
+.ledger tr.row-paid td{background:var(--green-soft);}
+
 @media (max-width:900px){ .sit-wrap{grid-template-columns:1fr;} }
 
 /* FX manager modal */
@@ -308,6 +319,7 @@ let asOfDate = null;          // Date object for the "time machine" reference da
 let viewMode = 'today';       // 'today' | 'asof' | 'compare'
 let currentComputed = null;   // computed set currently shown in the ledger (for search/filter re-render)
 let currentRows = null;
+let compareThen = null;       // in compare mode: the as-of computed set (null otherwise) → vendors render then-vs-now
 const today = new Date(); today.setHours(0,0,0,0);
 
 function fmtDate(d){ return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
@@ -434,6 +446,24 @@ function deltaTag(nowV, oldV, kind, goodWhenUp){
   const good = goodWhenUp ? up : !up;
   return `<span class="dtag ${good?'down':'up'}">${up?'▲':'▼'} ${txt}</span>`;
 }
+// Status badge for a computed row's bucket.
+function bucketBadge(c){
+  if(c.bucket==='paid_ontime') return '<span class="badge ok">Settled</span>';
+  if(c.bucket==='paid_late')   return '<span class="badge ok">Settled · late</span>';
+  if(c.bucket==='notdue')      return '<span class="badge wait">Not yet due</span>';
+  if(c.bucket==='pending')     return '<span class="badge od">Overdue</span>';
+  if(c.bucket==='flag')        return '<span class="badge flag">Verify</span>';
+  return '<span class="badge wait">—</span>';
+}
+// A one-line "what changed" chip between the as-of state (t) and today's state (n).
+function changeChip(t, n){
+  const wasOverdue = t.overdueAmt>0.01, isOverdue = n.overdueAmt>0.01;
+  if(!t.settled && n.settled) return `<span class="dtag down">✓ paid${wasOverdue?' (was overdue)':''}</span>`;
+  if(!wasOverdue && isOverdue) return '<span class="dtag up">▲ newly overdue</span>';
+  if(wasOverdue && !isOverdue) return '<span class="dtag down">▼ cleared</span>';
+  if(wasOverdue && isOverdue && n.overdueDays>t.overdueDays) return `<span class="dtag up">▲ +${n.overdueDays-t.overdueDays}d overdue</span>`;
+  return '<span class="dtag flat">no change</span>';
+}
 const CREDIT_PRESETS = [30,60,90,120];
 
 function renderParams(){
@@ -509,7 +539,7 @@ function renderAll(){
     renderStandard(rows, computedAsOf, fmtDate(asOfDate));
   } else {
     banner.className='mode-banner'; banner.style.display='flex';
-    banner.innerHTML = `<span class="mb-ico">⇄</span><span><b>${fmtDate(asOfDate)}</b> &nbsp;vs&nbsp; <b>${fmtDate(today)}</b> — the cards show each day's full situation, the tiles show what moved. The detailed ledger below reflects <b>today</b> (switch to <b>As-of</b> for that day's ledger).</span>`;
+    banner.innerHTML = `<span class="mb-ico">⇄</span><span><b>${fmtDate(asOfDate)}</b> &nbsp;vs&nbsp; <b>${fmtDate(today)}</b> — every level compares the two days: the cards up top, the tiles, and the vendor list &amp; per-invoice ledger below all show <b>then → now</b>. Edit values in <b>Today</b> or <b>As-of</b> mode.</span>`;
     currentRows=rows; currentComputed=computedToday;
     renderCompare(rows, computedToday, computedAsOf);
   }
@@ -517,6 +547,7 @@ function renderAll(){
 
 // Standard single-date dashboard (used for both Today and As-of). asOfLabel!=null => snapshot mode.
 function renderStandard(rows, computed, asOfLabel){
+  compareThen = null;   // single-date view → vendors render normally
   const isAsOf = !!asOfLabel;
   const a = aggregate(rows, computed);
   const total = a.totValue || 1;
@@ -613,18 +644,26 @@ function renderCompare(rows, cToday, cAsOf){
     ? `INR converted per invoice using the monthly-average USD→INR rate for its effective due-date month.`
     : `Amounts in USD, original invoice currency.`;
 
+  compareThen = cAsOf;   // vendors + ledger below render then-vs-now
   renderVendors(rows, cToday);
 }
 
 function renderVendors(rows, computed){
+  const cmp = compareThen;                                  // as-of set (compare mode) or null
+  const asLabel = asOfDate ? fmtDate(asOfDate) : 'Then';
   const groups = groupByVendor(rows);
   const search = (document.getElementById('searchBox').value||'').toLowerCase();
   const filter = document.getElementById('filterSel').value;
   const vs = [];
   groups.forEach((idxs,vendor)=>{
     let totalValue=0,outstanding=0,overdueAmt=0,interest=0,paidN=0,pendingN=0,flagN=0,overdueN=0;
-    idxs.forEach(i=>{ const r=rows[i],c=computed[i]; totalValue+=Number(r.amt)||0; outstanding+=c.outstanding; overdueAmt+=c.overdueAmt; interest+=c.interest; if(c.settled)paidN++; else pendingN++; if(c.flagged)flagN++; if(c.overdueAmt>0)overdueN++; });
-    vs.push({vendor,idxs,totalValue,outstanding,overdueAmt,interest,paidN,pendingN,flagN,overdueN});
+    let tOutstanding=0,tOverdueAmt=0,tInterest=0,tPaidN=0,tOverdueN=0;
+    idxs.forEach(i=>{
+      const r=rows[i],c=computed[i]; totalValue+=Number(r.amt)||0; outstanding+=c.outstanding; overdueAmt+=c.overdueAmt; interest+=c.interest;
+      if(c.settled)paidN++; else pendingN++; if(c.flagged)flagN++; if(c.overdueAmt>0)overdueN++;
+      if(cmp){ const t=cmp[i]; tOutstanding+=t.outstanding; tOverdueAmt+=t.overdueAmt; tInterest+=t.interest; if(t.settled)tPaidN++; if(t.overdueAmt>0)tOverdueN++; }
+    });
+    vs.push({vendor,idxs,totalValue,outstanding,overdueAmt,interest,paidN,pendingN,flagN,overdueN,tOutstanding,tOverdueAmt,tInterest,tPaidN,tOverdueN});
   });
   vs.sort((a,b)=> b.overdueAmt-a.overdueAmt || b.outstanding-a.outstanding);
   const grid = document.getElementById('vendorGrid'); grid.innerHTML='';
@@ -643,55 +682,98 @@ function renderVendors(rows, computed){
     const duePct = Math.max(0,100-paidPct-overduePct);
     const card = document.createElement('div');
     card.className='vcard'+(openVendor===v.vendor?' open':'');
-    card.innerHTML = `
-      <div class="stamp ${v.overdueAmt>0?'':'clear'}">${v.overdueAmt>0?'Overdue':'Clear'}</div>
-      <p class="vname">${v.vendor}</p>
-      <div class="bar"><div class="seg-paid" style="width:${paidPct}%"></div><div class="seg-due" style="width:${duePct}%"></div><div class="seg-overdue" style="width:${overduePct}%"></div></div>
-      <div class="vnums">
-        <div>Value<b>${money(v.totalValue)}</b></div>
-        <div>Outstanding<b>${money(v.outstanding)}</b></div>
-        <div>Overdue<b style="color:${v.overdueAmt>0?'var(--rust)':'inherit'}">${money(v.overdueAmt)}</b></div>
-        <div>Interest<b style="color:${v.interest>0?'var(--amber)':'inherit'}">${v.interest>0?money2(v.interest):'—'}</b></div>
-      </div>
-      <div class="vfoot">
-        <div class="chip-row">
-          <span class="chip">${v.idxs.length} inv</span><span class="chip">${v.paidN} settled</span>
-          ${v.pendingN?`<span class="chip">${v.pendingN} open</span>`:''}
-          ${v.flagN?`<span class="chip" style="border-color:var(--amber);color:var(--amber)">${v.flagN} verify</span>`:''}
+    if(cmp){
+      const tPaidPct = v.totalValue>0?Math.max(0,((v.totalValue-v.tOutstanding)/v.totalValue*100)):100;
+      const tOverduePct = v.totalValue>0?(v.tOverdueAmt/v.totalValue*100):0;
+      const tDuePct = Math.max(0,100-tPaidPct-tOverduePct);
+      card.innerHTML = `
+        <div class="stamp ${v.overdueAmt>0?'':'clear'}">${v.overdueAmt>0?'Overdue':'Clear'}</div>
+        <p class="vname">${v.vendor}</p>
+        <div class="cmp-bars">
+          <div class="cmp-bar-row"><span class="cmp-bar-tag then">${asLabel}</span><div class="bar"><div class="seg-paid" style="width:${tPaidPct}%"></div><div class="seg-due" style="width:${tDuePct}%"></div><div class="seg-overdue" style="width:${tOverduePct}%"></div></div></div>
+          <div class="cmp-bar-row"><span class="cmp-bar-tag now">Today</span><div class="bar"><div class="seg-paid" style="width:${paidPct}%"></div><div class="seg-due" style="width:${duePct}%"></div><div class="seg-overdue" style="width:${overduePct}%"></div></div></div>
         </div>
-        <div class="expand-hint">${openVendor===v.vendor?'Close ▲':'Details ▼'}</div>
-      </div>`;
+        <div class="vnums cmp">
+          <div>Overdue<b>${money(v.tOverdueAmt)} <span class="k-arrow">→</span> <span style="color:${v.overdueAmt>0?'var(--rust)':'inherit'}">${money(v.overdueAmt)}</span></b></div>
+          <div>Outstanding<b>${money(v.tOutstanding)} <span class="k-arrow">→</span> ${money(v.outstanding)}</b></div>
+          <div>Interest<b>${v.tInterest>0?money2(v.tInterest):'—'} <span class="k-arrow">→</span> <span style="color:${v.interest>0?'var(--amber)':'inherit'}">${v.interest>0?money2(v.interest):'—'}</span></b></div>
+          <div>Overdue change<b>${deltaTag(v.overdueAmt,v.tOverdueAmt,'money')}</b></div>
+        </div>
+        <div class="vfoot">
+          <div class="chip-row">
+            <span class="chip">${v.idxs.length} inv</span>
+            <span class="chip">settled ${v.tPaidN} → ${v.paidN}</span>
+            <span class="chip" ${v.overdueN>v.tOverdueN?'style="border-color:var(--rust);color:var(--rust)"':''}>overdue ${v.tOverdueN} → ${v.overdueN}</span>
+          </div>
+          <div class="expand-hint">${openVendor===v.vendor?'Close ▲':'Compare ▼'}</div>
+        </div>`;
+    } else {
+      card.innerHTML = `
+        <div class="stamp ${v.overdueAmt>0?'':'clear'}">${v.overdueAmt>0?'Overdue':'Clear'}</div>
+        <p class="vname">${v.vendor}</p>
+        <div class="bar"><div class="seg-paid" style="width:${paidPct}%"></div><div class="seg-due" style="width:${duePct}%"></div><div class="seg-overdue" style="width:${overduePct}%"></div></div>
+        <div class="vnums">
+          <div>Value<b>${money(v.totalValue)}</b></div>
+          <div>Outstanding<b>${money(v.outstanding)}</b></div>
+          <div>Overdue<b style="color:${v.overdueAmt>0?'var(--rust)':'inherit'}">${money(v.overdueAmt)}</b></div>
+          <div>Interest<b style="color:${v.interest>0?'var(--amber)':'inherit'}">${v.interest>0?money2(v.interest):'—'}</b></div>
+        </div>
+        <div class="vfoot">
+          <div class="chip-row">
+            <span class="chip">${v.idxs.length} inv</span><span class="chip">${v.paidN} settled</span>
+            ${v.pendingN?`<span class="chip">${v.pendingN} open</span>`:''}
+            ${v.flagN?`<span class="chip" style="border-color:var(--amber);color:var(--amber)">${v.flagN} verify</span>`:''}
+          </div>
+          <div class="expand-hint">${openVendor===v.vendor?'Close ▲':'Details ▼'}</div>
+        </div>`;
+    }
     card.addEventListener('click',()=>{ openVendor=(openVendor===v.vendor)?null:v.vendor; renderVendors(rows,computed); });
     grid.appendChild(card);
     if(openVendor===v.vendor){
       const ledger = document.createElement('div'); ledger.className='ledger';
       const sortedIdxs = [...v.idxs].sort((a,b)=>{ const ca=computed[a],cb=computed[b]; return (cb.overdueAmt-ca.overdueAmt)||(parseD(rows[a].due)-parseD(rows[b].due)); });
-      const rowsHtml = sortedIdxs.map(i=>{
-        const r=rows[i],c=computed[i]; const trClass=c.overdueAmt>0?(c.flagged?'row-flag':'row-overdue'):'';
-        let badge;
-        if(c.bucket==='paid_ontime') badge='<span class="badge ok">Settled</span>';
-        else if(c.bucket==='paid_late') badge='<span class="badge ok">Settled · paid late</span>';
-        else if(c.bucket==='notdue') badge='<span class="badge wait">Not yet due</span>';
-        else if(c.bucket==='pending') badge='<span class="badge od">Overdue</span>';
-        else if(c.bucket==='flag') badge='<span class="badge flag">Verify</span>';
-        const effDueLabel = c.effDue?fmtDate(c.effDue):'—';
-        return `<tr class="${trClass}" data-idx="${i}">
-          <td>${r.inv}</td><td>${r.po||''}</td><td>${r.it||''}</td><td class="mono">${r.blno||''}</td>
-          <td class="mono">${r.bl?fmtDate(parseD(r.bl)):'—'}</td><td class="mono">${effDueLabel}</td>
-          <td>${r.cqty||''}</td><td>${r.ship||''}</td><td>${r.pterm||''}</td>
-          <td class="num" title="${fullMoney(r.amt,c.effDue)}">${money(r.amt,c.effDue)}</td>
-          <td><select class="st-edit" data-field="st" data-idx="${i}">${['Paid','Yes','Pending','Partial'].map(s=>`<option value="${s}" ${r.st===s?'selected':''}>${s}</option>`).join('')}</select></td>
-          <td><input class="date-edit" type="date" data-field="pd" data-idx="${i}" value="${r.pd||''}"></td>
-          <td><input class="out-edit" type="number" step="0.01" data-field="out" data-idx="${i}" value="${r.out}"></td>
-          <td class="num">${c.overdueDays>0?c.overdueDays+' d':'—'}</td>
-          <td class="num" title="${c.overdueAmt>0?fullMoney(c.overdueAmt,c.effDue):''}">${c.overdueAmt>0?money(c.overdueAmt,c.effDue):'—'}</td>
-          <td class="num" title="${c.interest>0?fullMoney(c.interest,c.effDue):''}">${c.interest>0?money2(c.interest,c.effDue):'—'}</td>
-          <td>${badge}${c.flagged?'<div class="flag-note">no payment date on file</div>':''}</td>
-        </tr>`;
-      }).join('');
-      ledger.innerHTML = `<table><thead><tr><th>Invoice</th><th>PO no</th><th>Item</th><th>BL no</th><th>BL date</th><th>Effective due</th><th>Container</th><th>Shipment</th><th>Pay term</th><th>Amount</th><th>Status</th><th>Payment date</th><th>Outstanding</th><th>Overdue days</th><th>Overdue amt</th><th>Interest</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
-      grid.appendChild(ledger);
-      ledger.querySelectorAll('[data-field]').forEach(el=>el.addEventListener('change',e=>{ const idx=Number(e.target.dataset.idx),field=e.target.dataset.field; let val=e.target.value; if(field==='out') val=parseFloat(val)||0; rows[idx][field]=val; renderAll(); }));
+      if(cmp){
+        const rowsHtml = sortedIdxs.map(i=>{
+          const r=rows[i], n=computed[i], t=cmp[i];
+          const paidSince = !t.settled && n.settled;
+          const trClass = paidSince ? 'row-paid' : (n.overdueAmt>0 ? (n.flagged?'row-flag':'row-overdue') : '');
+          const effDueLabel = n.effDue?fmtDate(n.effDue):'—';
+          const odThen = t.overdueAmt>0?money(t.overdueAmt,n.effDue):'—', odNow = n.overdueAmt>0?money(n.overdueAmt,n.effDue):'—';
+          const inThen = t.interest>0?money2(t.interest,n.effDue):'—', inNow = n.interest>0?money2(n.interest,n.effDue):'—';
+          return `<tr class="${trClass}">
+            <td>${r.inv}</td><td>${r.it||''}</td><td class="mono">${effDueLabel}</td>
+            <td class="num" title="${fullMoney(r.amt,n.effDue)}">${money(r.amt,n.effDue)}</td>
+            <td>${bucketBadge(t)}</td><td>${bucketBadge(n)}</td>
+            <td class="num">${t.overdueDays>0?t.overdueDays+'d':'—'} <span class="k-arrow">→</span> ${n.overdueDays>0?n.overdueDays+'d':'—'}</td>
+            <td class="num">${odThen} <span class="k-arrow">→</span> ${odNow}</td>
+            <td class="num">${inThen} <span class="k-arrow">→</span> ${inNow}</td>
+            <td>${changeChip(t,n)}</td>
+          </tr>`;
+        }).join('');
+        ledger.innerHTML = `<table><thead><tr><th>Invoice</th><th>Item</th><th>Effective due</th><th>Amount</th><th>State · ${asLabel}</th><th>State · today</th><th>Overdue days<br>then → now</th><th>Overdue amt<br>then → now</th><th>Interest<br>then → now</th><th>What changed</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+        grid.appendChild(ledger);
+      } else {
+        const rowsHtml = sortedIdxs.map(i=>{
+          const r=rows[i],c=computed[i]; const trClass=c.overdueAmt>0?(c.flagged?'row-flag':'row-overdue'):'';
+          const effDueLabel = c.effDue?fmtDate(c.effDue):'—';
+          return `<tr class="${trClass}" data-idx="${i}">
+            <td>${r.inv}</td><td>${r.po||''}</td><td>${r.it||''}</td><td class="mono">${r.blno||''}</td>
+            <td class="mono">${r.bl?fmtDate(parseD(r.bl)):'—'}</td><td class="mono">${effDueLabel}</td>
+            <td>${r.cqty||''}</td><td>${r.ship||''}</td><td>${r.pterm||''}</td>
+            <td class="num" title="${fullMoney(r.amt,c.effDue)}">${money(r.amt,c.effDue)}</td>
+            <td><select class="st-edit" data-field="st" data-idx="${i}">${['Paid','Yes','Pending','Partial'].map(s=>`<option value="${s}" ${r.st===s?'selected':''}>${s}</option>`).join('')}</select></td>
+            <td><input class="date-edit" type="date" data-field="pd" data-idx="${i}" value="${r.pd||''}"></td>
+            <td><input class="out-edit" type="number" step="0.01" data-field="out" data-idx="${i}" value="${r.out}"></td>
+            <td class="num">${c.overdueDays>0?c.overdueDays+' d':'—'}</td>
+            <td class="num" title="${c.overdueAmt>0?fullMoney(c.overdueAmt,c.effDue):''}">${c.overdueAmt>0?money(c.overdueAmt,c.effDue):'—'}</td>
+            <td class="num" title="${c.interest>0?fullMoney(c.interest,c.effDue):''}">${c.interest>0?money2(c.interest,c.effDue):'—'}</td>
+            <td>${bucketBadge(c)}${c.flagged?'<div class="flag-note">no payment date on file</div>':''}</td>
+          </tr>`;
+        }).join('');
+        ledger.innerHTML = `<table><thead><tr><th>Invoice</th><th>PO no</th><th>Item</th><th>BL no</th><th>BL date</th><th>Effective due</th><th>Container</th><th>Shipment</th><th>Pay term</th><th>Amount</th><th>Status</th><th>Payment date</th><th>Outstanding</th><th>Overdue days</th><th>Overdue amt</th><th>Interest</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+        grid.appendChild(ledger);
+        ledger.querySelectorAll('[data-field]').forEach(el=>el.addEventListener('change',e=>{ const idx=Number(e.target.dataset.idx),field=e.target.dataset.field; let val=e.target.value; if(field==='out') val=parseFloat(val)||0; rows[idx][field]=val; renderAll(); }));
+      }
     }
   });
 }
