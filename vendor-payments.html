@@ -902,240 +902,183 @@ document.getElementById('exclClear').addEventListener('click',()=>{ excludedVend
 document.getElementById('searchBox').addEventListener('input',()=>renderVendors(currentRows||activeRows(), currentComputed||activeRows().map(r=>computeRow(r,today))));
 document.getElementById('filterSel').addEventListener('change',()=>renderVendors(currentRows||activeRows(), currentComputed||activeRows().map(r=>computeRow(r,today))));
 /*__BW_START__*/
-// Build a LIVE, colour-coded Excel model with ExcelJS: frozen header row, autofilter dropdowns,
-// colour-coded state (conditional formatting), banded rows, and every computed cell a real formula
-// referencing the raw inputs + editable named parameters (RefDate, CmpDate, RatePct, CreditOv).
-// opts: {rate, creditOverride, refDate(Date), cmpDate(Date), ExcelJS}
+// Build the vendor-payment workbook the "model" way: 5 tabs — Dashboard, Params, FX Rates,
+// Raw Data, Calculations. Every computed cell is a live Excel formula driven off the editable
+// Params tab; the Dashboard is all SUM/SUMIF/COUNTIF/SUMPRODUCT over the Calculations engine.
+// opts: {rate, creditOverride(number|null), currency('USD'|'INR'), refDate(Date), ExcelJS}
 function buildWorkbook(RAW, opts){
   var XLJS = (opts && opts.ExcelJS) || (typeof ExcelJS!=='undefined' ? ExcelJS : null);
-  var rate = opts.rate, creditOverride = opts.creditOverride, refDate = opts.refDate, cmpDate = opts.cmpDate;
-  var n = RAW.length, last = n + 1;                 // header row 1, data rows 2..n+1
-  var MONEY='"$"#,##0', MONEY2='"$"#,##0.00', DT='dd-mmm-yyyy', DAYS='0', PCT='0.0000';
-  var INK='FF101B2D', SLATE='FF5C6B7A', LINE='FFDCD6C6', GOLD='FFC9A24B', PARAM='FFFBF3DF',
-      RUST='FFB3402F', RUSTSOFT='FFF6DED8', AMBER='FFB9791F', AMBERSOFT='FFF7ECD3',
-      GREEN='FF3E7C59', GREENSOFT='FFE1EFE6', GRAY='FFECECEC', BAND='FFF7F4EC', WHITE='FFFFFFFF';
+  var rate = opts.rate, creditOverride = opts.creditOverride, currency = opts.currency || 'USD', refDate = opts.refDate || today;
+  var n = RAW.length, D0 = 3, DN = n + 2;            // data rows 3..DN (title row 1, header row 2)
+  var refIsToday = refDate.getTime() >= today.getTime();
 
-  // JS Date -> Excel serial (1900 system), tz-safe via UTC date parts (stored as numbers + date format).
+  var INK='FF101B2D', INK2='FF1C2B44', SLATE='FF5C6B7A', SLATESOFT='FF8A93A0', LINE='FFDCD6C6',
+      GOLD='FFC9A24B', PARAM='FFFBF3DF', RUST='FFB3402F', AMBER='FFB9791F', GREEN='FF3E7C59',
+      BAND='FFF8F5EE', WHITE='FFFFFFFF';
+  var MONEY0='#,##0', MONEY2='#,##0.00', RATEF='0.0000', DT='dd-mmm-yyyy', GEN='General';
+
   function serial(d){ if(!d) return null; return Math.floor((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()) - Date.UTC(1899,11,30))/86400000); }
   function colL(c){ var s=''; c++; while(c>0){ var m=(c-1)%26; s=String.fromCharCode(65+m)+s; c=Math.floor((c-1)/26); } return s; }
-  function bdr(argb){ var e={style:'thin',color:{argb:argb}}; return {top:e,left:e,bottom:e,right:e}; }
   function solid(argb){ return {type:'pattern',pattern:'solid',fgColor:{argb:argb}}; }
+  function bdrAll(argb){ var e={style:'thin',color:{argb:argb}}; return {top:e,left:e,bottom:e,right:e}; }
+  function headCell(ws, addr, text){ var c=ws.getCell(addr); c.value=text; c.font={name:'Calibri',size:10,bold:true,color:{argb:WHITE}}; c.fill=solid(INK); c.alignment={vertical:'middle',horizontal:'left'}; c.border=bdrAll(LINE); return c; }
 
   var wb = new XLJS.Workbook();
-  wb.calcProperties.fullCalcOnLoad = true;          // force Excel/Sheets to recompute on open
-  var DET='Detail!';
-  var Icol=DET+'I2:I'+last, Ocol=DET+'O2:O'+last, Qcol=DET+'Q2:Q'+last, Rcol=DET+'R2:R'+last,
-      Ncol=DET+'N2:N'+last, Scol=DET+'S2:S'+last, Acol=DET+'A2:A'+last, Ucol=DET+'U2:U'+last, Vcol=DET+'V2:V'+last;
-  var BARINK='FF2A3B57', BARSLATE='FF8A93A0';
+  wb.calcProperties.fullCalcOnLoad = true;
 
-  /* ---------------- DASHBOARD (charts) — only when the browser supplies chart images ---------------- */
-  if(opts && opts.images){
-    var dash = wb.addWorksheet('Dashboard', {views:[{showGridLines:false}]});
-    for(var di=1; di<=12; di++) dash.getColumn(di).width=12;
-    dash.mergeCells('A1:L2'); var dT=dash.getCell('A1'); dT.value='VENDOR PAYMENT & INTEREST   —   DASHBOARD'; dT.font={name:'Georgia',size:20,bold:true,color:{argb:GOLD}}; dT.fill=solid(INK); dT.alignment={vertical:'middle',horizontal:'left',indent:1};
-    dash.mergeCells('A3:L3'); var dS=dash.getCell('A3'); dS.value='USD  ·  KPI tiles are live formulas; the charts below are a snapshot taken at export.'; dS.font={name:'Calibri',size:10,italic:true,color:{argb:SLATE}}; dS.alignment={vertical:'middle',horizontal:'left',indent:1};
-    dash.getRow(5).height=16; dash.getRow(6).height=30;
-    function kpi(c0,label,formula,fill){
-      dash.mergeCells(colL(c0)+'5:'+colL(c0+2)+'5'); dash.mergeCells(colL(c0)+'6:'+colL(c0+2)+'6');
-      var lc=dash.getCell(colL(c0)+'5'); lc.value=label; lc.font={name:'Calibri',size:10,bold:true,color:{argb:WHITE}}; lc.fill=solid(fill); lc.alignment={vertical:'middle',horizontal:'left',indent:1};
-      var vc=dash.getCell(colL(c0)+'6'); vc.value={formula:formula}; vc.numFmt=MONEY; vc.font={name:'Georgia',size:18,bold:true,color:{argb:WHITE}}; vc.fill=solid(fill); vc.alignment={vertical:'middle',horizontal:'left',indent:1};
-    }
-    kpi(0,'OVERDUE','SUM('+Qcol+')',RUST);
-    kpi(3,'OUTSTANDING','SUM('+Ocol+')',INK);
-    kpi(6,'INTEREST — TOTAL','SUM('+Rcol+')',AMBER);
-    kpi(9,'SETTLED VALUE','SUM('+Icol+')-SUM('+Ocol+')',GREEN);
-    var l1=dash.getCell('A8'); l1.value='PORTFOLIO BREAKDOWN'; l1.font={name:'Calibri',size:10,bold:true,color:{argb:SLATE}};
-    var l2=dash.getCell('G8'); l2.value='OVERDUE EXPOSURE BY VENDOR'; l2.font={name:'Calibri',size:10,bold:true,color:{argb:SLATE}};
-    try{ if(opts.images.donut){ var idD=wb.addImage({base64:opts.images.donut, extension:'png'}); dash.addImage(idD,{tl:{col:0.2,row:8.5},ext:{width:430,height:322}}); } }catch(e){}
-    try{ if(opts.images.bars){ var idB=wb.addImage({base64:opts.images.bars, extension:'png'}); dash.addImage(idB,{tl:{col:6.2,row:8.5},ext:{width:430,height:322}}); } }catch(e){}
-  }
-
-  /* ---------------- SUMMARY ---------------- */
-  var sum = wb.addWorksheet('Summary');
-
-  function sSection(r,text){ sum.mergeCells('A'+r+':F'+r); var c=sum.getCell('A'+r); c.value=text; c.font={name:'Calibri',size:11,bold:true,color:{argb:WHITE}}; c.fill=solid(INK); c.alignment={vertical:'middle',horizontal:'left',indent:1}; sum.getRow(r).height=19; }
-  function sMetric(r,label,formula,fmt,argb){ var la=sum.getCell('A'+r); la.value=label; la.font={name:'Calibri',size:11,color:{argb:'FF1C2B44'}}; la.alignment={vertical:'middle',indent:1}; var c=sum.getCell('B'+r); c.value={formula:formula}; c.numFmt=fmt||MONEY; c.font={name:'Calibri',size:12,bold:true,color:{argb:argb||INK}}; c.alignment={vertical:'middle',horizontal:'right'}; }
-  function sParam(r,label,value,fmt){ var la=sum.getCell('A'+r); la.value=label; la.font={name:'Calibri',size:11,color:{argb:'FF1C2B44'}}; la.alignment={vertical:'middle',indent:1}; var c=sum.getCell('B'+r); if(value!==null&&value!==undefined) c.value=value; if(fmt) c.numFmt=fmt; c.font={name:'Calibri',size:12,bold:true,color:{argb:INK}}; c.alignment={vertical:'middle',horizontal:'right'}; c.fill=solid(PARAM); c.border=bdr(GOLD); }
-
-  sum.mergeCells('A1:F1'); var t1=sum.getCell('A1'); t1.value='VENDOR PAYMENT & INTEREST  —  LIVE FORMULA MODEL'; t1.font={name:'Georgia',size:15,bold:true,color:{argb:GOLD}}; t1.fill=solid(INK); t1.alignment={vertical:'middle',horizontal:'left',indent:1}; sum.getRow(1).height=28;
-  sum.mergeCells('A2:F2'); var t2=sum.getCell('A2'); t2.value='Generated '+fmtDate(today)+'  ·  USD  ·  edit the gold parameter cells and the whole workbook recalculates.'; t2.font={name:'Calibri',size:10,italic:true,color:{argb:'FFB9C0CC'}}; t2.fill=solid(INK); t2.alignment={vertical:'middle',horizontal:'left',indent:1};
-
-  sSection(4,'PARAMETERS   (edit these)');
-  var rRef=5,rCmp=6,rRate=7,rCred=8;
-  sParam(rRef,'Reference (as-of) date', serial(refDate), DT);
-  sParam(rCmp,'Compare date', serial(cmpDate), DT);
-  sParam(rRate,'Interest rate (% per day)', rate, PCT);
-  sParam(rCred,'Credit override (days; blank = use sheet due date)', (creditOverride!=null?creditOverride:null), DAYS);
-  sum.getCell('B'+rRef).name='RefDate';
-  sum.getCell('B'+rCmp).name='CmpDate';
-  sum.getCell('B'+rRate).name='RatePct';
-  sum.getCell('B'+rCred).name='CreditOv';
-
-  sSection(10,'PORTFOLIO   —   AS OF REFERENCE DATE');
-  sMetric(11,'Total invoice value','SUM('+Icol+')',MONEY,INK);
-  sMetric(12,'Settled value','SUM('+Icol+')-SUM('+Ocol+')',MONEY,GREEN);
-  sMetric(13,'Not yet due','SUM('+Ocol+')-SUM('+Qcol+')',MONEY,AMBER);
-  sMetric(14,'Overdue amount','SUM('+Qcol+')',MONEY,RUST);
-  sMetric(15,'Total outstanding','SUM('+Ocol+')',MONEY,INK);
-  sMetric(16,'Interest — paid late','SUMIF('+Scol+',"Settled (late)",'+Rcol+')',MONEY2,AMBER);
-  sMetric(17,'Interest — accruing','SUM('+Rcol+')-SUMIF('+Scol+',"Settled (late)",'+Rcol+')',MONEY2,AMBER);
-  sMetric(18,'Interest — total','SUM('+Rcol+')',MONEY2,AMBER);
-  sMetric(19,'Overdue invoices','COUNTIF('+Qcol+',">0")',DAYS,RUST);
-  sMetric(20,'Settled invoices','COUNTIF('+Ncol+',"Yes")',DAYS,GREEN);
-  sMetric(21,'Needs verification','COUNTIF('+Scol+',"Verify (marked paid)")',DAYS,AMBER);
-
-  sSection(23,'THEN vs NOW   (Reference  →  Compare date)');
-  ['Metric','Reference','Compare','Change'].forEach(function(h,i){ var c=sum.getCell(colL(i)+'24'); c.value=h; c.font={name:'Calibri',size:10,bold:true,color:{argb:WHITE}}; c.fill=solid(SLATE); c.alignment={horizontal:i?'right':'left',vertical:'middle'}; });
-  var tr=25;
-  function cmpRow(label,rf,cf,gf,fmt){
-    var a=sum.getCell('A'+tr); a.value=label; a.font={name:'Calibri',size:11}; a.alignment={indent:1,vertical:'middle'};
-    var b=sum.getCell('B'+tr); b.value={formula:rf}; b.numFmt=fmt; b.alignment={horizontal:'right'}; b.font={color:{argb:SLATE}};
-    var c=sum.getCell('C'+tr); c.value={formula:cf}; c.numFmt=fmt; c.alignment={horizontal:'right'}; c.font={bold:true,color:{argb:INK}};
-    var d=sum.getCell('D'+tr); d.value={formula:gf}; d.numFmt=fmt; d.alignment={horizontal:'right'}; d.font={bold:true,color:{argb:INK}}; tr++;
-  }
-  cmpRow('Overdue amount','SUM('+Qcol+')','SUM('+Ucol+')','SUM('+Ucol+')-SUM('+Qcol+')',MONEY);
-  cmpRow('Interest','SUM('+Rcol+')','SUM('+Vcol+')','SUM('+Vcol+')-SUM('+Rcol+')',MONEY2);
-  cmpRow('Overdue invoices','COUNTIF('+Qcol+',">0")','COUNTIF('+Ucol+',">0")','COUNTIF('+Ucol+',">0")-COUNTIF('+Qcol+',">0")',DAYS);
-
-  var bvHead=tr+1;
-  sSection(bvHead,'BY VENDOR   (as of Reference date)');
-  var hr=bvHead+1;
-  ['Vendor','Value','Outstanding','Overdue','Interest','Overdue (Compare)'].forEach(function(h,i){ var c=sum.getCell(colL(i)+hr); c.value=h; c.font={name:'Calibri',size:10,bold:true,color:{argb:WHITE}}; c.fill=solid(INK); c.alignment={horizontal:i?'right':'left',vertical:'middle'}; });
+  // unique vendors (alphabetical) + FX months present in the data
   var vendors=[]; RAW.forEach(function(r){ if(vendors.indexOf(r.v)===-1) vendors.push(r.v); });
-  var vr=hr+1;
+  vendors.sort(function(a,b){ return String(a).localeCompare(String(b)); });
+  var fxset={}; try{ Object.keys(FX_BASE).forEach(function(m){ fxset[m]=1; }); }catch(e){}
+  RAW.forEach(function(r){ [r.bl,r.due,r.pd].forEach(function(d){ if(d){ var p=parseD(d); if(p) fxset[ym(p)]=1; } }); });
+  var fxMonths=Object.keys(fxset).sort();
+  var FX0=5, FXN=FX0+Math.max(1,fxMonths.length)-1;  // FX data rows 5..FXN ; fallback = row FXN
+
+  /* ================= DASHBOARD ================= */
+  var dash = wb.addWorksheet('Dashboard', {views:[{showGridLines:false}]});
+  [39,14,14,14,14,14,14,14].forEach(function(w,i){ dash.getColumn(i+1).width=w; });
+  var CAL='Calculations!';
+  var Tcol=CAL+'$T$'+D0+':$T$'+DN, Ucol=CAL+'$U$'+D0+':$U$'+DN, Vcol=CAL+'$V$'+D0+':$V$'+DN,
+      Wcol=CAL+'$W$'+D0+':$W$'+DN, Pcol=CAL+'$P$'+D0+':$P$'+DN, Acol=CAL+'$A$'+D0+':$A$'+DN;
+
+  dash.mergeCells('A1:H1'); var dt1=dash.getCell('A1'); dt1.value='Vendor Payments — Dashboard'; dt1.font={name:'Georgia',size:20,bold:true,color:{argb:GOLD}}; dt1.fill=solid(INK); dt1.alignment={vertical:'middle',horizontal:'left',indent:1}; dash.getRow(1).height=30;
+  dash.mergeCells('A2:H2'); var dt2=dash.getCell('A2'); dt2.value='Set the credit period, interest rate, and currency on the Params tab — everything below updates automatically.'; dt2.font={name:'Calibri',size:10,italic:true,color:{argb:SLATESOFT}}; dt2.fill=solid(INK2); dt2.alignment={vertical:'middle',horizontal:'left',indent:1};
+  var km=dash.getCell('A4'); km.value='Key Metrics (in the currency selected on Params)'; km.font={name:'Calibri',size:11,bold:true,color:{argb:INK}};
+
+  function tile(c0,rL,rV,rS,label,formula,fmt,fill,sub){
+    dash.mergeCells(colL(c0)+rL+':'+colL(c0+1)+rL); dash.mergeCells(colL(c0)+rV+':'+colL(c0+1)+rV); dash.mergeCells(colL(c0)+rS+':'+colL(c0+1)+rS);
+    var lc=dash.getCell(colL(c0)+rL); lc.value=label; lc.font={name:'Calibri',size:9.5,bold:true,color:{argb:WHITE}}; lc.fill=solid(fill); lc.alignment={vertical:'middle',horizontal:'left',indent:1};
+    var vc=dash.getCell(colL(c0)+rV); vc.value={formula:formula}; if(fmt) vc.numFmt=fmt; vc.font={name:'Georgia',size:16,bold:true,color:{argb:fill}}; vc.fill=solid(WHITE); vc.alignment={vertical:'middle',horizontal:'left',indent:1}; vc.border={left:{style:'medium',color:{argb:fill}},bottom:{style:'thin',color:{argb:LINE}},right:{style:'thin',color:{argb:LINE}}};
+    var sc=dash.getCell(colL(c0)+rS); sc.value=sub; sc.font={name:'Calibri',size:8.5,color:{argb:SLATESOFT}}; sc.alignment={vertical:'top',horizontal:'left',indent:1,wrapText:true};
+  }
+  dash.getRow(6).height=24; dash.getRow(7).height=22; dash.getRow(10).height=24; dash.getRow(11).height=22;
+  tile(0,5,6,7,'TOTAL PAYABLE','SUM('+Tcol+')',MONEY2,INK,'All '+n+' invoices, all vendors');
+  tile(2,5,6,7,'OUTSTANDING','SUM('+Ucol+')',MONEY2,SLATE,'Still owed — due + not yet due');
+  tile(4,5,6,7,'OVERDUE AMOUNT','SUM('+Vcol+')',MONEY2,RUST,'Unpaid balance past the effective due date');
+  tile(6,5,6,7,'INTEREST — PAID LATE','SUMIF('+Pcol+',"Paid late",'+Wcol+')',MONEY2,AMBER,'Already incurred, on settled invoices');
+  tile(0,9,10,11,'INTEREST — ACCRUING NOW','SUMIF('+Pcol+',"Overdue",'+Wcol+')+SUMIF('+Pcol+',"Verify",'+Wcol+')',MONEY2,RUST,'On unpaid overdue balances, as of the reference date');
+  tile(2,9,10,11,'SETTLED INVOICES','COUNTIF('+Pcol+',"Paid late")+COUNTIF('+Pcol+',"Settled on time")',MONEY0,GREEN,'out of '+n+' total');
+  tile(4,9,10,11,'NEEDS VERIFICATION','COUNTIF('+Pcol+',"Verify")',MONEY0,AMBER,'Marked paid but a balance is still open');
+  tile(6,9,10,11,'OVERDUE INVOICE COUNT','COUNTIF('+Pcol+',"Overdue")+COUNTIF('+Pcol+',"Verify")',MONEY0,RUST,'Currently past the effective due date');
+
+  var vh=dash.getCell('A15'); vh.value='Overdue Exposure by Vendor'; vh.font={name:'Calibri',size:12,bold:true,color:{argb:INK}};
+  ['Vendor','Total Value','Outstanding','Overdue Amount','Interest','Invoices','Settled','Needs Verification'].forEach(function(h,i){ var c=dash.getCell(colL(i)+'16'); c.value=h; c.font={name:'Calibri',size:9.5,bold:true,color:{argb:WHITE}}; c.fill=solid(INK); c.alignment={vertical:'middle',horizontal:(i?'right':'left'),wrapText:true}; c.border=bdrAll(LINE); });
+  var vr0=17;
   vendors.forEach(function(vn,ix){
-    var band=(ix%2===1), vc='A'+vr;
-    var nc=sum.getCell(vc); nc.value=vn; nc.font={name:'Calibri',size:10}; nc.alignment={vertical:'middle'};
-    sum.getCell('B'+vr).value={formula:'SUMIF('+Acol+','+vc+','+Icol+')'};
-    sum.getCell('C'+vr).value={formula:'SUMIF('+Acol+','+vc+','+Ocol+')'};
-    sum.getCell('D'+vr).value={formula:'SUMIF('+Acol+','+vc+','+Qcol+')'};
-    sum.getCell('E'+vr).value={formula:'SUMIF('+Acol+','+vc+','+Rcol+')'};
-    sum.getCell('F'+vr).value={formula:'SUMIF('+Acol+','+vc+','+Ucol+')'};
-    ['B','C','D','F'].forEach(function(cl){ sum.getCell(cl+vr).numFmt=MONEY; });
-    sum.getCell('E'+vr).numFmt=MONEY2;
-    for(var cc=0;cc<6;cc++){ var cell=sum.getCell(colL(cc)+vr); cell.alignment={horizontal:cc?'right':'left',vertical:'middle'}; if(!cell.font) cell.font={name:'Calibri',size:10}; if(band) cell.fill=solid(BAND); }
-    vr++;
+    var r=vr0+ix, band=(ix%2===1), aRef=colL(0)+r;
+    var nc=dash.getCell('A'+r); nc.value=vn; nc.font={name:'Calibri',size:9.5,color:{argb:INK}}; nc.alignment={vertical:'middle',wrapText:true};
+    dash.getCell('B'+r).value={formula:'SUMIF('+Acol+','+aRef+','+Tcol+')'};
+    dash.getCell('C'+r).value={formula:'SUMIF('+Acol+','+aRef+','+Ucol+')'};
+    dash.getCell('D'+r).value={formula:'SUMIF('+Acol+','+aRef+','+Vcol+')'};
+    dash.getCell('E'+r).value={formula:'SUMIF('+Acol+','+aRef+','+Wcol+')'};
+    dash.getCell('F'+r).value={formula:'COUNTIF('+Acol+','+aRef+')'};
+    dash.getCell('G'+r).value={formula:'SUMPRODUCT(('+Acol+'='+aRef+')*(('+Pcol+'="Paid late")+('+Pcol+'="Settled on time")))'};
+    dash.getCell('H'+r).value={formula:'SUMPRODUCT(('+Acol+'='+aRef+')*('+Pcol+'="Verify"))'};
+    ['B','C','D'].forEach(function(cl){ dash.getCell(cl+r).numFmt=MONEY0; });
+    dash.getCell('E'+r).numFmt=MONEY2;
+    for(var cc=0;cc<8;cc++){ var cell=dash.getCell(colL(cc)+r); if(cc>0){ cell.font={name:'Calibri',size:9.5,color:{argb:(cc===3?RUST:INK)}}; cell.alignment={horizontal:'right',vertical:'middle'}; } if(band) cell.fill=solid(BAND); cell.border={bottom:{style:'hair',color:{argb:LINE}}}; }
   });
-  if(vendors.length){
-    var v0=hr+1, v1=vr-1;                            // native in-cell data bars = a live bar chart per column
-    sum.addConditionalFormatting({ ref:'B'+v0+':B'+v1, rules:[{type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:BARINK}}] });
-    sum.addConditionalFormatting({ ref:'C'+v0+':C'+v1, rules:[{type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:BARSLATE}}] });
-    sum.addConditionalFormatting({ ref:'D'+v0+':D'+v1, rules:[{type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:RUST}},{type:'cellIs',operator:'greaterThan',formulae:['0'],priority:1,style:{font:{color:{argb:RUST},bold:true}}}] });
-    sum.addConditionalFormatting({ ref:'E'+v0+':E'+v1, rules:[{type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:AMBER}}] });
-    sum.addConditionalFormatting({ ref:'F'+v0+':F'+v1, rules:[{type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:RUST}}] });
+  var totR=vr0+vendors.length;
+  var tc=dash.getCell('A'+totR); tc.value='TOTAL'; tc.font={name:'Calibri',size:10,bold:true,color:{argb:INK}}; tc.border={top:{style:'thin',color:{argb:INK}}};
+  ['B','C','D','E','F','G','H'].forEach(function(cl){ var c=dash.getCell(cl+totR); c.value={formula:'SUM('+cl+vr0+':'+cl+(totR-1)+')'}; c.numFmt=(cl==='E'?MONEY2:((cl==='F'||cl==='G'||cl==='H')?GEN:MONEY0)); c.font={name:'Calibri',size:10,bold:true,color:{argb:INK}}; c.alignment={horizontal:'right'}; c.border={top:{style:'thin',color:{argb:INK}}}; });
+  if(vendors.length){ dash.addConditionalFormatting({ ref:'D'+vr0+':D'+(totR-1), rules:[{type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:RUST}}] }); }
+
+  /* ================= PARAMS ================= */
+  var pr=wb.addWorksheet('Params');
+  [33,15,70].forEach(function(w,i){ pr.getColumn(i+1).width=w; });
+  pr.mergeCells('A1:C1'); var pt=pr.getCell('A1'); pt.value='Vendor Payments — Parameters'; pt.font={name:'Georgia',size:15,bold:true,color:{argb:GOLD}}; pt.fill=solid(INK); pt.alignment={vertical:'middle',horizontal:'left',indent:1}; pr.getRow(1).height=26;
+  pr.mergeCells('A2:C2'); var pn=pr.getCell('A2'); pn.value='Change the yellow cells — every other sheet recalculates automatically. Nothing here alters the Raw Data tab.'; pn.font={name:'Calibri',size:10,italic:true,color:{argb:SLATE}}; pn.alignment={vertical:'middle',horizontal:'left',indent:1};
+  ['Parameter','Value','Notes'].forEach(function(h,i){ headCell(pr, colL(i)+'4', h); });
+  function paramRow(r,label,value,fmt,note){
+    var a=pr.getCell('A'+r); a.value=label; a.font={name:'Calibri',size:11,color:{argb:INK}}; a.alignment={vertical:'middle',wrapText:true};
+    var b=pr.getCell('B'+r); if(value!==null&&value!==undefined) b.value=value; if(fmt) b.numFmt=fmt; b.font={name:'Calibri',size:11,bold:true,color:{argb:INK}}; b.alignment={vertical:'middle',horizontal:'center'}; b.fill=solid(PARAM); b.border=bdrAll(GOLD);
+    var c=pr.getCell('C'+r); c.value=note; c.font={name:'Calibri',size:9.5,color:{argb:SLATE}}; c.alignment={vertical:'middle',wrapText:true};
   }
-  [36,17,16,15,15,18].forEach(function(w,i){ sum.getColumn(i+1).width=w; });
-  sum.views=[{state:'frozen', ySplit:2}];
+  paramRow(5,'Credit period override (days from BL date)',(creditOverride!=null?creditOverride:null),'0','Presets: 30, 60, 90, or 120. Leave BLANK to use each invoice\u2019s own due date from the sheet.');
+  paramRow(6,'Interest rate (%/day)',rate,RATEF,'\u2248 '+(rate*365).toFixed(1)+'%/yr. Applied only to days past the due date (or the credit override above).');
+  paramRow(7,'Display currency',currency,null,'USD or INR. INR converts per invoice using the monthly-average USD\u2192INR rate for its effective due-date month (FX Rates tab).');
+  paramRow(8,'Reference date (today)',null,DT,'Used to compute overdue days for any invoice still unpaid.');
+  var b8=pr.getCell('B8'); if(refIsToday){ b8.value={formula:'TODAY()'}; } else { b8.value=serial(refDate); } b8.numFmt=DT;
+  var qp=pr.getCell('A10'); qp.value='Quick presets for the credit period (type into B5 above):'; qp.font={name:'Calibri',size:10,bold:true,color:{argb:INK}};
+  ['  \u2022  30 days','  \u2022  60 days','  \u2022  90 days','  \u2022  120 days','  \u2022  (blank)  \u2192  use each invoice\u2019s own due date, exactly as on the sheet'].forEach(function(t,i){ var c=pr.getCell('A'+(11+i)); c.value=t; c.font={name:'Calibri',size:10,color:{argb:SLATE}}; });
 
-  /* ---------------- DETAIL ---------------- */
-  var det = wb.addWorksheet('Detail', {views:[{state:'frozen', ySplit:1}]});
-  var dHead=['Vendor','PO No','Invoice','Item','BL No','BL Date','Credit Days','Due Date','Amount (USD)','Status','Payment Date','Outstanding (sheet)',
-             'Effective Due','Settled? (Ref)','Outstanding (Ref)','Overdue Days (Ref)','Overdue Amt (Ref)','Interest (Ref)','State (Ref)',
-             'Settled? (Cmp)','Overdue Amt (Cmp)','Interest (Cmp)','Δ Overdue (Cmp-Ref)','Change'];
-  var W=[30,12,22,15,13,12,8,12,14,9,13,15,12,12,14,12,14,13,17,12,15,13,15,15];
-  dHead.forEach(function(h,ci){ var c=det.getCell(colL(ci)+'1'); c.value=h; c.font={name:'Calibri',size:10,bold:true,color:{argb:WHITE}}; c.fill=solid(INK); c.alignment={vertical:'middle',horizontal:'center',wrapText:true}; c.border=bdr(LINE); });
-  det.getRow(1).height=30;
-  W.forEach(function(w,i){ det.getColumn(i+1).width=w; });
+  /* ================= FX RATES ================= */
+  var fx=wb.addWorksheet('FX Rates');
+  [15,15,55].forEach(function(w,i){ fx.getColumn(i+1).width=w; });
+  fx.mergeCells('A1:C1'); var ft=fx.getCell('A1'); ft.value='FX Rates — USD \u2192 INR (monthly average)'; ft.font={name:'Georgia',size:14,bold:true,color:{argb:GOLD}}; ft.fill=solid(INK); ft.alignment={vertical:'middle',horizontal:'left',indent:1}; fx.getRow(1).height=24;
+  fx.mergeCells('A2:C2'); var fnn=fx.getCell('A2'); fnn.value='Each invoice uses the rate for its own effective due-date month; anything after the last month below falls back to that last rate.'; fnn.font={name:'Calibri',size:10,italic:true,color:{argb:SLATE}}; fnn.alignment={vertical:'middle',horizontal:'left',indent:1};
+  ['Month (YYYY-MM)','USD\u2192INR rate','Notes'].forEach(function(h,i){ headCell(fx, colL(i)+'4', h); });
+  (fxMonths.length?fxMonths:['2026-01']).forEach(function(m,i){
+    var r=FX0+i; var a=fx.getCell('A'+r); a.value=m; a.font={name:'Calibri',size:10.5,color:{argb:INK}};
+    var b=fx.getCell('B'+r); b.value=(typeof fxRate==='function'?fxRate(m):95.57); b.numFmt=RATEF; b.font={name:'Calibri',size:10.5,color:{argb:INK}}; b.alignment={horizontal:'center'};
+    if(i===(fxMonths.length?fxMonths.length:1)-1){ var c=fx.getCell('C'+r); c.value='Fallback rate for any month after this one'; c.font={name:'Calibri',size:9.5,italic:true,color:{argb:SLATE}}; }
+  });
 
-  function dset(rr,c0,val,fmt,isF,align,band){ var cell=det.getCell(colL(c0)+rr); if(isF) cell.value={formula:val}; else if(val!==null&&val!==undefined) cell.value=val; if(fmt) cell.numFmt=fmt; cell.font={name:'Calibri',size:10}; cell.alignment={vertical:'middle',horizontal:align||'left'}; if(band) cell.fill=solid(BAND); cell.border={bottom:{style:'hair',color:{argb:LINE}}}; }
-
+  /* ================= RAW DATA ================= */
+  var rd=wb.addWorksheet('Raw Data', {views:[{state:'frozen', ySplit:2}]});
+  [39,16,15,12,10,12,14,10,12,14].forEach(function(w,i){ rd.getColumn(i+1).width=w; });
+  rd.mergeCells('A1:J1'); var rt=rd.getCell('A1'); rt.value='Raw Data — source invoices (original sheet values)'; rt.font={name:'Georgia',size:13,bold:true,color:{argb:GOLD}}; rt.fill=solid(INK); rt.alignment={vertical:'middle',horizontal:'left',indent:1};
+  ['Vendor','Invoice','Item','BL Date','Sheet Credit Days','Sheet Due Date','Amount (USD)','Status','Payment Date','Outstanding (USD)'].forEach(function(h,i){ var c=headCell(rd, colL(i)+'2', h); c.alignment={vertical:'middle',horizontal:(i>=4?'right':'left'),wrapText:true}; });
+  rd.getRow(2).height=26;
   for(var i=0;i<n;i++){
-    var r=RAW[i], rr=i+2, band=(i%2===1);
-    var bl=parseD(r.bl), due=parseD(r.due), pd=parseD(r.pd);
-    dset(rr,0,String(r.v||''),null,false,'left',band);
-    dset(rr,1,String(r.po||''),null,false,'left',band);
-    dset(rr,2,String(r.inv||''),null,false,'left',band);
-    dset(rr,3,String(r.it||''),null,false,'left',band);
-    dset(rr,4,String(r.blno||''),null,false,'left',band);
-    dset(rr,5,serial(bl),DT,false,'center',band);
-    dset(rr,6,Number(r.cd)||0,DAYS,false,'center',band);
-    dset(rr,7,serial(due),DT,false,'center',band);
-    dset(rr,8,Number(r.amt)||0,MONEY,false,'right',band);
-    dset(rr,9,String(r.st||''),null,false,'center',band);
-    dset(rr,10,serial(pd),DT,false,'center',band);      // blank when unpaid -> ISBLANK works
-    dset(rr,11,Number(r.out)||0,MONEY,false,'right',band);
-    dset(rr,12,'IF(CreditOv="",H'+rr+',F'+rr+'+CreditOv)',DT,true,'center',band);
-    dset(rr,13,'IF(AND(NOT(ISBLANK(K'+rr+')),K'+rr+'<=RefDate),"Yes",IF(AND(RefDate>=TODAY(),L'+rr+'<=0.01),"Yes","No"))',null,true,'center',band);
-    dset(rr,14,'IF(N'+rr+'="Yes",0,IF(RefDate>=TODAY(),L'+rr+',I'+rr+'))',MONEY,true,'right',band);
-    dset(rr,15,'IF(N'+rr+'="Yes",0,MAX(0,RefDate-M'+rr+'))',DAYS,true,'right',band);
-    dset(rr,16,'IF(P'+rr+'>0,O'+rr+',0)',MONEY,true,'right',band);
-    dset(rr,17,'IF(N'+rr+'="Yes",IF(K'+rr+'>M'+rr+',I'+rr+'*(RatePct/100)*(K'+rr+'-M'+rr+'),0),IF(RefDate>M'+rr+',O'+rr+'*(RatePct/100)*(RefDate-M'+rr+'),0))',MONEY2,true,'right',band);
-    dset(rr,18,'IF(N'+rr+'="Yes",IF(K'+rr+'>M'+rr+',"Settled (late)","Settled"),IF(P'+rr+'>0,IF(OR(J'+rr+'="Paid",J'+rr+'="Yes"),"Verify (marked paid)","Overdue"),"Not yet due"))',null,true,'left',band);
-    dset(rr,19,'IF(AND(NOT(ISBLANK(K'+rr+')),K'+rr+'<=CmpDate),"Yes",IF(AND(CmpDate>=TODAY(),L'+rr+'<=0.01),"Yes","No"))',null,true,'center',band);
-    dset(rr,20,'IF(AND(T'+rr+'="No",CmpDate>M'+rr+'),IF(CmpDate>=TODAY(),L'+rr+',I'+rr+'),0)',MONEY,true,'right',band);
-    dset(rr,21,'IF(T'+rr+'="Yes",IF(K'+rr+'>M'+rr+',I'+rr+'*(RatePct/100)*(K'+rr+'-M'+rr+'),0),IF(CmpDate>M'+rr+',IF(CmpDate>=TODAY(),L'+rr+',I'+rr+')*(RatePct/100)*(CmpDate-M'+rr+'),0))',MONEY2,true,'right',band);
-    dset(rr,22,'U'+rr+'-Q'+rr,MONEY,true,'right',band);
-    dset(rr,23,'IF(AND(N'+rr+'="No",T'+rr+'="Yes"),"Paid since ref",IF(AND(Q'+rr+'=0,U'+rr+'>0),"Newly overdue",IF(U'+rr+'>Q'+rr+',"More overdue",IF(AND(Q'+rr+'>0,U'+rr+'=0),"Cleared","No change"))))',null,true,'left',band);
+    var r=RAW[i], row=D0+i, band=(i%2===1);
+    (function(r,row,band){
+      function rcell(c0,val,fmt,align){ var cell=rd.getCell(colL(c0)+row); if(val!==null&&val!==undefined&&val!=='') cell.value=val; if(fmt) cell.numFmt=fmt; cell.font={name:'Calibri',size:10,color:{argb:INK}}; cell.alignment={vertical:'middle',horizontal:align||'left'}; if(band) cell.fill=solid(BAND); cell.border={bottom:{style:'hair',color:{argb:LINE}}}; }
+      rcell(0,String(r.v||''),null,'left'); rcell(1,String(r.inv||''),null,'left'); rcell(2,String(r.it||''),null,'left');
+      rcell(3,serial(parseD(r.bl)),DT,'right'); rcell(4,Number(r.cd)||0,'0','right'); rcell(5,serial(parseD(r.due)),DT,'right');
+      rcell(6,Number(r.amt)||0,MONEY2,'right'); rcell(7,String(r.st||''),null,'left'); rcell(8,serial(parseD(r.pd)),DT,'right'); rcell(9,Number(r.out)||0,MONEY2,'right');
+    })(r,row,band);
   }
-  det.autoFilter = 'A1:'+colL(23)+'1';
+  rd.autoFilter='A2:'+colL(9)+'2';
 
-  // colour coding via conditional formatting (updates live as the parameters change)
-  if(n>0){
-    det.addConditionalFormatting({ ref:'S2:S'+last, rules:[
-      {type:'containsText',operator:'containsText',text:'Overdue',priority:1,style:{font:{color:{argb:RUST},bold:true},fill:{type:'pattern',pattern:'solid',bgColor:{argb:RUSTSOFT}}}},
-      {type:'containsText',operator:'containsText',text:'Verify',priority:2,style:{font:{color:{argb:AMBER},bold:true},fill:{type:'pattern',pattern:'solid',bgColor:{argb:AMBERSOFT}}}},
-      {type:'containsText',operator:'containsText',text:'Not yet due',priority:3,style:{font:{color:{argb:SLATE}},fill:{type:'pattern',pattern:'solid',bgColor:{argb:GRAY}}}},
-      {type:'containsText',operator:'containsText',text:'Settled',priority:4,style:{font:{color:{argb:GREEN}},fill:{type:'pattern',pattern:'solid',bgColor:{argb:GREENSOFT}}}}
-    ]});
-    det.addConditionalFormatting({ ref:'I2:I'+last, rules:[{type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:BARINK}}] });
-    det.addConditionalFormatting({ ref:'Q2:Q'+last, rules:[
-      {type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:RUST}},
-      {type:'cellIs',operator:'greaterThan',formulae:['0'],priority:5,style:{font:{color:{argb:RUST},bold:true}}}
-    ]});
-    det.addConditionalFormatting({ ref:'R2:R'+last, rules:[{type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:AMBER}}] });
-    det.addConditionalFormatting({ ref:'X2:X'+last, rules:[
-      {type:'containsText',operator:'containsText',text:'overdue',priority:6,style:{font:{color:{argb:RUST},bold:true}}},
-      {type:'containsText',operator:'containsText',text:'Paid since',priority:7,style:{font:{color:{argb:GREEN},bold:true}}},
-      {type:'containsText',operator:'containsText',text:'Cleared',priority:8,style:{font:{color:{argb:GREEN}}}}
-    ]});
+  /* ================= CALCULATIONS ================= */
+  var ca=wb.addWorksheet('Calculations', {views:[{state:'frozen', ySplit:2}]});
+  [39,15,15,11,11,12,9,11,12,12,8,9,9,13,11,13,9,8,8,13,14,14,13].forEach(function(w,i){ ca.getColumn(i+1).width=w; });
+  ca.mergeCells('A1:W1'); var ct=ca.getCell('A1'); ct.value='Calculations — one row per invoice, driven entirely by formulas from Params + Raw Data'; ct.font={name:'Georgia',size:13,bold:true,color:{argb:GOLD}}; ct.fill=solid(INK); ct.alignment={vertical:'middle',horizontal:'left',indent:1};
+  var cHead=['Vendor','Invoice','Item','BL Date','Sheet Due Date','Amount (USD)','Status','Payment Date','Outstanding (USD)','Effective Due Date','Settled?','Overdue Days','Late Days (paid late)','Overdue Amount (USD)','Interest (USD)','Bucket','Needs Verification?','FX Month','FX Rate','Amount (display ccy)','Outstanding (display ccy)','Overdue Amt (display ccy)','Interest (display ccy)'];
+  cHead.forEach(function(h,i){ var c=headCell(ca, colL(i)+'2', h); c.alignment={vertical:'middle',horizontal:'center',wrapText:true}; });
+  ca.getRow(2).height=30;
+  var FXb="'FX Rates'!$B$"+FX0+":$B$"+FXN, FXa="'FX Rates'!$A$"+FX0+":$A$"+FXN, FXfb="'FX Rates'!$B$"+FXN;
+  for(var i2=0;i2<n;i2++){
+    var row2=D0+i2, band2=(i2%2===1);
+    (function(R,band){
+      function fcell(c0,formula,fmt,align){ var cell=ca.getCell(colL(c0)+R); cell.value={formula:formula}; if(fmt) cell.numFmt=fmt; cell.font={name:'Calibri',size:10,color:{argb:INK}}; cell.alignment={vertical:'middle',horizontal:align||'left'}; if(band) cell.fill=solid(BAND); cell.border={bottom:{style:'hair',color:{argb:LINE}}}; }
+      fcell(0,"'Raw Data'!A"+R,null,'left'); fcell(1,"'Raw Data'!B"+R,null,'left'); fcell(2,"'Raw Data'!C"+R,null,'left');
+      fcell(3,"'Raw Data'!D"+R,DT,'right'); fcell(4,"'Raw Data'!F"+R,DT,'right'); fcell(5,"'Raw Data'!G"+R,MONEY2,'right');
+      fcell(6,"'Raw Data'!H"+R,null,'left'); fcell(7,"'Raw Data'!I"+R,DT,'right'); fcell(8,"'Raw Data'!J"+R,MONEY2,'right');
+      fcell(9,'IF(Params!$B$5="",E'+R+',D'+R+'+Params!$B$5)',DT,'right');
+      fcell(10,'(I'+R+'<=0.01)',null,'center');
+      fcell(11,'IF(AND(NOT(K'+R+'),Params!$B$8>J'+R+'),Params!$B$8-J'+R+',0)','0','right');
+      fcell(12,'IF(AND(K'+R+',H'+R+'<>"",H'+R+'>J'+R+'),H'+R+'-J'+R+',0)','0','right');
+      fcell(13,'IF(AND(NOT(K'+R+'),L'+R+'>0),I'+R+',0)',MONEY2,'right');
+      fcell(14,'IF(K'+R+',F'+R+'*Params!$B$6/100*M'+R+',IF(L'+R+'>0,I'+R+'*Params!$B$6/100*L'+R+',0))',MONEY2,'right');
+      fcell(15,'IF(K'+R+',IF(M'+R+'>0,"Paid late","Settled on time"),IF(L'+R+'>0,IF(OR(G'+R+'="Paid",G'+R+'="Yes"),"Verify","Overdue"),"Not yet due"))',null,'left');
+      fcell(16,'(P'+R+'="Verify")',null,'center');
+      fcell(17,'TEXT(J'+R+',"yyyy-mm")',null,'center');
+      fcell(18,'IFERROR(INDEX('+FXb+',MATCH(R'+R+','+FXa+',0)),'+FXfb+')',RATEF,'right');
+      fcell(19,'IF(Params!$B$7="USD",F'+R+',F'+R+'*S'+R+')',MONEY2,'right');
+      fcell(20,'IF(Params!$B$7="USD",I'+R+',I'+R+'*S'+R+')',MONEY2,'right');
+      fcell(21,'IF(Params!$B$7="USD",N'+R+',N'+R+'*S'+R+')',MONEY2,'right');
+      fcell(22,'IF(Params!$B$7="USD",O'+R+',O'+R+'*S'+R+')',MONEY2,'right');
+    })(row2,band2);
   }
+  ca.autoFilter='A2:'+colL(22)+'2';
+
   return wb;
 }
 /*__BW_END__*/
-
-// Draw the two dashboard charts on a <canvas> and return raw base64 PNGs (browser only).
-function makeCharts(agg, vendors){
-  function usd(v){ v=Math.abs(v); return '$'+v.toLocaleString('en-US',{maximumFractionDigits:0}); }
-  function usdC(v){ v=Math.abs(v); if(v>=1e6) return '$'+(v/1e6).toFixed(2)+'M'; if(v>=1e3) return '$'+(v/1e3).toFixed(1)+'K'; return '$'+Math.round(v); }
-  function cv(w,h){ var c=document.createElement('canvas'); c.width=w; c.height=h; return c; }
-  function raw(c){ return c.toDataURL('image/png').split(',')[1]; }
-  // donut — Settled / Not-yet-due / Overdue
-  var dc=cv(560,430), g=dc.getContext('2d'); g.fillStyle='#FFFFFF'; g.fillRect(0,0,560,430);
-  g.fillStyle='#101B2D'; g.font='bold 22px Georgia'; g.fillText('Portfolio breakdown',22,36);
-  var segs=[['Settled',Math.max(0,agg.settledValue),'#3E7C59'],['Not yet due',Math.max(0,agg.notDueValue),'#C1791F'],['Overdue',Math.max(0,agg.totOverdue),'#B3402F']];
-  var total=segs.reduce(function(s,x){return s+x[1];},0)||1, cx=170,cy=235,rO=132,rI=76,a0=-Math.PI/2;
-  segs.forEach(function(s){ var ang=s[1]/total*Math.PI*2; if(ang<=0) return; g.beginPath(); g.moveTo(cx,cy); g.arc(cx,cy,rO,a0,a0+ang); g.closePath(); g.fillStyle=s[2]; g.fill(); a0+=ang; });
-  g.beginPath(); g.arc(cx,cy,rI,0,Math.PI*2); g.fillStyle='#FFFFFF'; g.fill();
-  var ly=150;
-  segs.forEach(function(s){ g.fillStyle=s[2]; g.fillRect(345,ly,18,18); g.fillStyle='#101B2D'; g.font='bold 15px Calibri'; g.fillText(s[0],370,ly+15); g.fillStyle='#5C6B7A'; g.font='14px Calibri'; g.fillText(usd(s[1]),370,ly+34); ly+=66; });
-  // horizontal bar — overdue by vendor (top 8)
-  var top=vendors.filter(function(v){return v.overdue>0;}).slice(0,8);
-  var bc=cv(560,430), b=bc.getContext('2d'); b.fillStyle='#FFFFFF'; b.fillRect(0,0,560,430);
-  b.fillStyle='#101B2D'; b.font='bold 22px Georgia'; b.fillText('Overdue exposure by vendor',22,36);
-  if(!top.length){ b.fillStyle='#3E7C59'; b.font='16px Calibri'; b.fillText('No overdue balances under these parameters.',22,120); return {donut:raw(dc),bars:raw(bc)}; }
-  var maxV=top[0].overdue||1, x0=210, bw=290, y=66, bh=Math.min(32,(346/top.length)-8);
-  top.forEach(function(v){ var w=Math.max(2,v.overdue/maxV*bw); b.font='12px Calibri'; b.textAlign='right'; b.fillStyle='#101B2D'; var nm=v.name.length>28?v.name.slice(0,27)+'…':v.name; b.fillText(nm,200,y+bh/2+4); b.textAlign='left'; b.fillStyle='#B3402F'; b.fillRect(x0,y,w,bh); b.fillStyle='#5C6B7A'; b.fillText(usdC(v.overdue),x0+w+6,y+bh/2+4); y+=bh+10; });
-  return {donut:raw(dc),bars:raw(bc)};
-}
 
 document.getElementById('exportXlsxBtn').addEventListener('click',async function(){
   if(typeof ExcelJS==='undefined'){ alert('Excel library is still loading — please try again in a moment.'); return; }
   var btn=document.getElementById('exportXlsxBtn'), label=btn.textContent;
   try{
     btn.textContent='⏳ Building…'; btn.disabled=true;
-    var DATA = activeRows();
     var ref = (asOfDate && (viewMode==='asof'||viewMode==='compare')) ? asOfDate : today;
-    var computed = DATA.map(function(r){ return computeRow(r, ref); });
-    var agg = aggregate(DATA, computed);
-    var groups = groupByVendor(DATA), vendors=[];
-    groups.forEach(function(idxs,vn){ var value=0,outstanding=0,overdue=0,interest=0; idxs.forEach(function(i){ var c=computed[i]; value+=Number(DATA[i].amt)||0; outstanding+=c.outstanding; overdue+=c.overdueAmt; interest+=c.interest; }); vendors.push({name:vn,value:value,outstanding:outstanding,overdue:overdue,interest:interest}); });
-    vendors.sort(function(a,b){ return b.overdue-a.overdue || b.outstanding-a.outstanding; });
-    var images=null; try{ images=makeCharts(agg,vendors); }catch(e){ images=null; }
-    var wb = buildWorkbook(DATA, {rate:rate, creditOverride:creditOverride, refDate:ref, cmpDate:today, ExcelJS:ExcelJS, images:images});
+    var wb = buildWorkbook(activeRows(), {rate:rate, creditOverride:creditOverride, currency:currency, refDate:ref, ExcelJS:ExcelJS});
     var buf = await wb.xlsx.writeBuffer();
     var blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     var url = URL.createObjectURL(blob), a = document.createElement('a');
-    a.href=url; a.download='Vendor-Payments-Model-'+fmtDate(today).replace(/\s/g,'-')+'.xlsx';
+    a.href=url; a.download='Vendor-Payments-'+fmtDate(today).replace(/\s/g,'-')+'.xlsx';
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); },1500);
   }catch(err){ alert('Could not build the Excel file: '+(err&&err.message||err)); }
   finally{ btn.textContent=label; btn.disabled=false; }
