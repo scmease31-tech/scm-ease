@@ -128,6 +128,46 @@ input.date-edit{width:112px;}
 .flag-note{font-size:9.5px;color:var(--amber);font-style:italic;}
 .fx-note{font-size:9.5px;color:var(--slate-soft);}
 
+/* as-of date input (sits in the dark param bar) */
+.asof-box input[type=date]{background:transparent;border:none;border-bottom:1px solid var(--gold);color:#F4EFE2;font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:2px 2px 3px;}
+.asof-box input[type=date]:focus{outline:none;border-bottom-color:#F4EFE2;}
+.asof-box input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.85);cursor:pointer;}
+
+/* mode banner */
+.mode-banner{background:linear-gradient(90deg,rgba(201,162,75,0.16),rgba(201,162,75,0.04));border:1px solid var(--gold);border-left:4px solid var(--gold);border-radius:9px;padding:11px 16px;margin-bottom:14px;font-size:12.5px;color:var(--ink);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.mode-banner b{font-family:'IBM Plex Mono',monospace;}
+.mode-banner .mb-ico{font-size:15px;}
+.mode-banner.warn{background:rgba(179,64,47,0.06);border-color:var(--rust);border-left-color:var(--rust);color:var(--rust);}
+
+/* compare: two situation cards side by side */
+.sit-wrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:8px;}
+.sit-card{background:var(--paper-card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;}
+.sit-card.now{border-color:var(--ink);}
+.sit-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.sit-tag{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:var(--slate);padding:3px 9px;border-radius:20px;}
+.sit-card.now .sit-tag{background:var(--ink);}
+.sit-card.then .sit-tag{background:var(--amber);}
+.sit-date{font-family:'Fraunces',serif;font-size:16px;font-weight:600;}
+.sit-body{display:flex;align-items:center;gap:14px;}
+.sit-donut{flex:none;}
+.sit-legend{font-size:11.5px;}
+.sit-legend .li{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+.sit-legend .sw{width:10px;height:10px;border-radius:3px;flex:none;}
+.sit-legend b{font-family:'IBM Plex Mono',monospace;}
+.sit-foot{display:flex;justify-content:space-between;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--slate);}
+
+/* delta chips + compare KPIs */
+.dtag{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;white-space:nowrap;}
+.dtag.up{background:var(--rust-soft);color:var(--rust);}
+.dtag.down{background:var(--green-soft);color:var(--green);}
+.dtag.flat{background:#EAEAEA;color:var(--slate);}
+.kpi .k-cmp{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:2px;}
+.kpi .k-then{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--slate-soft);}
+.kpi .k-arrow{color:var(--slate-soft);font-size:11px;}
+.kpi .k-now{font-family:'Fraunces',serif;font-size:18px;font-weight:600;color:var(--ink);}
+
+@media (max-width:900px){ .sit-wrap{grid-template-columns:1fr;} }
+
 /* FX manager modal */
 .fx-overlay{position:fixed;inset:0;background:rgba(16,27,45,0.55);display:none;align-items:flex-start;justify-content:center;z-index:9999;padding:40px 16px;overflow:auto;}
 .fx-overlay.show{display:flex;}
@@ -199,6 +239,7 @@ input.date-edit{width:112px;}
 </div>
 
 <div class="wrap">
+  <div class="mode-banner" id="modeBanner" style="display:none"></div>
   <div class="summary-grid" id="summaryGrid"></div>
   <div class="kpis" id="kpiRow"></div>
 
@@ -263,6 +304,10 @@ try{ fxFetched  = JSON.parse(localStorage.getItem('vpFxFetched') ||'{}')||{}; }c
 function saveFx(){ try{ localStorage.setItem('vpFxOverride',JSON.stringify(fxOverride)); localStorage.setItem('vpFxFetched',JSON.stringify(fxFetched)); }catch(e){} }
 
 let rate = 0.0164, creditOverride = null, currency = 'USD', openVendor = null;
+let asOfDate = null;          // Date object for the "time machine" reference day (null = today)
+let viewMode = 'today';       // 'today' | 'asof' | 'compare'
+let currentComputed = null;   // computed set currently shown in the ledger (for search/filter re-render)
+let currentRows = null;
 const today = new Date(); today.setHours(0,0,0,0);
 
 function fmtDate(d){ return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
@@ -294,30 +339,100 @@ function fullMoney(n, refDate){ const v=conv(n,refDate||today), sym=currency==='
 
 document.getElementById('todayLabel').textContent = fmtDate(today);
 
-function computeRow(r){
+// computeRow(r, asOf): the payment situation for invoice r AS OF a reference date.
+//  - asOf omitted / === today  → live view (identical to the original behaviour).
+//  - asOf a past date          → reconstruct that day: an invoice counts as settled
+//    only if it has a payment date on/before asOf; otherwise its FULL amount was still
+//    outstanding on that day, and overdue/interest are measured against asOf.
+function computeRow(r, asOf){
+  asOf = asOf || today;
+  const isToday = asOf.getTime() >= today.getTime();
   const bl = parseD(r.bl); let due = parseD(r.due); const pd = parseD(r.pd);
-  const out = Number(r.out)||0, amt = Number(r.amt)||0, settled = out <= 0.01;
+  const rawOut = Number(r.out)||0, amt = Number(r.amt)||0;
   let effDue = due;
   if(creditOverride!==null && bl){ effDue = new Date(bl.getTime()); effDue.setDate(effDue.getDate()+creditOverride); }
+
+  // Was it settled as of the reference date, and how much was still open?
+  let settled, outstanding;
+  if(isToday){
+    settled = rawOut <= 0.01;              // today: trust the sheet's outstanding balance
+    outstanding = Math.abs(rawOut);
+  } else {
+    settled = !!(pd && pd <= asOf);        // past: paid only if a payment date is on/before asOf
+    outstanding = settled ? 0 : amt;       // if not yet paid, the whole invoice was open that day
+  }
+
   let overdueDays=0, overdueAmt=0, interest=0, bucket='clear', flagged=false;
   if(settled){
     if(pd && effDue && pd > effDue){ const lateDays = daysBetween(effDue,pd); interest = amt*(rate/100)*lateDays; bucket='paid_late'; }
     else bucket='paid_ontime';
   } else {
-    overdueDays = effDue ? Math.max(0, daysBetween(effDue, today)) : 0;
+    overdueDays = effDue ? Math.max(0, daysBetween(effDue, asOf)) : 0;
     if(overdueDays>0){
-      overdueAmt = out; interest = out*(rate/100)*overdueDays;
-      bucket = (r.st==='Paid'||r.st==='Yes') ? 'flag' : 'pending';
+      overdueAmt = outstanding; interest = outstanding*(rate/100)*overdueDays;
+      // "flag" (marked paid but balance open) is only meaningful for the live view.
+      bucket = (isToday && (r.st==='Paid'||r.st==='Yes')) ? 'flag' : 'pending';
       if(bucket==='flag') flagged=true;
     } else bucket='notdue';
   }
-  return {overdueDays, overdueAmt:Math.abs(overdueAmt), interest:Math.max(0,interest), bucket, flagged, settled, outstanding:Math.abs(out), effDue};
+  return {overdueDays, overdueAmt:Math.abs(overdueAmt), interest:Math.max(0,interest), bucket, flagged, settled, outstanding:Math.abs(outstanding), effDue};
 }
 function groupByVendor(rows){ const m=new Map(); rows.forEach((r,i)=>{ if(!m.has(r.v)) m.set(r.v,[]); m.get(r.v).push(i); }); return m; }
 function arcPath(cx,cy,r,startA,endA){
   function pt(a){ const rad=(a-90)*Math.PI/180; return [cx+r*Math.cos(rad), cy+r*Math.sin(rad)]; }
   const [x1,y1]=pt(startA), [x2,y2]=pt(endA); const large=(endA-startA)>180?1:0;
   return `M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`;
+}
+
+/* ---------- as-of / compare helpers ---------- */
+// Roll a computed set up into the headline totals used across the dashboard.
+function aggregate(rows, computed){
+  let totValue=0, totOutstanding=0, totOverdue=0, interestPaidLate=0, interestAccrued=0, overdueCount=0, flagCount=0;
+  rows.forEach((r,i)=>{
+    const c = computed[i];
+    totValue += Number(r.amt)||0; totOutstanding += c.outstanding; totOverdue += c.overdueAmt;
+    if(c.bucket==='paid_late') interestPaidLate += c.interest;
+    if(c.bucket==='pending'||c.bucket==='flag') interestAccrued += c.interest;
+    if(c.overdueAmt>0) overdueCount++;
+    if(c.flagged) flagCount++;
+  });
+  const interestTotal = interestPaidLate + interestAccrued;
+  const settledValue = totValue - totOutstanding, notDueValue = totOutstanding - totOverdue;
+  return {totValue,totOutstanding,totOverdue,interestPaidLate,interestAccrued,interestTotal,settledValue,notDueValue,overdueCount,flagCount};
+}
+// Donut SVG (Settled / Not-yet-due / Overdue) from an aggregate.
+function donutSvg(agg, px){
+  const total = agg.totValue||1, size = px||120;
+  const seg1=agg.settledValue/total*360, seg2=agg.notDueValue/total*360, seg3=agg.totOverdue/total*360;
+  let a0=0; const p1=arcPath(150,150,130,a0,a0+seg1); a0+=seg1; const p2=arcPath(150,150,130,a0,a0+seg2); a0+=seg2; const p3=arcPath(150,150,130,a0,a0+seg3);
+  return `<svg width="${size}" height="${size}" viewBox="0 0 300 300"><path d="${p1}" fill="#3E7C59"></path><path d="${p2}" fill="#C1791F"></path><path d="${p3}" fill="#B3402F"></path><circle cx="150" cy="150" r="72" fill="#FFFFFF"></circle></svg>`;
+}
+// A "situation" card for compare mode — one column per reference date.
+function situationCard(tag, dateLabel, agg){
+  const cls = /now/i.test(tag) ? 'now' : 'then';
+  return `<div class="sit-card ${cls}">
+    <div class="sit-head"><span class="sit-tag">${tag}</span><span class="sit-date">${dateLabel}</span></div>
+    <div class="sit-body">
+      <div class="sit-donut">${donutSvg(agg,116)}</div>
+      <div class="sit-legend">
+        <div class="li"><span class="sw" style="background:#B3402F"></span>Overdue <b>${money(agg.totOverdue)}</b></div>
+        <div class="li"><span class="sw" style="background:#C1791F"></span>Not yet due <b>${money(agg.notDueValue)}</b></div>
+        <div class="li"><span class="sw" style="background:#3E7C59"></span>Settled <b>${money(agg.settledValue)}</b></div>
+      </div>
+    </div>
+    <div class="sit-foot"><span>${agg.overdueCount} overdue invoice${agg.overdueCount!==1?'s':''}</span><span>Interest accruing ${agg.interestAccrued>0?money2(agg.interestAccrued):'—'}</span></div>
+  </div>`;
+}
+// A change chip: shows the movement between two values. For overdue/outstanding/interest,
+// an increase is "bad" (rust) and a decrease is "good" (green); pass goodWhenUp=true to flip.
+function deltaTag(nowV, oldV, kind, goodWhenUp){
+  const d = nowV - oldV;
+  const eps = kind==='count' ? 0.5 : 0.01;
+  if(Math.abs(d) < eps) return `<span class="dtag flat">no change</span>`;
+  const up = d>0, mag = Math.abs(d);
+  const txt = kind==='count' ? (mag+'') : (kind==='money2' ? money2(mag) : money(mag));
+  const good = goodWhenUp ? up : !up;
+  return `<span class="dtag ${good?'down':'up'}">${up?'▲':'▼'} ${txt}</span>`;
 }
 const CREDIT_PRESETS = [30,60,90,120];
 
@@ -343,39 +458,76 @@ function renderParams(){
       <button data-cur="USD" class="${currency==='USD'?'active':''}">USD $</button>
       <button data-cur="INR" class="${currency==='INR'?'active':''}">INR ₹</button>
     </div>
+    <div class="param-box asof-box">
+      <label for="asOfInput">As-of date</label>
+      <input id="asOfInput" type="date" max="${toISODate(today)}" value="${asOfDate?toISODate(asOfDate):''}">
+    </div>
+    <div class="toggle-grp" id="viewModeGrp" title="Today = live · As-of = snapshot on the chosen date · Compare = both side by side">
+      <button data-vm="today" class="${viewMode==='today'?'active':''}">Today</button>
+      <button data-vm="asof" class="${viewMode==='asof'?'active':''}">As-of</button>
+      <button data-vm="compare" class="${viewMode==='compare'?'active':''}">Compare</button>
+    </div>
     <button class="clear-btn" id="resetBtn">Reset all</button>
   `;
   document.querySelectorAll('#creditPresetGrp button').forEach(b=>b.addEventListener('click',()=>{ const v=b.dataset.cd; creditOverride = v==='' ? null : parseInt(v,10); renderAll(); }));
   document.getElementById('creditInput').addEventListener('change', e=>{ const v=e.target.value.trim(); creditOverride = v==='' ? null : Math.max(0,parseInt(v,10)); renderAll(); });
   document.getElementById('rateInput').addEventListener('change', e=>{ const v=parseFloat(e.target.value); if(!isNaN(v)&&v>=0){ rate=v; renderAll(); } });
   document.querySelectorAll('.toggle-grp button[data-cur]').forEach(b=>b.addEventListener('click',()=>{ currency=b.dataset.cur; renderAll(); }));
-  document.getElementById('resetBtn').addEventListener('click',()=>{ creditOverride=null; rate=0.0164; currency='USD'; openVendor=null; renderAll(); });
+  document.getElementById('asOfInput').addEventListener('change', e=>{
+    const v=e.target.value; asOfDate = v ? parseD(v) : null;
+    if(asOfDate && asOfDate.getTime()>=today.getTime()) asOfDate=null;   // future/today = just today
+    if(asOfDate && viewMode==='today') viewMode='asof';                  // picking a past date jumps to snapshot
+    if(!asOfDate && viewMode!=='today') viewMode='today';                // clearing the date returns to today
+    renderAll();
+  });
+  document.querySelectorAll('#viewModeGrp button').forEach(b=>b.addEventListener('click',()=>{ viewMode=b.dataset.vm; renderAll(); }));
+  document.getElementById('resetBtn').addEventListener('click',()=>{ creditOverride=null; rate=0.0164; currency='USD'; openVendor=null; asOfDate=null; viewMode='today'; renderAll(); });
 }
 
 function renderAll(){
   renderParams();
-  const rows = RAW, computed = rows.map(computeRow);
-  let totValue=0, totOutstanding=0, totOverdue=0, interestPaidLate=0, interestAccrued=0, overdueCount=0, flagCount=0;
-  rows.forEach((r,i)=>{
-    const c = computed[i];
-    totValue += Number(r.amt)||0; totOutstanding += c.outstanding; totOverdue += c.overdueAmt;
-    if(c.bucket==='paid_late') interestPaidLate += c.interest;
-    if(c.bucket==='pending'||c.bucket==='flag') interestAccrued += c.interest;
-    if(c.overdueAmt>0) overdueCount++;
-    if(c.flagged) flagCount++;
-  });
-  const interestTotal = interestPaidLate + interestAccrued;
-  const settledValue = totValue - totOutstanding, notDueValue = totOutstanding - totOverdue;
+  const rows = RAW;
+  const computedToday = rows.map(r=>computeRow(r, today));
+  const banner = document.getElementById('modeBanner');
 
-  const total = totValue || 1;
-  const seg1 = settledValue/total*360, seg2 = notDueValue/total*360, seg3 = totOverdue/total*360;
+  // No usable as-of date but a snapshot/compare mode is selected → fall back to today with a hint.
+  if(viewMode==='today' || !asOfDate){
+    if(viewMode!=='today' && !asOfDate){
+      banner.className='mode-banner warn'; banner.style.display='flex';
+      banner.innerHTML = `<span class="mb-ico">📅</span><span>Pick an <b>As-of date</b> above to see the ${viewMode==='compare'?'comparison':'snapshot'}. Showing <b>today</b> for now.</span>`;
+    } else { banner.style.display='none'; banner.innerHTML=''; }
+    currentRows=rows; currentComputed=computedToday;
+    renderStandard(rows, computedToday, null);
+    return;
+  }
+
+  const computedAsOf = rows.map(r=>computeRow(r, asOfDate));
+  if(viewMode==='asof'){
+    banner.className='mode-banner'; banner.style.display='flex';
+    banner.innerHTML = `<span class="mb-ico">🕑</span><span>Snapshot as it stood on <b>${fmtDate(asOfDate)}</b> — payments, overdue days and interest are all measured against that day, not today. Switch to <b>Compare</b> to see what changed since.</span>`;
+    currentRows=rows; currentComputed=computedAsOf;
+    renderStandard(rows, computedAsOf, fmtDate(asOfDate));
+  } else {
+    banner.className='mode-banner'; banner.style.display='flex';
+    banner.innerHTML = `<span class="mb-ico">⇄</span><span><b>${fmtDate(asOfDate)}</b> &nbsp;vs&nbsp; <b>${fmtDate(today)}</b> — the cards show each day's full situation, the tiles show what moved. The detailed ledger below reflects <b>today</b> (switch to <b>As-of</b> for that day's ledger).</span>`;
+    currentRows=rows; currentComputed=computedToday;
+    renderCompare(rows, computedToday, computedAsOf);
+  }
+}
+
+// Standard single-date dashboard (used for both Today and As-of). asOfLabel!=null => snapshot mode.
+function renderStandard(rows, computed, asOfLabel){
+  const isAsOf = !!asOfLabel;
+  const a = aggregate(rows, computed);
+  const total = a.totValue || 1;
+  const seg1 = a.settledValue/total*360, seg2 = a.notDueValue/total*360, seg3 = a.totOverdue/total*360;
   let a0=0; const p1=arcPath(150,150,130,a0,a0+seg1); a0+=seg1; const p2=arcPath(150,150,130,a0,a0+seg2); a0+=seg2; const p3=arcPath(150,150,130,a0,a0+seg3);
 
   document.getElementById('summaryGrid').innerHTML = `
     <div class="hero-card">
-      <div class="hero-num">${money(totOverdue)}</div>
-      <div class="hero-lbl">Overdue Right Now</div>
-      <div class="hero-sub">${overdueCount} invoice${overdueCount!==1?'s':''} past due with an unpaid balance — ${flagCount} marked paid but still show a balance, needs verification.
+      <div class="hero-num">${money(a.totOverdue)}</div>
+      <div class="hero-lbl">Overdue ${isAsOf?('on '+asOfLabel):'Right Now'}</div>
+      <div class="hero-sub">${a.overdueCount} invoice${a.overdueCount!==1?'s':''} past due with an unpaid balance${a.flagCount>0?` — ${a.flagCount} marked paid but still show a balance, needs verification`:''}.
       ${creditOverride!==null?`<br>Using a ${creditOverride}-day grace period from BL date for every invoice instead of the sheet's own due date.`:''}</div>
     </div>
     <div class="hero-card donut-card">
@@ -384,27 +536,27 @@ function renderAll(){
         <circle cx="150" cy="150" r="72" fill="#FFFFFF"></circle>
       </svg>
       <div class="legend">
-        <div class="li"><span class="sw" style="background:#3E7C59"></span>Settled <b>${money(settledValue)}</b></div>
-        <div class="li"><span class="sw" style="background:#C1791F"></span>Not yet due <b>${money(notDueValue)}</b></div>
-        <div class="li"><span class="sw" style="background:#B3402F"></span>Overdue <b>${money(totOverdue)}</b></div>
+        <div class="li"><span class="sw" style="background:#3E7C59"></span>Settled <b>${money(a.settledValue)}</b></div>
+        <div class="li"><span class="sw" style="background:#C1791F"></span>Not yet due <b>${money(a.notDueValue)}</b></div>
+        <div class="li"><span class="sw" style="background:#B3402F"></span>Overdue <b>${money(a.totOverdue)}</b></div>
       </div>
     </div>`;
 
   document.getElementById('kpiRow').innerHTML = `
-    <div class="kpi overdue"><div class="k-lbl">Overdue Amount</div><div class="k-val">${money(totOverdue)}</div><div class="k-sub">${overdueCount} invoices, unpaid</div></div>
-    <div class="kpi"><div class="k-lbl">Outstanding (all)</div><div class="k-val">${money(totOutstanding)}</div><div class="k-sub">incl. not-yet-due</div></div>
-    <div class="kpi interest"><div class="k-lbl">Interest — Paid Late</div><div class="k-val">${interestPaidLate>0?money2(interestPaidLate):'—'}</div><div class="k-sub">already incurred</div></div>
-    <div class="kpi accrued"><div class="k-lbl">Interest — Accruing Now</div><div class="k-val">${interestAccrued>0?money2(interestAccrued):'—'}</div><div class="k-sub">on unpaid overdue, today</div></div>
-    <div class="kpi total"><div class="k-lbl">Interest — Total (both)</div><div class="k-val">${interestTotal>0?money2(interestTotal):'—'}</div><div class="k-sub">paid-late + accruing</div></div>
-    <div class="kpi ${flagCount>0?'interest':'healthy'}"><div class="k-lbl">Needs Verification</div><div class="k-val">${flagCount}</div><div class="k-sub">marked paid, balance open</div></div>`;
+    <div class="kpi overdue"><div class="k-lbl">Overdue Amount</div><div class="k-val">${money(a.totOverdue)}</div><div class="k-sub">${a.overdueCount} invoices, unpaid</div></div>
+    <div class="kpi"><div class="k-lbl">Outstanding (all)</div><div class="k-val">${money(a.totOutstanding)}</div><div class="k-sub">incl. not-yet-due</div></div>
+    <div class="kpi interest"><div class="k-lbl">Interest — Paid Late</div><div class="k-val">${a.interestPaidLate>0?money2(a.interestPaidLate):'—'}</div><div class="k-sub">already incurred</div></div>
+    <div class="kpi accrued"><div class="k-lbl">Interest — Accruing${isAsOf?'':' Now'}</div><div class="k-val">${a.interestAccrued>0?money2(a.interestAccrued):'—'}</div><div class="k-sub">on unpaid overdue, ${isAsOf?'that day':'today'}</div></div>
+    <div class="kpi total"><div class="k-lbl">Interest — Total (both)</div><div class="k-val">${a.interestTotal>0?money2(a.interestTotal):'—'}</div><div class="k-sub">paid-late + accruing</div></div>
+    <div class="kpi ${a.flagCount>0?'interest':'healthy'}"><div class="k-lbl">Needs Verification</div><div class="k-val">${a.flagCount}</div><div class="k-sub">marked paid, balance open</div></div>`;
 
   const groups = groupByVendor(rows), vSummary=[];
   groups.forEach((idxs,vendor)=>{ let overdue=0; idxs.forEach(i=>overdue+=computed[i].overdueAmt); vSummary.push({vendor,overdue}); });
   vSummary.sort((a,b)=>b.overdue-a.overdue);
   const top = vSummary.filter(v=>v.overdue>0).slice(0,8), maxOv = top.length?top[0].overdue:1;
-  document.getElementById('chartFxNote').textContent = currency==='INR' ? 'Converted at monthly-average USD→INR rate' : '';
+  document.getElementById('chartFxNote').textContent = (isAsOf?`As of ${asOfLabel}`:'') + (currency==='INR' ? (isAsOf?' · ':'')+'Converted at monthly-average USD→INR rate' : '');
   document.getElementById('chartCard').innerHTML = top.length===0
-    ? `<div style="color:var(--slate-soft);font-size:12.5px;">No vendor currently carries an overdue balance under these parameters.</div>`
+    ? `<div style="color:var(--slate-soft);font-size:12.5px;">No vendor ${isAsOf?'carried':'currently carries'} an overdue balance under these parameters.</div>`
     : top.map(v=>{ const short=v.vendor.length<=34?v.vendor:v.vendor.slice(0,32)+'…'; const pct=v.overdue/maxOv*100;
         return `<div class="bar-row"><div class="bar-label">${short}</div><div class="bar-track"><div class="bar-fill" style="width:${pct.toFixed(1)}%"></div></div><div class="bar-val">${money(v.overdue)}</div></div>`; }).join('');
 
@@ -413,6 +565,55 @@ function renderAll(){
     : `Amounts in USD, original invoice currency.`;
 
   renderVendors(rows, computed);
+}
+
+// Compare mode: two situation cards + delta tiles. Ledger below shows today.
+function renderCompare(rows, cToday, cAsOf){
+  const aT = aggregate(rows, cToday), aA = aggregate(rows, cAsOf);
+  const asLabel = fmtDate(asOfDate);
+
+  let paidSinceN=0, paidSinceAmt=0, newOverdueN=0, newOverdueAmt=0;
+  rows.forEach((r,i)=>{
+    const pd=parseD(r.pd);
+    if(pd && pd>asOfDate && pd<=today){ paidSinceN++; paidSinceAmt += Number(r.amt)||0; }
+    if(cToday[i].overdueAmt>0 && cAsOf[i].overdueAmt<=0.01){ newOverdueN++; newOverdueAmt += cToday[i].overdueAmt; }
+  });
+
+  document.getElementById('summaryGrid').innerHTML =
+    `<div class="sit-wrap">${situationCard('Then', asLabel, aA)}${situationCard('Now', fmtDate(today), aT)}</div>`;
+
+  document.getElementById('kpiRow').innerHTML = `
+    <div class="kpi overdue"><div class="k-lbl">Overdue Amount</div>
+      <div class="k-cmp"><span class="k-then">${money(aA.totOverdue)}</span><span class="k-arrow">→</span><span class="k-now">${money(aT.totOverdue)}</span></div>
+      <div class="k-sub">${deltaTag(aT.totOverdue,aA.totOverdue,'money')} since ${asLabel}</div></div>
+    <div class="kpi"><div class="k-lbl">Outstanding (all)</div>
+      <div class="k-cmp"><span class="k-then">${money(aA.totOutstanding)}</span><span class="k-arrow">→</span><span class="k-now">${money(aT.totOutstanding)}</span></div>
+      <div class="k-sub">${deltaTag(aT.totOutstanding,aA.totOutstanding,'money')} since ${asLabel}</div></div>
+    <div class="kpi accrued"><div class="k-lbl">Interest Accruing</div>
+      <div class="k-cmp"><span class="k-then">${aA.interestAccrued>0?money2(aA.interestAccrued):'—'}</span><span class="k-arrow">→</span><span class="k-now">${aT.interestAccrued>0?money2(aT.interestAccrued):'—'}</span></div>
+      <div class="k-sub">${deltaTag(aT.interestAccrued,aA.interestAccrued,'money2')} since ${asLabel}</div></div>
+    <div class="kpi overdue"><div class="k-lbl">Overdue Invoices</div>
+      <div class="k-cmp"><span class="k-then">${aA.overdueCount}</span><span class="k-arrow">→</span><span class="k-now">${aT.overdueCount}</span></div>
+      <div class="k-sub">${deltaTag(aT.overdueCount,aA.overdueCount,'count')} since ${asLabel}</div></div>
+    <div class="kpi healthy"><div class="k-lbl">Paid since ${asLabel}</div>
+      <div class="k-val">${paidSinceN}</div><div class="k-sub">invoice${paidSinceN!==1?'s':''} settled · ${money(paidSinceAmt)}</div></div>
+    <div class="kpi ${newOverdueN>0?'overdue':'healthy'}"><div class="k-lbl">Newly Overdue Since</div>
+      <div class="k-val">${newOverdueN}</div><div class="k-sub">invoice${newOverdueN!==1?'s':''} tipped over · ${money(newOverdueAmt)}</div></div>`;
+
+  const groups = groupByVendor(rows), vSummary=[];
+  groups.forEach((idxs,vendor)=>{ let overdue=0; idxs.forEach(i=>overdue+=cToday[i].overdueAmt); vSummary.push({vendor,overdue}); });
+  vSummary.sort((a,b)=>b.overdue-a.overdue);
+  const top = vSummary.filter(v=>v.overdue>0).slice(0,8), maxOv = top.length?top[0].overdue:1;
+  document.getElementById('chartFxNote').textContent = 'Showing today' + (currency==='INR' ? ' · monthly-average USD→INR rate' : '');
+  document.getElementById('chartCard').innerHTML = top.length===0
+    ? `<div style="color:var(--slate-soft);font-size:12.5px;">No vendor currently carries an overdue balance under these parameters.</div>`
+    : top.map(v=>{ const short=v.vendor.length<=34?v.vendor:v.vendor.slice(0,32)+'…'; const pct=v.overdue/maxOv*100;
+        return `<div class="bar-row"><div class="bar-label">${short}</div><div class="bar-track"><div class="bar-fill" style="width:${pct.toFixed(1)}%"></div></div><div class="bar-val">${money(v.overdue)}</div></div>`; }).join('');
+  document.getElementById('fxFootNote').textContent = currency==='INR'
+    ? `INR converted per invoice using the monthly-average USD→INR rate for its effective due-date month.`
+    : `Amounts in USD, original invoice currency.`;
+
+  renderVendors(rows, cToday);
 }
 
 function renderVendors(rows, computed){
@@ -547,8 +748,8 @@ document.getElementById('fxOverlay').addEventListener('click',e=>{ if(e.target==
 document.getElementById('fxFetchBtn').addEventListener('click',refreshFx);
 document.getElementById('fxResetBtn').addEventListener('click',()=>{ fxOverride={}; saveFx(); renderFxTable(); renderAll(); });
 
-document.getElementById('searchBox').addEventListener('input',()=>renderVendors(RAW,RAW.map(computeRow)));
-document.getElementById('filterSel').addEventListener('change',()=>renderVendors(RAW,RAW.map(computeRow)));
+document.getElementById('searchBox').addEventListener('input',()=>renderVendors(currentRows||RAW, currentComputed||RAW.map(r=>computeRow(r,today))));
+document.getElementById('filterSel').addEventListener('change',()=>renderVendors(currentRows||RAW, currentComputed||RAW.map(r=>computeRow(r,today))));
 document.getElementById('exportPdfBtn').addEventListener('click',()=>window.print());
 
 function setDzLoaded(text){ const dz=document.getElementById('dropzone'), h=document.getElementById('dzHint'); if(text){ dz.classList.add('loaded'); h.textContent=text; } else { dz.classList.remove('loaded'); h.textContent='CSV / XLSX · we auto-map Vendor, Amount, Dates, Status…'; } }
