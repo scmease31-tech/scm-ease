@@ -345,7 +345,7 @@ try{ fxOverride = JSON.parse(localStorage.getItem('vpFxOverride')||'{}')||{}; }c
 try{ fxFetched  = JSON.parse(localStorage.getItem('vpFxFetched') ||'{}')||{}; }catch(e){ fxFetched={}; }
 function saveFx(){ try{ localStorage.setItem('vpFxOverride',JSON.stringify(fxOverride)); localStorage.setItem('vpFxFetched',JSON.stringify(fxFetched)); }catch(e){} }
 
-let rate = 0.0164, creditOverride = null, currency = 'USD', openVendor = null;
+let rate = 0.0329, creditOverride = null, currency = 'USD', openVendor = null;  // 0.0329%/day ≈ 12%/yr — matches the source sheet
 let asOfDate = null;          // Date object for the "time machine" reference day (null = today)
 let viewMode = 'today';       // 'today' | 'asof' | 'compare'
 let currentComputed = null;   // computed set currently shown in the ledger (for search/filter re-render)
@@ -418,8 +418,9 @@ function computeRow(r, asOf){
     overdueDays = effDue ? Math.max(0, daysBetween(effDue, asOf)) : 0;
     if(overdueDays>0){
       overdueAmt = outstanding; interest = outstanding*(rate/100)*overdueDays;
-      // "flag" (marked paid but balance open) is only meaningful for the live view.
-      bucket = (isToday && (r.st==='Paid'||r.st==='Yes')) ? 'flag' : 'pending';
+      // Source sheet treats "Yes" exactly like "pending" (open + accruing). Only a genuine
+      // "Paid" row that still shows a balance is a data anomaly worth flagging for verification.
+      bucket = (isToday && r.st==='Paid') ? 'flag' : 'pending';
       if(bucket==='flag') flagged=true;
     } else bucket='notdue';
   }
@@ -547,7 +548,7 @@ function renderParams(){
     renderAll();
   });
   document.querySelectorAll('#viewModeGrp button').forEach(b=>b.addEventListener('click',()=>{ viewMode=b.dataset.vm; renderAll(); }));
-  document.getElementById('resetBtn').addEventListener('click',()=>{ creditOverride=null; rate=0.0164; currency='USD'; openVendor=null; asOfDate=null; viewMode='today'; renderAll(); });
+  document.getElementById('resetBtn').addEventListener('click',()=>{ creditOverride=null; rate=0.0329; currency='USD'; openVendor=null; asOfDate=null; viewMode='today'; renderAll(); });
 }
 
 function renderAll(){
@@ -1052,7 +1053,7 @@ function buildWorkbook(RAW, opts){
       fcell(12,'IF(AND(K'+R+',H'+R+'<>"",H'+R+'>J'+R+'),H'+R+'-J'+R+',0)','0','right');
       fcell(13,'IF(AND(NOT(K'+R+'),L'+R+'>0),I'+R+',0)',MONEY2,'right');
       fcell(14,'IF(K'+R+',F'+R+'*Params!$B$6/100*M'+R+',IF(L'+R+'>0,I'+R+'*Params!$B$6/100*L'+R+',0))',MONEY2,'right');
-      fcell(15,'IF(K'+R+',IF(M'+R+'>0,"Paid late","Settled on time"),IF(L'+R+'>0,IF(OR(G'+R+'="Paid",G'+R+'="Yes"),"Verify","Overdue"),"Not yet due"))',null,'left');
+      fcell(15,'IF(K'+R+',IF(M'+R+'>0,"Paid late","Settled on time"),IF(L'+R+'>0,IF(G'+R+'="Paid","Verify","Overdue"),"Not yet due"))',null,'left');
       fcell(16,'(P'+R+'="Verify")',null,'center');
       fcell(17,'TEXT(J'+R+',"yyyy-mm")',null,'center');
       fcell(18,'IFERROR(INDEX('+FXb+',MATCH(R'+R+','+FXa+',0)),'+FXfb+')',RATEF,'right');
