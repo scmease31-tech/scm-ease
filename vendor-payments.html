@@ -906,10 +906,11 @@ document.getElementById('filterSel').addEventListener('change',()=>renderVendors
 // Build the vendor-payment workbook the "model" way: 5 tabs — Dashboard, Params, FX Rates,
 // Raw Data, Calculations. Every computed cell is a live Excel formula driven off the editable
 // Params tab; the Dashboard is all SUM/SUMIF/COUNTIF/SUMPRODUCT over the Calculations engine.
-// opts: {rate, creditOverride(number|null), currency('USD'|'INR'), refDate(Date), ExcelJS}
+// opts: {rate, creditOverride(number|null), currency('USD'|'INR'), refDate(Date), compareDate(Date|null), ExcelJS}
 function buildWorkbook(RAW, opts){
   var XLJS = (opts && opts.ExcelJS) || (typeof ExcelJS!=='undefined' ? ExcelJS : null);
   var rate = opts.rate, creditOverride = opts.creditOverride, currency = opts.currency || 'USD', refDate = opts.refDate || today;
+  var compareDate = opts.compareDate || null;        // "then" date for the Comparison tab (null = single-date export, no comparison)
   var n = RAW.length, D0 = 3, DN = n + 2;            // data rows 3..DN (title row 1, header row 2)
   var refIsToday = refDate.getTime() >= today.getTime();
 
@@ -984,6 +985,65 @@ function buildWorkbook(RAW, opts){
   ['B','C','D','E','F','G','H'].forEach(function(cl){ var c=dash.getCell(cl+totR); c.value={formula:'SUM('+cl+vr0+':'+cl+(totR-1)+')'}; c.numFmt=(cl==='E'?MONEY2:((cl==='F'||cl==='G'||cl==='H')?GEN:MONEY0)); c.font={name:'Calibri',size:10,bold:true,color:{argb:INK}}; c.alignment={horizontal:'right'}; c.border={top:{style:'thin',color:{argb:INK}}}; });
   if(vendors.length){ dash.addConditionalFormatting({ ref:'D'+vr0+':D'+(totR-1), rules:[{type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:RUST}}] }); }
 
+  /* ================= COMPARISON (only when a "then" date is supplied — mirrors the dashboard's Compare mode) ================= */
+  if(compareDate){
+    var cmp = wb.addWorksheet('Comparison', {views:[{showGridLines:false}]});
+    [38,15,15,14,15,15,14,14].forEach(function(w,i){ cmp.getColumn(i+1).width=w; });
+    var RA=CAL+'$A$'+D0+':$A$'+DN, RU=CAL+'$U$'+D0+':$U$'+DN, RV=CAL+'$V$'+D0+':$V$'+DN,
+        RW=CAL+'$W$'+D0+':$W$'+DN, RP=CAL+'$P$'+D0+':$P$'+DN, RN=CAL+'$N$'+D0+':$N$'+DN, RH=CAL+'$H$'+D0+':$H$'+DN,
+        RAE=CAL+'$AE$'+D0+':$AE$'+DN, RAF=CAL+'$AF$'+D0+':$AF$'+DN, RAG=CAL+'$AG$'+D0+':$AG$'+DN,
+        RAD=CAL+'$AD$'+D0+':$AD$'+DN, RAB=CAL+'$AB$'+D0+':$AB$'+DN;
+    var DMON2='[Red]"\u25B2 "#,##0.00;[Green]"\u25BC "#,##0.00;"\u2014"';
+    var DMON0='[Red]"\u25B2 "#,##0;[Green]"\u25BC "#,##0;"\u2014"';
+    var DCNT ='[Red]"\u25B2 "0;[Green]"\u25BC "0;"\u2014"';
+
+    cmp.mergeCells('A1:H1'); var q1=cmp.getCell('A1'); q1.value='Vendor Payments \u2014 Then vs Now'; q1.font={name:'Georgia',size:20,bold:true,color:{argb:GOLD}}; q1.fill=solid(INK); q1.alignment={vertical:'middle',horizontal:'left',indent:1}; cmp.getRow(1).height=30;
+    cmp.mergeCells('A2:H2'); var q2=cmp.getCell('A2'); q2.value='\u201CThen\u201D is computed as of the comparison date (Params!B9); \u201CNow\u201D uses the reference date (Params!B8). Change either date on Params and every figure below recalculates.'; q2.font={name:'Calibri',size:10,italic:true,color:{argb:SLATESOFT}}; q2.fill=solid(INK2); q2.alignment={vertical:'middle',horizontal:'left',indent:1};
+    cmp.mergeCells('A4:H4'); var qb=cmp.getCell('A4'); qb.value={formula:'"Then  \u00B7  "&TEXT(Params!$B$9,"dd-mmm-yyyy")&"        \u2192        Now  \u00B7  "&TEXT(Params!$B$8,"dd-mmm-yyyy")'}; qb.font={name:'Calibri',size:12,bold:true,color:{argb:INK}}; qb.alignment={horizontal:'center',vertical:'middle'}; qb.fill=solid(PARAM); qb.border=bdrAll(GOLD); cmp.getRow(4).height=22;
+
+    var kmh=cmp.getCell('A6'); kmh.value='Key Movements'; kmh.font={name:'Calibri',size:12,bold:true,color:{argb:INK}};
+    ['Metric','Then','Now','Change'].forEach(function(h,i){ var c=cmp.getCell(colL(i)+'7'); c.value=h; c.font={name:'Calibri',size:9.5,bold:true,color:{argb:WHITE}}; c.fill=solid(INK); c.alignment={vertical:'middle',horizontal:(i?'right':'left')}; c.border=bdrAll(LINE); });
+    function kpiCmp(r,label,thenF,nowF,fmt,dfmt){
+      var a=cmp.getCell('A'+r); a.value=label; a.font={name:'Calibri',size:10.5,color:{argb:INK}}; a.alignment={vertical:'middle'};
+      var b=cmp.getCell('B'+r); b.value={formula:thenF}; b.numFmt=fmt; b.font={name:'Calibri',size:10.5,color:{argb:SLATE}}; b.alignment={horizontal:'right'};
+      var c=cmp.getCell('C'+r); c.value={formula:nowF}; c.numFmt=fmt; c.font={name:'Calibri',size:10.5,bold:true,color:{argb:INK}}; c.alignment={horizontal:'right'};
+      var d=cmp.getCell('D'+r); d.value={formula:'C'+r+'-B'+r}; d.numFmt=dfmt; d.font={name:'Calibri',size:10.5,bold:true}; d.alignment={horizontal:'right'};
+      [a,b,c,d].forEach(function(cc){ cc.border={bottom:{style:'hair',color:{argb:LINE}}}; });
+    }
+    kpiCmp(8,'Overdue Amount','SUM('+RAF+')','SUM('+RV+')',MONEY2,DMON2);
+    kpiCmp(9,'Outstanding (all)','SUM('+RAE+')','SUM('+RU+')',MONEY2,DMON2);
+    kpiCmp(10,'Interest Accruing','SUMIF('+RAD+',"Overdue",'+RAG+')','SUMIF('+RP+',"Overdue",'+RW+')+SUMIF('+RP+',"Verify",'+RW+')',MONEY2,DMON2);
+    kpiCmp(11,'Overdue Invoices','COUNTIF('+RAD+',"Overdue")','COUNTIF('+RP+',"Overdue")+COUNTIF('+RP+',"Verify")','0',DCNT);
+    var m1a=cmp.getCell('A13'); m1a.value={formula:'"Invoices paid since "&TEXT(Params!$B$9,"dd-mmm-yyyy")'}; m1a.font={name:'Calibri',size:10.5,bold:true,color:{argb:GREEN}};
+    var m1c=cmp.getCell('C13'); m1c.value={formula:'SUMPRODUCT(('+RH+'>Params!$B$9)*('+RH+'<=Params!$B$8))'}; m1c.numFmt='0'; m1c.font={name:'Calibri',size:11,bold:true,color:{argb:GREEN}}; m1c.alignment={horizontal:'right'};
+    var m2a=cmp.getCell('A14'); m2a.value={formula:'"Invoices newly overdue since "&TEXT(Params!$B$9,"dd-mmm-yyyy")'}; m2a.font={name:'Calibri',size:10.5,bold:true,color:{argb:RUST}};
+    var m2c=cmp.getCell('C14'); m2c.value={formula:'SUMPRODUCT(('+RN+'>0.01)*('+RAB+'<=0.01))'}; m2c.numFmt='0'; m2c.font={name:'Calibri',size:11,bold:true,color:{argb:RUST}}; m2c.alignment={horizontal:'right'};
+
+    var cvh=cmp.getCell('A16'); cvh.value='By Vendor \u2014 Then \u2192 Now'; cvh.font={name:'Calibri',size:12,bold:true,color:{argb:INK}};
+    ['Vendor','Overdue (then)','Overdue (now)','\u0394 Overdue','Outstanding (then)','Outstanding (now)','Interest (then)','Interest (now)'].forEach(function(h,i){ var c=cmp.getCell(colL(i)+'17'); c.value=h; c.font={name:'Calibri',size:9,bold:true,color:{argb:WHITE}}; c.fill=solid(INK); c.alignment={vertical:'middle',horizontal:(i?'right':'left'),wrapText:true}; c.border=bdrAll(LINE); });
+    cmp.getRow(17).height=26;
+    var cr0=18;
+    vendors.forEach(function(vn,ix){
+      var r=cr0+ix, band=(ix%2===1), aRef='A'+r;
+      var nc=cmp.getCell('A'+r); nc.value=vn; nc.font={name:'Calibri',size:9.5,color:{argb:INK}}; nc.alignment={vertical:'middle',wrapText:true};
+      cmp.getCell('B'+r).value={formula:'SUMIF('+RA+','+aRef+','+RAF+')'};
+      cmp.getCell('C'+r).value={formula:'SUMIF('+RA+','+aRef+','+RV+')'};
+      cmp.getCell('D'+r).value={formula:'C'+r+'-B'+r};
+      cmp.getCell('E'+r).value={formula:'SUMIF('+RA+','+aRef+','+RAE+')'};
+      cmp.getCell('F'+r).value={formula:'SUMIF('+RA+','+aRef+','+RU+')'};
+      cmp.getCell('G'+r).value={formula:'SUMIF('+RA+','+aRef+','+RAG+')'};
+      cmp.getCell('H'+r).value={formula:'SUMIF('+RA+','+aRef+','+RW+')'};
+      ['B','C','E','F'].forEach(function(cl){ cmp.getCell(cl+r).numFmt=MONEY0; });
+      cmp.getCell('G'+r).numFmt=MONEY2; cmp.getCell('H'+r).numFmt=MONEY2; cmp.getCell('D'+r).numFmt=DMON0;
+      for(var cc=0;cc<8;cc++){ var cell=cmp.getCell(colL(cc)+r); if(cc>0){ cell.font={name:'Calibri',size:9.5,color:{argb:(cc===2?RUST:INK)}}; cell.alignment={horizontal:'right',vertical:'middle'}; } if(band) cell.fill=solid(BAND); cell.border={bottom:{style:'hair',color:{argb:LINE}}}; }
+    });
+    var ctotR=cr0+vendors.length;
+    var ctc=cmp.getCell('A'+ctotR); ctc.value='TOTAL'; ctc.font={name:'Calibri',size:10,bold:true,color:{argb:INK}}; ctc.border={top:{style:'thin',color:{argb:INK}}};
+    ['B','C','D','E','F','G','H'].forEach(function(cl){ var c=cmp.getCell(cl+ctotR); c.value={formula:'SUM('+cl+cr0+':'+cl+(ctotR-1)+')'}; c.numFmt=(cl==='D'?DMON0:((cl==='G'||cl==='H')?MONEY2:MONEY0)); c.font={name:'Calibri',size:10,bold:true,color:{argb:INK}}; c.alignment={horizontal:'right'}; c.border={top:{style:'thin',color:{argb:INK}}}; });
+    if(vendors.length){ cmp.addConditionalFormatting({ ref:'C'+cr0+':C'+(ctotR-1), rules:[{type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:RUST}}] }); }
+    wb.views=[{x:0,y:0,width:20000,height:24000,firstSheet:0,activeTab:1,visibility:'visible'}];
+  }
+
   /* ================= PARAMS ================= */
   var pr=wb.addWorksheet('Params');
   [33,15,70].forEach(function(w,i){ pr.getColumn(i+1).width=w; });
@@ -1000,6 +1060,7 @@ function buildWorkbook(RAW, opts){
   paramRow(7,'Display currency',currency,null,'USD or INR. INR converts per invoice using the monthly-average USD\u2192INR rate for its effective due-date month (FX Rates tab).');
   paramRow(8,'Reference date (today)',null,DT,'Used to compute overdue days for any invoice still unpaid.');
   var b8=pr.getCell('B8'); if(refIsToday){ b8.value={formula:'TODAY()'}; } else { b8.value=serial(refDate); } b8.numFmt=DT;
+  if(compareDate){ paramRow(9,'Comparison date (\u201Cthen\u201D)',serial(compareDate),DT,'Drives the Comparison tab. Every figure there is computed as of this date; \u201Cnow\u201D uses the reference date above. Edit to re-compare any two days.'); }
   var qp=pr.getCell('A10'); qp.value='Quick presets for the credit period (type into B5 above):'; qp.font={name:'Calibri',size:10,bold:true,color:{argb:INK}};
   ['  \u2022  30 days','  \u2022  60 days','  \u2022  90 days','  \u2022  120 days','  \u2022  (blank)  \u2192  use each invoice\u2019s own due date, exactly as on the sheet'].forEach(function(t,i){ var c=pr.getCell('A'+(11+i)); c.value=t; c.font={name:'Calibri',size:10,color:{argb:SLATE}}; });
 
@@ -1035,9 +1096,11 @@ function buildWorkbook(RAW, opts){
   /* ================= CALCULATIONS ================= */
   var ca=wb.addWorksheet('Calculations', {views:[{state:'frozen', ySplit:2}]});
   [39,15,15,11,11,12,9,11,12,12,8,9,9,13,11,13,9,8,8,13,14,14,13].forEach(function(w,i){ ca.getColumn(i+1).width=w; });
+  if(compareDate){ [9,13,10,10,13,11,13,13,13,11].forEach(function(w,i){ ca.getColumn(24+i).width=w; }); }  // X..AG "then" block
   ca.mergeCells('A1:W1'); var ct=ca.getCell('A1'); ct.value='Calculations — one row per invoice, driven entirely by formulas from Params + Raw Data'; ct.font={name:'Georgia',size:13,bold:true,color:{argb:GOLD}}; ct.fill=solid(INK); ct.alignment={vertical:'middle',horizontal:'left',indent:1};
   var cHead=['Vendor','Invoice','Item','BL Date','Sheet Due Date','Amount (USD)','Status','Payment Date','Outstanding (USD)','Effective Due Date','Settled?','Overdue Days','Late Days (paid late)','Overdue Amount (USD)','Interest (USD)','Bucket','Needs Verification?','FX Month','FX Rate','Amount (display ccy)','Outstanding (display ccy)','Overdue Amt (display ccy)','Interest (display ccy)'];
   cHead.forEach(function(h,i){ var c=headCell(ca, colL(i)+'2', h); c.alignment={vertical:'middle',horizontal:'center',wrapText:true}; });
+  if(compareDate){ ['Then Settled?','Then Outstanding (USD)','Then Overdue Days','Then Late Days','Then Overdue Amt (USD)','Then Interest (USD)','Then Bucket','Then Outstanding (disp)','Then Overdue Amt (disp)','Then Interest (disp)'].forEach(function(h,i){ var c=headCell(ca, colL(23+i)+'2', h); c.alignment={vertical:'middle',horizontal:'center',wrapText:true}; c.fill=solid(INK2); }); }
   ca.getRow(2).height=30;
   var FXb="'FX Rates'!$B$"+FX0+":$B$"+FXN, FXa="'FX Rates'!$A$"+FX0+":$A$"+FXN, FXfb="'FX Rates'!$B$"+FXN;
   for(var i2=0;i2<n;i2++){
@@ -1061,9 +1124,23 @@ function buildWorkbook(RAW, opts){
       fcell(20,'IF(Params!$B$7="USD",I'+R+',I'+R+'*S'+R+')',MONEY2,'right');
       fcell(21,'IF(Params!$B$7="USD",N'+R+',N'+R+'*S'+R+')',MONEY2,'right');
       fcell(22,'IF(Params!$B$7="USD",O'+R+',O'+R+'*S'+R+')',MONEY2,'right');
+      if(compareDate){
+        // "Then" state as of Params!$B$9 — mirrors computeRow(r, asOf) for a past date: settled if paid on/before then,
+        // otherwise the whole invoice is outstanding; overdue/interest measured against the "then" date.
+        fcell(23,'AND(H'+R+'>0,H'+R+'<=Params!$B$9)',null,'center');                                              // X  Then Settled?
+        fcell(24,'IF(X'+R+',0,F'+R+')',MONEY2,'right');                                                            // Y  Then Outstanding (USD)
+        fcell(25,'IF(AND(NOT(X'+R+'),Params!$B$9>J'+R+'),Params!$B$9-J'+R+',0)','0','right');                      // Z  Then Overdue Days
+        fcell(26,'IF(AND(X'+R+',H'+R+'>0,H'+R+'>J'+R+'),H'+R+'-J'+R+',0)','0','right');                            // AA Then Late Days
+        fcell(27,'IF(Z'+R+'>0,Y'+R+',0)',MONEY2,'right');                                                          // AB Then Overdue Amt (USD)
+        fcell(28,'IF(X'+R+',F'+R+'*Params!$B$6/100*AA'+R+',IF(Z'+R+'>0,Y'+R+'*Params!$B$6/100*Z'+R+',0))',MONEY2,'right'); // AC Then Interest (USD)
+        fcell(29,'IF(X'+R+',IF(AA'+R+'>0,"Paid late","Settled on time"),IF(Z'+R+'>0,"Overdue","Not yet due"))',null,'left'); // AD Then Bucket
+        fcell(30,'IF(Params!$B$7="USD",Y'+R+',Y'+R+'*S'+R+')',MONEY2,'right');                                     // AE Then Outstanding (disp)
+        fcell(31,'IF(Params!$B$7="USD",AB'+R+',AB'+R+'*S'+R+')',MONEY2,'right');                                   // AF Then Overdue Amt (disp)
+        fcell(32,'IF(Params!$B$7="USD",AC'+R+',AC'+R+'*S'+R+')',MONEY2,'right');                                   // AG Then Interest (disp)
+      }
     })(row2,band2);
   }
-  ca.autoFilter='A2:'+colL(22)+'2';
+  ca.autoFilter='A2:'+colL(compareDate?32:22)+'2';
 
   return wb;
 }
@@ -1074,12 +1151,14 @@ document.getElementById('exportXlsxBtn').addEventListener('click',async function
   var btn=document.getElementById('exportXlsxBtn'), label=btn.textContent;
   try{
     btn.textContent='⏳ Building…'; btn.disabled=true;
-    var ref = (asOfDate && (viewMode==='asof'||viewMode==='compare')) ? asOfDate : today;
-    var wb = buildWorkbook(activeRows(), {rate:rate, creditOverride:creditOverride, currency:currency, refDate:ref, ExcelJS:ExcelJS});
+    // As-of mode exports that single snapshot. Compare mode anchors "now" on today and adds a Then-vs-Now Comparison tab.
+    var isCmp = !!(asOfDate && viewMode==='compare');
+    var ref = (asOfDate && viewMode==='asof') ? asOfDate : today;
+    var wb = buildWorkbook(activeRows(), {rate:rate, creditOverride:creditOverride, currency:currency, refDate:ref, compareDate:(isCmp?asOfDate:null), ExcelJS:ExcelJS});
     var buf = await wb.xlsx.writeBuffer();
     var blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     var url = URL.createObjectURL(blob), a = document.createElement('a');
-    a.href=url; a.download='Vendor-Payments-'+fmtDate(today).replace(/\s/g,'-')+'.xlsx';
+    a.href=url; a.download='Vendor-Payments-'+(isCmp?'Compare-':'')+fmtDate(today).replace(/\s/g,'-')+'.xlsx';
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); },1500);
   }catch(err){ alert('Could not build the Excel file: '+(err&&err.message||err)); }
   finally{ btn.textContent=label; btn.disabled=false; }
