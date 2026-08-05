@@ -12841,7 +12841,10 @@ window.umSwitchTab = function(tab) {
   }
 
   function wire(){
-    ['modeCalc','modePlan','modeCell','modeVendor','mode3D','modeLog','modeUsers'].forEach(function(id){
+    // Every top-level tab must drive openSubmenuFor so that switching tabs collapses the
+    // previously-open submenu. Tabs without a submenu (Cell, PO, MSL, Vendor Pay, 3D, Costing)
+    // still call it — that simply closes whatever submenu was open (e.g. Consumption's module list).
+    ['modeCalc','modePlan','modeCell','modeVendor','modePO','modeMslPanel','modeAP','modeCosting','mode3D','modeLog','modeUsers'].forEach(function(id){
       var btn = document.getElementById(id);
       if(btn && !btn._sbWired){
         btn._sbWired = true;

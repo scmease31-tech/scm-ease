@@ -716,9 +716,12 @@ function jsToXl(jsFormula, rowNum, colMap){
   if(tern) f = `IF(${tern[1].trim()},${tern[2].trim()},${tern[3].trim()})`;
   f = f.replace(/\(?\s*([A-Za-z_]\w*)\s*===\s*null\s*\|\|\s*\1\s*===\s*""\s*\|\|\s*\1\s*===\s*undefined\s*\)?/g, '$1=""');
   f = f.replace(/===/g,'=').replace(/!==/g,'<>');
-  f = f.replace(/Math\.ceil\(([^)]+)\)/g,'CEILING.MATH($1)');
+  // Use legacy Excel functions only. CEILING.MATH / FLOOR.MATH are Excel-2013+ "future functions"
+  // that must be stored as _xlfn.CEILING.MATH etc.; written plainly they resolve to #NAME?. ROUNDUP/
+  // ROUNDDOWN/ROUND have no prefix requirement and give the same result for the (positive) values here.
+  f = f.replace(/Math\.ceil\(([^)]+)\)/g,'ROUNDUP($1,0)');
   f = f.replace(/Math\.round\(([^)]+)\)/g,'ROUND($1,0)');
-  f = f.replace(/Math\.floor\(([^)]+)\)/g,'FLOOR.MATH($1)');
+  f = f.replace(/Math\.floor\(([^)]+)\)/g,'ROUNDDOWN($1,0)');
   f = f.replace(/Number\(([^)]+)\)/g,'$1');
   f = f.replace(/G\.(\w+)/g, (m,k)=> XL_GMAP[k]||m);
   const keys = Object.keys(colMap).sort((a,b)=>b.length-a.length);
