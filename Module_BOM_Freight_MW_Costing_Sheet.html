@@ -55,6 +55,10 @@
   .btn.primary:hover{filter:brightness(1.08);}
   .btn.ghost{border-style:dashed;}
   .btn.teal{border-color:var(--teal-dim);color:var(--teal);}
+  .btn.deploy{background:linear-gradient(180deg,#33c98f,#1c9e73);color:#04241a;border:none;font-weight:700;}
+  .btn.deploy:hover{filter:brightness(1.08);}
+  .btn.deploy:disabled{opacity:.55;cursor:wait;}
+  .save-status{font-size:11px;align-self:center;color:var(--ink-dim);max-width:340px;line-height:1.3;}
 
   .globals{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:16px;}
   .gcard{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px 12px;position:relative;overflow:hidden;}
@@ -174,6 +178,8 @@
       <div class="sub">G12R / M10 TopCon — fully interlinked spreadsheet · every formula editable</div>
     </div>
     <div class="toolbar">
+      <button class="btn deploy" id="saveDeployBtn" title="Save your changes and make them the shared version everyone loads">💾 Save &amp; Deploy</button>
+      <span id="saveStatus" class="save-status"></span>
       <button class="btn ghost" id="addRowBtn">+ Add Material</button>
       <button class="btn ghost" id="addColBtn">+ Add Column</button>
       <button class="btn teal" id="importBtn">⭱ Import Excel</button>
@@ -1030,12 +1036,76 @@ $id('importFile').addEventListener('change', (e)=>{
   reader.readAsArrayBuffer(file);
 });
 
+/* ============================ SAVE & DEPLOY (shared costing state via worker KV) ============================ */
+const COSTING_WORKER_URL = 'https://scm-ease-admin.scmease31.workers.dev';
+
+/* Snapshot the whole editable state: globals, materials (+per-row formula overrides), and columns/formulas. */
+function serializeCosting(){
+  return { v:1, G:{...G}, ROWS:JSON.parse(JSON.stringify(ROWS)), COLUMNS:JSON.parse(JSON.stringify(COLUMNS)), _ts:Date.now() };
+}
+/* Restore a saved snapshot, keeping rows consistent with the restored column set. */
+function applyCosting(data){
+  if(!data || typeof data!=='object') return false;
+  try{
+    if(Array.isArray(data.COLUMNS) && data.COLUMNS.length) COLUMNS = data.COLUMNS.map(c=>({...c}));
+    if(data.G && typeof data.G==='object') G = {...DEFAULT_GLOBALS, ...data.G};
+    if(Array.isArray(data.ROWS)){
+      ROWS = data.ROWS.map(saved=>{ const row = makeRow(saved); row.__ov = (saved.__ov && typeof saved.__ov==='object') ? {...saved.__ov} : {}; return row; });
+    }
+    return true;
+  }catch(e){ return false; }
+}
+function setSaveStatus(msg, color){ const el=$id('saveStatus'); if(el){ el.textContent=msg||''; el.style.color=color||'var(--ink-dim)'; } }
+
+async function loadCostingFromServer(){
+  try{
+    const r = await fetch(COSTING_WORKER_URL + '/api/costing-data', {cache:'no-store'});
+    if(!r.ok) return false;
+    const d = await r.json();
+    if(d && d.data && applyCosting(d.data)){
+      syncGlobalInputs(); renderTable(); renderFormulasTab(); updateAll();
+      const when = d.data._ts ? new Date(d.data._ts).toLocaleString('en-IN') : '';
+      setSaveStatus('Showing the deployed version' + (when?(' · saved '+when):'') + '.', 'var(--teal)');
+      return true;
+    }
+  }catch(e){ /* offline / no server — fall back to built-in defaults */ }
+  return false;
+}
+
+async function saveCostingToServer(){
+  const btn = $id('saveDeployBtn'); if(!btn) return;
+  const adminToken = sessionStorage.getItem('adminToken');
+  const siteUser   = sessionStorage.getItem('siteUser');
+  const sitePass   = sessionStorage.getItem('sitePass');
+  if(!adminToken && !(siteUser && sitePass)){
+    setSaveStatus('Please sign in from the SCM Ease dashboard, then reopen this tab to save.', 'var(--danger)');
+    return;
+  }
+  const orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '⏳ Saving…'; setSaveStatus('Saving & deploying…');
+  try{
+    const headers = {'Content-Type':'application/json'};
+    const payload = { data: serializeCosting() };
+    if(adminToken) headers['Authorization'] = 'Bearer ' + adminToken;
+    else { payload.userName = siteUser; payload.userPassword = sitePass; }
+    const r = await fetch(COSTING_WORKER_URL + '/api/costing-data', {method:'POST', headers, body: JSON.stringify(payload)});
+    const d = await r.json().catch(()=>({}));
+    if(r.ok && d.ok) setSaveStatus('✓ Saved & deployed — everyone opening this tab now loads your version.', 'var(--teal)');
+    else if(r.status===401) setSaveStatus('✗ Not authorised. Sign in from the dashboard as an admin or authorised user.', 'var(--danger)');
+    else if(r.status===403) setSaveStatus('✗ You don\u2019t have permission to deploy the costing sheet.', 'var(--danger)');
+    else setSaveStatus('✗ ' + (d.error || ('Save failed (HTTP '+r.status+')')), 'var(--danger)');
+  }catch(e){ setSaveStatus('✗ Network error: ' + e.message, 'var(--danger)'); }
+  finally{ btn.disabled = false; btn.innerHTML = orig; }
+}
+$id('saveDeployBtn').addEventListener('click', saveCostingToServer);
+
 /* ============================ INIT ============================ */
 ROWS = DEFAULT_ROWS_RAW.map(r=>makeRow(r));
 syncGlobalInputs();
 renderTable();
 renderFormulasTab();
 updateAll();
+loadCostingFromServer();   // pull the deployed shared version, if one has been saved
 </script>
 </body>
 </html>

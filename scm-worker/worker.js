@@ -233,6 +233,7 @@ const PLANNING_CONFIG_KEY = 'planning_config';
 const SHARED_PLANNING_KEY = 'shared_planning_data';
 const VENDOR_DATA_KEY = 'vendor_sheet_data';
 const MSL_BOARD_KEY = 'msl_board_data';
+const COSTING_DATA_KEY = 'costing_sheet_data';
 
 async function getUsers(env) {
   const raw = await env.LOGS.get(USERS_KEY);
@@ -403,6 +404,38 @@ async function handleGetConsumptionDefaults(env) {
   if (!raw) return jsonResp({ defaults: null });
   try { return jsonResp({ defaults: JSON.parse(raw) }); }
   catch { return jsonResp({ defaults: null }); }
+}
+
+// ── Costing Sheet (shared BOM / Freight / MW costing state — globals, rows, columns/formulas) ──
+async function handleGetCostingData(env) {
+  const raw = await env.LOGS.get(COSTING_DATA_KEY);
+  if (!raw) return jsonResp({ data: null });
+  try { return jsonResp({ data: JSON.parse(raw) }); }
+  catch { return jsonResp({ data: null }); }
+}
+
+async function handleSaveCostingData(body, env, authHeader) {
+  // Admin JWT, or a user who holds the "costing" permission (sohil by default). Mirrors the
+  // costing-tab gating: only the admin and authorised costing users can deploy the shared sheet.
+  const token = (authHeader || '').replace('Bearer ', '');
+  const payload = await verifyToken(token, env.JWT_SECRET);
+  let actingUser = 'admin';
+  if (!payload) {
+    const { userName, userPassword } = body;
+    const verified = await verifyUserCredentials(env, userName, userPassword);
+    if (!verified) return jsonResp({ error: 'Unauthorized' }, 401);
+    const isSohil = verified.toLowerCase() === 'sohil';
+    const hasPerm = isSohil || await userHasPermission(env, verified, 'costing');
+    if (!hasPerm) return jsonResp({ error: 'No costing permission' }, 403);
+    actingUser = verified;
+  }
+  const { data } = body;
+  if (!data || typeof data !== 'object') return jsonResp({ error: 'Costing data required' }, 400);
+  const s = JSON.stringify(data);
+  if (s.length > 2 * 1024 * 1024) return jsonResp({ error: 'Data too large' }, 413);
+  await env.LOGS.put(COSTING_DATA_KEY, s);
+  await appendLog(env, { type: 'config', user: actingUser, ts: new Date().toISOString(), detail: 'Saved & deployed Costing Sheet' });
+  return jsonResp({ ok: true });
 }
 
 // ── Planning Config (customer module overrides, shared across all users) ──
@@ -616,6 +649,9 @@ export default {
     if (request.method === 'GET' && path === '/api/consumption-defaults') {
       return handleGetConsumptionDefaults(env);
     }
+    if (request.method === 'GET' && path === '/api/costing-data') {
+      return handleGetCostingData(env);
+    }
     if (request.method === 'GET' && path === '/api/planning-config') {
       return handleGetPlanningConfig(env);
     }
@@ -646,6 +682,7 @@ export default {
       if (path === '/api/permissions/update') return handleUpdatePermissions(body, env, request.headers.get('Authorization'));
       if (path === '/api/user-permissions') return handleGetUserPermissions(body, env);
       if (path === '/api/consumption-defaults') return handleSaveConsumptionDefaults(body, env, request.headers.get('Authorization'));
+      if (path === '/api/costing-data') return handleSaveCostingData(body, env, request.headers.get('Authorization'));
       if (path === '/api/customer-data') return handleSaveCustomerData(body, env);
       if (path === '/api/planning-config') return handleSavePlanningConfig(body, env);
       if (path === '/api/shared-planning') return handleSaveSharedPlanning(body, env, request.headers.get('Authorization'));
