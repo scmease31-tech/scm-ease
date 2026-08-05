@@ -226,8 +226,8 @@ const DEFAULT_USERS = [
   {name:'Purvi',password:'purvi'},{name:'Khushi',password:'khushi'},
   {name:'Rajesh',password:'rajesh'}
 ];
-const DEFAULT_PERMS = { calc: true, calc_changes: false, plan: true, plan_edit: true, plan_changes: false, cell: true, vendor: true, vendor_edit: true, explorer: true, po: true, mslpanel: true, ap: true };
-const ALLOWED_PERM_KEYS = ['calc', 'calc_changes', 'plan', 'plan_edit', 'plan_changes', 'cell', 'vendor', 'vendor_edit', 'explorer', 'po', 'mslpanel', 'ap'];
+const DEFAULT_PERMS = { calc: true, calc_changes: false, plan: true, plan_edit: true, plan_changes: false, cell: true, vendor: true, vendor_edit: true, explorer: true, po: true, mslpanel: true, ap: true, costing: false };
+const ALLOWED_PERM_KEYS = ['calc', 'calc_changes', 'plan', 'plan_edit', 'plan_changes', 'cell', 'vendor', 'vendor_edit', 'explorer', 'po', 'mslpanel', 'ap', 'costing'];
 const CONSUMPTION_DEFAULTS_KEY = 'consumption_defaults';
 const PLANNING_CONFIG_KEY = 'planning_config';
 const SHARED_PLANNING_KEY = 'shared_planning_data';
@@ -366,8 +366,11 @@ async function handleGetUserPermissions(body, env) {
   const { name } = body;
   if (!name || typeof name !== 'string') return jsonResp({ error: 'Name required' }, 400);
   const allPerms = await getAllPermissions(env);
+  const stored = allPerms[name.toLowerCase()] || {};
   // Merge over defaults so newly-added tab permissions (e.g. po / mslpanel / ap) default-on for users saved before those keys existed
-  const userPerms = { ...DEFAULT_PERMS, ...(allPerms[name.toLowerCase()] || {}) };
+  const userPerms = { ...DEFAULT_PERMS, ...stored };
+  // The restricted Costing tab defaults ON for the "sohil" user (admin bypasses gating entirely on the client).
+  if (name.toLowerCase() === 'sohil' && !('costing' in stored)) userPerms.costing = true;
   return jsonResp({ permissions: userPerms });
 }
 

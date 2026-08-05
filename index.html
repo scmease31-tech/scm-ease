@@ -62,7 +62,7 @@
   }
 
   /* Reduce layout cost for hidden views */
-  #calcMain, #planningMain, #cellInvMain, #vendorMain, #explorerMain, #logMain, #usersMain, #poMain, #apMain, #mslPanelMain {
+  #calcMain, #planningMain, #cellInvMain, #vendorMain, #explorerMain, #logMain, #usersMain, #poMain, #apMain, #mslPanelMain, #costingMain {
     contain: layout style paint;
   }
 
@@ -2461,6 +2461,10 @@
       <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.4"/><path d="M6 10v4M18 10v4"/></svg>
       <span class="nav-label">Vendor Pay</span>
     </button>
+    <button class="mode-btn nav-item" id="modeCosting" style="display:none" title="Module BOM, Freight &amp; MW Costing Sheet">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6a2 2 0 0 1 2 2v16l-3-2-2 2-2-2-3 2V4a2 2 0 0 1 2-2z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="13" y2="15"/></svg>
+      <span class="nav-label">Costing Sheet</span>
+    </button>
     <button class="mode-btn nav-item" id="mode3D" title="3D Module Explorer">
       <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
       <span class="nav-label">3D Explorer</span>
@@ -4011,6 +4015,11 @@ const VENDOR_SHEETS = {
   <iframe id="explorerFrame" src="about:blank" style="width:100%; height:calc(100vh - 108px); border:none; display:block;"></iframe>
 </main>
 
+<!-- MODULE BOM / FREIGHT / MW COSTING SHEET (isolated in an iframe · restricted tab) -->
+<main id="costingMain" style="display:none; padding:0; margin:0;">
+  <iframe id="costingFrame" src="about:blank" style="width:100%; height:calc(100vh - 108px); border:none; display:block;"></iframe>
+</main>
+
 <!-- ACTIVITY LOG SECTION -->
 <main id="logMain" style="display:none; max-width:1680px; margin:0 auto; padding:18px 24px 40px;">
   <div class="log-container">
@@ -4144,14 +4153,15 @@ const VENDOR_SHEETS = {
               <th>Pending PO</th>
               <th>MSL Panel</th>
               <th>Vendor Pay</th>
+              <th>Costing</th>
             </tr>
             <tr class="filter-row" id="filterRow-permBody">
               <th><div class="cf-wrap" data-col="0" data-tbody="permBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
-              <th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>
+              <th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>
             </tr>
           </thead>
           <tbody id="permBody">
-            <tr><td colspan="13" style="text-align:center;color:var(--muted);padding:30px">Loading…</td></tr>
+            <tr><td colspan="14" style="text-align:center;color:var(--muted);padding:30px">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -6697,18 +6707,21 @@ document.getElementById('modeAP').addEventListener('click', (e) => {
 document.getElementById('modeMslPanel').addEventListener('click', (e) => {
   cellShowView('mslpanel', e.target);
 });
+document.getElementById('modeCosting').addEventListener('click', (e) => {
+  cellShowView('costing', e.target);
+});
 
 function cellShowView(which, btn) {
   document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  const views = {calc:'calcMain',plan:'planningMain',cell:'cellInvMain',vendor:'vendorMain',explorer:'explorerMain',log:'logMain',users:'usersMain',po:'poMain',ap:'apMain',mslpanel:'mslPanelMain'};
+  const views = {calc:'calcMain',plan:'planningMain',cell:'cellInvMain',vendor:'vendorMain',explorer:'explorerMain',log:'logMain',users:'usersMain',po:'poMain',ap:'apMain',mslpanel:'mslPanelMain',costing:'costingMain'};
   for (const [k,id] of Object.entries(views)) {
     document.getElementById(id).style.display = k === which ? 'block' : 'none';
   }
   /* Hide admin toolbar on 3D tab so it doesn't cover the 3D control bar */
   const atb = document.getElementById('adminToolbar');
   if (atb) {
-    if (which === 'explorer' || which === 'ap' || which === 'mslpanel') { atb.classList.remove('show'); }
+    if (which === 'explorer' || which === 'ap' || which === 'mslpanel' || which === 'costing') { atb.classList.remove('show'); }
     else if (document.body.classList.contains('admin-active')) { atb.classList.add('show'); }
   }
   /* Unload 3D explorer when leaving to free GPU/CPU */
@@ -6729,6 +6742,10 @@ function cellShowView(which, btn) {
     if (which === 'mslpanel') {
       const mf = document.getElementById('mslPanelFrame');
       if (mf && (mf.src === 'about:blank' || !mf.src.includes('MSL_Control_Panel'))) mf.src = 'MSL_Control_Panel.html';
+    }
+    if (which === 'costing') {
+      const cf = document.getElementById('costingFrame');
+      if (cf && (cf.src === 'about:blank' || !cf.src.includes('Module_BOM'))) cf.src = 'Module_BOM_Freight_MW_Costing_Sheet.html';
     }
     if (which === 'plan' && lastAnalysis && planRaw && planRaw.length > 0) runAnalysisAuto();
     if (which === 'vendor') {
@@ -10564,6 +10581,7 @@ loadAnalysisState();
     document.getElementById('adminLoginBtn').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span style="color:#10b981">Admin ✓</span>';
     document.getElementById('modeLog').style.display = '';
     document.getElementById('modeUsers').style.display = '';
+    var mCost = document.getElementById('modeCosting'); if (mCost) mCost.style.display = '';
     // Admin has all deploy permissions
     sessionStorage.setItem('calcChangesPerm', '1');
     sessionStorage.setItem('planChangesPerm', '1');
@@ -10583,6 +10601,7 @@ loadAnalysisState();
     document.getElementById('adminLoginBtn').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Admin</span>';
     document.getElementById('modeLog').style.display = 'none';
     document.getElementById('modeUsers').style.display = 'none';
+    var mCostX = document.getElementById('modeCosting'); if (mCostX) mCostX.style.display = 'none';
     // Reset deploy permissions to user level
     sessionStorage.setItem('calcChangesPerm', '0');
     sessionStorage.setItem('planChangesPerm', '0');
@@ -12426,7 +12445,7 @@ window.umSwitchTab = function(tab) {
 // ── Permissions Management ──
 (function(){
   const WORKER_URL = 'https://scm-ease-admin.scmease31.workers.dev';
-  const TAB_KEYS = ['calc', 'calc_changes', 'plan', 'plan_edit', 'plan_changes', 'cell', 'vendor', 'vendor_edit', 'explorer', 'po', 'mslpanel', 'ap'];
+  const TAB_KEYS = ['calc', 'calc_changes', 'plan', 'plan_edit', 'plan_changes', 'cell', 'vendor', 'vendor_edit', 'explorer', 'po', 'mslpanel', 'ap', 'costing'];
   const TAB_LABELS = {
     calc: 'Calculator',
     calc_changes: 'Calc Deploy',
@@ -12436,13 +12455,14 @@ window.umSwitchTab = function(tab) {
     cell: 'Cell INV',
     vendor: 'Vendor View',
     vendor_edit: 'Vendor Edit',
-    explorer: '3D Explorer'
+    explorer: '3D Explorer',
+    costing: 'Costing Sheet'
   };
   const UM_COLORS = ['#0b6e4f','#1d6fbf','#7c3aed','#d97706','#dc2626','#0891b2','#4f46e5','#059669','#b45309','#6d28d9'];
 
   let permUsers = [];
   let permData = {};
-  let permDefaults = { calc: true, calc_changes: false, plan: true, plan_edit: true, plan_changes: false, cell: true, vendor: true, vendor_edit: true, explorer: true, po: true, mslpanel: true, ap: true };
+  let permDefaults = { calc: true, calc_changes: false, plan: true, plan_edit: true, plan_changes: false, cell: true, vendor: true, vendor_edit: true, explorer: true, po: true, mslpanel: true, ap: true, costing: false };
 
   function getToken() { return sessionStorage.getItem('adminToken') || ''; }
   function escH(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
@@ -12471,13 +12491,17 @@ window.umSwitchTab = function(tab) {
   };
 
   function getUserPerms(name) {
-    return { ...permDefaults, ...(permData[name.toLowerCase()] || {}) };
+    const stored = permData[name.toLowerCase()] || {};
+    const p = { ...permDefaults, ...stored };
+    // "sohil" gets the restricted Costing tab by default (until admin explicitly sets it otherwise).
+    if (name.toLowerCase() === 'sohil' && !('costing' in stored)) p.costing = true;
+    return p;
   }
 
   function renderPermissions() {
     const body = document.getElementById('permBody');
     if (!permUsers.length) {
-      body.innerHTML = '<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:30px">No users found</td></tr>';
+      body.innerHTML = '<tr><td colspan="14" style="text-align:center;color:var(--muted);padding:30px">No users found</td></tr>';
       return;
     }
     body.innerHTML = permUsers.map((u, i) => {
@@ -12551,7 +12575,8 @@ window.umSwitchTab = function(tab) {
     explorer: 'mode3D',
     po: 'modePO',
     mslpanel: 'modeMslPanel',
-    ap: 'modeAP'
+    ap: 'modeAP',
+    costing: 'modeCosting'
   };
 
   window.applyUserPermissions = async function(userName) {
@@ -12566,13 +12591,17 @@ window.umSwitchTab = function(tab) {
       const d = await r.json();
       if (!r.ok) return;
       const perms = d.permissions || {};
+      // "costing" is opt-in (restricted): only the admin (handled via enterAdminMode) and the
+      // "sohil" user get it by default. Everyone else stays hidden unless the admin grants it.
+      if ((userName || '').toLowerCase() === 'sohil') perms.costing = true;
       // Store for reference
       sessionStorage.setItem('userPermissions', JSON.stringify(perms));
       // Hide/show tabs based on permissions
       for (const [key, btnId] of Object.entries(TAB_MAP)) {
         const btn = document.getElementById(btnId);
         if (btn) {
-          btn.style.display = perms[key] !== false ? '' : 'none';
+          const vis = (key === 'costing') ? (perms[key] === true) : (perms[key] !== false);
+          btn.style.display = vis ? '' : 'none';
         }
       }
       // Enforce plan edit permission
@@ -12587,7 +12616,8 @@ window.umSwitchTab = function(tab) {
       const activeBtn = document.querySelector('.mode-btn.active');
       if (activeBtn && activeBtn.style.display === 'none') {
         for (const [key, btnId] of Object.entries(TAB_MAP)) {
-          if (perms[key] !== false) {
+          const vis = (key === 'costing') ? (perms[key] === true) : (perms[key] !== false);
+          if (vis) {
             const btn = document.getElementById(btnId);
             if (btn) { btn.click(); break; }
           }

@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>G12R / M10 Module — Live BOM, Freight &amp; MW Costing Sheet</title>
+<script>
+/* Access guard — this sheet is restricted to the admin and the "sohil" user.
+   Reads the SCM Ease session (same-origin, set by the parent dashboard). Client-side
+   convenience gate that mirrors the tab-level permission; not a server-enforced boundary. */
+(function(){
+  function guard(){
+    try{
+      var u=(sessionStorage.getItem('siteUser')||'').toLowerCase();
+      var ok = !!sessionStorage.getItem('adminToken') || u==='sohil' || u==='admin';
+      if(!ok){
+        document.body.innerHTML='<div style="font-family:system-ui,Segoe UI,sans-serif;color:#e8edf2;background:#0d1117;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px;gap:12px"><div style="font-size:44px">&#128274;</div><div style="font-size:18px;font-weight:700">Restricted costing sheet</div><div style="font-size:13px;color:#8fa1b3;max-width:440px;line-height:1.6">This module is available only to the administrator and authorised users. Please open it from the SCM Ease dashboard after signing in.</div></div>';
+      }
+    }catch(e){}
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',guard); else guard();
+})();
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#141b24; --panel2:#182230; --line:#25313f; --line-soft:#1c2733;
+    --gold:#e3a53d; --gold-dim:#8a6a2c; --teal:#3ec9a7; --teal-dim:#1f5a4c;
+    --ink:#e8edf2; --ink-dim:#8fa1b3; --input:#5b9dff; --calc:#e8edf2; --bold:#ffffff; --danger:#ff6b6b;
+    --freight-bg:#1f1a10; --freight-bg2:#241d12; --scale-bg:#0f1f1d; --scale-bg2:#122522;
+    --core-bg:#101822; --core-bg2:#131e2b; --override:#c98bf0;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:'Segoe UI',ui-sans-serif,system-ui,-apple-system,sans-serif;}
+  ::selection{background:rgba(227,165,61,.35);}
+
+  .topband{
+    padding:22px 26px 16px;
+    background:radial-gradient(1200px 220px at 15% -40%, rgba(227,165,61,.14), transparent 60%),
+      radial-gradient(900px 200px at 90% -60%, rgba(62,201,167,.10), transparent 60%),
+      linear-gradient(180deg,#0f151d,#0d1117 85%);
+    border-bottom:1px solid var(--line);
+  }
+  .brandrow{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+  .brand h1{font-size:20px;margin:0;letter-spacing:.3px;font-weight:700;color:var(--bold);}
+  .brand h1 span{color:var(--gold);}
+  .brand .sub{font-size:11.5px;color:var(--ink-dim);margin-top:3px;letter-spacing:.4px;text-transform:uppercase;}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;}
+  .btn{background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:7px 13px;border-radius:6px;
+    font-size:12px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:.15s;}
+  .btn:hover{border-color:var(--gold-dim);color:var(--gold);}
+  .btn.primary{background:linear-gradient(180deg,#f0b955,#d9932b);color:#241a06;border:none;font-weight:700;}
+  .btn.primary:hover{filter:brightness(1.08);}
+  .btn.ghost{border-style:dashed;}
+  .btn.teal{border-color:var(--teal-dim);color:var(--teal);}
+
+  .globals{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:16px;}
+  .gcard{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px 12px;position:relative;overflow:hidden;}
+  .gcard::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--gold);}
+  .gcard.teal::before{background:var(--teal);}
+  .gcard label{display:block;font-size:9.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-dim);margin-bottom:5px;}
+  .gcard .row{display:flex;align-items:baseline;gap:4px;}
+  .gcard input{background:transparent;border:none;outline:none;color:var(--input);font-size:17px;font-weight:700;
+    font-variant-numeric:tabular-nums;width:100%;font-family:'Consolas','SFMono-Regular',Menlo,monospace;}
+  .gcard .unit{font-size:11px;color:var(--ink-dim);white-space:nowrap;}
+  .gcard.mw input{color:var(--gold);}
+  .gcard .hint{position:absolute;right:8px;top:8px;font-size:9px;color:var(--ink-dim);opacity:.6;}
+
+  .dash{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:14px;}
+  .dcard{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:9px;padding:12px 13px;}
+  .dcard .k{font-size:9.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-dim);}
+  .dcard .v{font-size:19px;font-weight:800;color:var(--bold);margin-top:5px;
+    font-family:'Consolas','SFMono-Regular',Menlo,monospace;font-variant-numeric:tabular-nums;}
+  .dcard .v.gold{color:var(--gold);} .dcard .v.teal{color:var(--teal);}
+  .dcard .sub2{font-size:10px;color:var(--ink-dim);margin-top:3px;}
+
+  .legend{display:flex;gap:16px;padding:10px 26px;font-size:11px;color:var(--ink-dim);flex-wrap:wrap;background:var(--bg);border-bottom:1px solid var(--line-soft);}
+  .legend span.dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px;}
+  .legend .in{color:var(--input);font-weight:600;}
+  .legend .ov{color:var(--override);font-weight:600;}
+
+  .tabs{display:flex;gap:4px;padding:10px 26px 0;background:var(--bg);}
+  .tabbtn{background:var(--panel);border:1px solid var(--line);border-bottom:none;color:var(--ink-dim);
+    padding:8px 16px;border-radius:8px 8px 0 0;font-size:12px;cursor:pointer;font-weight:600;}
+  .tabbtn.active{background:var(--panel2);color:var(--gold);border-color:var(--gold-dim);}
+
+  .tablewrap{overflow:auto;max-height:60vh;margin:0 0 4px;border-bottom:1px solid var(--line);}
+  table{border-collapse:separate;border-spacing:0;font-size:11.5px;width:100%;min-width:2200px;}
+  thead th{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line);
+    padding:7px 8px;font-weight:600;color:var(--ink-dim);text-align:right;white-space:nowrap;font-size:10.5px;}
+  thead tr.grp th{top:0;z-index:6;font-size:9.5px;text-transform:uppercase;letter-spacing:.6px;
+    padding:5px 8px;color:#0d1117;font-weight:800;border-bottom:1px solid rgba(0,0,0,.2);}
+  thead tr.hdr th{top:26px;}
+  th.left, td.left{text-align:left;}
+  .grp-id{background:#30414f;color:var(--ink);}
+  .grp-core{background:#3a5a86;color:#fff;}
+  .grp-price{background:#4a6fa8;color:#fff;}
+  .grp-freight{background:var(--gold);}
+  .grp-scale{background:var(--teal);}
+
+  tbody td{padding:5px 8px;border-bottom:1px solid var(--line-soft);text-align:right;white-space:nowrap;
+    font-family:'Consolas','SFMono-Regular',Menlo,monospace;font-variant-numeric:tabular-nums;}
+  tbody td.left{font-family:inherit;text-align:left;}
+  tbody tr:hover td{background:rgba(255,255,255,.02);}
+  tbody tr.total-row td{background:#182018;border-top:2px solid var(--teal);border-bottom:none;
+    font-weight:800;color:var(--bold);position:sticky;bottom:0;}
+
+  td.core{background:var(--core-bg);} tr:nth-child(even) td.core{background:var(--core-bg2);}
+  td.freight{background:var(--freight-bg);} tr:nth-child(even) td.freight{background:var(--freight-bg2);}
+  td.scale{background:var(--scale-bg);} tr:nth-child(even) td.scale{background:var(--scale-bg2);}
+
+  .matname{font-weight:600;color:var(--bold);}
+  .matsub{display:block;font-size:9.5px;color:var(--ink-dim);font-weight:400;max-width:190px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .srbadge{display:inline-block;min-width:18px;text-align:center;background:var(--panel2);
+    border:1px solid var(--line);border-radius:4px;color:var(--ink-dim);font-size:10px;padding:1px 4px;margin-right:6px;}
+
+  input.cell{background:transparent;border:1px solid transparent;border-radius:4px;color:var(--input);
+    text-align:right;width:100%;min-width:56px;font:inherit;font-family:'Consolas','SFMono-Regular',Menlo,monospace;padding:2px 4px;}
+  input.cell:hover{border-color:var(--line);}
+  input.cell:focus{outline:none;border-color:var(--input);background:rgba(91,157,255,.08);}
+  input.cell.opt::placeholder{color:#4a5a6a;}
+
+  .calc{color:var(--calc);cursor:pointer;}
+  .calc:hover{background:rgba(227,165,61,.07) !important;}
+  .calc.strong{color:var(--bold);font-weight:700;}
+  .calc.gold{color:var(--gold);font-weight:700;}
+  .calc.teal{color:var(--teal);font-weight:700;}
+  .calc.overridden{color:var(--override);}
+  .calc.overridden::after{content:" *";color:var(--override);}
+  .calc.err{color:var(--danger);}
+
+  .delbtn{background:none;border:none;color:#5a6b7a;cursor:pointer;font-size:13px;padding:2px 4px;border-radius:4px;}
+  .delbtn:hover{color:var(--danger);background:rgba(255,107,107,.1);}
+
+  .addrow-wrap{padding:10px 26px;display:flex;gap:8px;flex-wrap:wrap;}
+
+  .foot{padding:14px 26px 26px;font-size:11px;color:var(--ink-dim);line-height:1.7;}
+  .foot b{color:var(--ink);}
+  .foot .chip{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:5px;
+    padding:1px 7px;margin:0 3px;color:var(--gold);font-family:'Consolas',monospace;font-size:10.5px;}
+
+  /* ---------- FORMULAS TAB ---------- */
+  #formulasView{display:none;padding:16px 26px 30px;}
+  #formulasView table{width:100%;min-width:0;font-size:12px;}
+  #formulasView thead th{position:static;text-align:left;background:var(--panel2);color:var(--ink-dim);
+    padding:8px 10px;border-bottom:1px solid var(--line);}
+  #formulasView tbody td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line-soft);white-space:normal;}
+  .tag{display:inline-block;font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:10px;font-weight:700;}
+  .tag.calc{background:rgba(227,165,61,.15);color:var(--gold);}
+  .tag.input{background:rgba(91,157,255,.15);color:var(--input);}
+  .fxedit{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:5px;color:var(--gold);
+    padding:6px 8px;font-family:'Consolas',monospace;font-size:11.5px;}
+  .fxedit:focus{outline:none;border-color:var(--gold-dim);}
+  .fx-help{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:14px 16px;margin-bottom:16px;font-size:12px;color:var(--ink-dim);line-height:1.7;}
+  .fx-help b{color:var(--ink);}
+  .fx-help code{background:var(--panel2);color:var(--gold);padding:1px 6px;border-radius:4px;font-family:'Consolas',monospace;}
+  .addcolbar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+
+  @media (max-width:900px){
+    .globals{grid-template-columns:repeat(2,1fr);}
+    .dash{grid-template-columns:repeat(2,1fr);}
+  }
+</style>
+</head>
+<body>
+
+<div class="topband">
+  <div class="brandrow">
+    <div class="brand">
+      <h1>☀ Module <span>BOM · Freight · MW</span> Costing Sheet</h1>
+      <div class="sub">G12R / M10 TopCon — fully interlinked spreadsheet · every formula editable</div>
+    </div>
+    <div class="toolbar">
+      <button class="btn ghost" id="addRowBtn">+ Add Material</button>
+      <button class="btn ghost" id="addColBtn">+ Add Column</button>
+      <button class="btn teal" id="importBtn">⭱ Import Excel</button>
+      <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none">
+      <button class="btn" id="exportBtn">🎨 Export Excel</button>
+      <button class="btn primary" id="resetBtn">↺ Reset Defaults</button>
+    </div>
+  </div>
+
+  <div class="globals">
+    <div class="gcard">
+      <label>Module Wattage</label>
+      <div class="row"><input id="g_wattage" class="gnum" type="number" step="any"><span class="unit">Wp</span></div>
+    </div>
+    <div class="gcard">
+      <label>FX Rate</label>
+      <div class="row"><input id="g_fx" class="gnum" type="number" step="any"><span class="unit">INR/USD</span></div>
+    </div>
+    <div class="gcard">
+      <label>Freight — Default / Container</label>
+      <div class="row"><input id="g_freight" class="gnum" type="number" step="any"><span class="unit">USD</span></div>
+    </div>
+    <div class="gcard teal">
+      <label>Local Freight — Default / Container</label>
+      <div class="row"><input id="g_localfreight" class="gnum" type="number" step="any"><span class="unit">INR</span></div>
+    </div>
+    <div class="gcard teal">
+      <label>Production Run — Modules to Build</label>
+      <div class="row"><input id="g_nummodules" class="gnum" type="number" step="any"><span class="unit">Nos</span></div>
+    </div>
+    <div class="gcard mw">
+      <span class="hint">↔ editable</span>
+      <label>MW Output (edit this OR modules)</label>
+      <div class="row"><input id="g_mw" type="number" step="any"><span class="unit">MW</span></div>
+    </div>
+  </div>
+
+  <div class="dash">
+    <div class="dcard"><div class="k">MW Output</div><div class="v gold" id="d_mw">–</div><div class="sub2">Modules × Wattage ÷ 10⁶</div></div>
+    <div class="dcard"><div class="k">BOM Cost / Module</div><div class="v" id="d_costmodule">–</div><div class="sub2">ex-works, before freight</div></div>
+    <div class="dcard"><div class="k">Landed Cost / Module</div><div class="v" id="d_landedmodule">–</div><div class="sub2">incl. freight, duty, LC</div></div>
+    <div class="dcard"><div class="k">Blended $ / Watt</div><div class="v gold" id="d_perw">–</div><div class="sub2">landed BOM ÷ Wp</div></div>
+    <div class="dcard"><div class="k">Containers Required</div><div class="v teal" id="d_containers">–</div><div class="sub2">sum across all materials</div></div>
+    <div class="dcard"><div class="k">Total Freight Spend</div><div class="v teal" id="d_freightspend">–</div><div class="sub2">for full production run</div></div>
+  </div>
+  <div class="dash" style="grid-template-columns:1fr 1fr;margin-top:8px;">
+    <div class="dcard"><div class="k">Total Material Value — Full Run</div><div class="v" id="d_totalusd">–</div><div class="sub2" id="d_totalinr">–</div></div>
+    <div class="dcard"><div class="k">Material-only Value (excl. freight/duty)</div><div class="v" id="d_baseusd">–</div><div class="sub2" id="d_baseinr">–</div></div>
+  </div>
+</div>
+
+<div class="legend">
+  <span><span class="dot" style="background:var(--input)"></span><span class="in">Blue</span> = editable input</span>
+  <span><span class="dot" style="background:#c8d3dd"></span>Grey/white = auto-calculated · double-click to edit its formula for that row</span>
+  <span><span class="dot" style="background:var(--override)"></span><span class="ov">Purple *</span> = row has a custom one-off formula override</span>
+  <span><span class="dot" style="background:var(--gold)"></span>Freight &amp; landed-cost group</span>
+  <span><span class="dot" style="background:var(--teal)"></span>Production-scale group (driven by Modules to Build)</span>
+</div>
+
+<div class="tabs">
+  <button class="tabbtn active" id="tabTableBtn">📋 Table</button>
+  <button class="tabbtn" id="tabFormulasBtn">ƒ(x) Formulas</button>
+</div>
+
+<div id="tableView">
+  <div class="tablewrap">
+  <table>
+    <thead>
+      <tr class="grp" id="grpRow"></tr>
+      <tr class="hdr" id="hdrRow"></tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+    <tfoot><tr class="total-row" id="totalRow"></tr></tfoot>
+  </table>
+  </div>
+  <div class="foot">
+    <b>How the links work:</b> change <span class="chip">Module Wattage</span>, <span class="chip">FX Rate</span>,
+    <span class="chip">Modules to Build</span> <i>or</i> <span class="chip">MW Output</span> at the top and every row —
+    consumption, landed cost, $/W, containers, total value — recalculates instantly. Editing <span class="chip">MW Output</span>
+    directly back-solves <span class="chip">Modules to Build</span> (and vice versa) — they're the same number two ways.
+    <b>Freight logic:</b> each material has its own <span class="chip">Container Qty</span> — Freight $/unit = Freight $/Container ÷
+    Container Qty. Leave the override columns blank to inherit the global default; type a number to override that one material only.
+    <b>Every grey cell is a live formula</b> — double-click it to give that one row a custom formula, or open the
+    <span class="chip">ƒ(x) Formulas</span> tab to edit the formula for an entire column at once, add new columns, or remove custom ones.
+  </div>
+</div>
+
+<div id="formulasView">
+  <div class="fx-help">
+    <b>This is the formula engine behind every grey cell.</b> Each row below is one column of the table. Formulas are plain
+    JavaScript expressions — reference any other column by its <code>key</code> (shown in the second column) and the five
+    global inputs as <code>G.wattage</code>, <code>G.fx</code>, <code>G.freight</code>, <code>G.localfreight</code>,
+    <code>G.nummodules</code>. Edit a formula and the whole column recalculates immediately for every row. Tick
+    <b>"include in TOTAL row"</b> to have that column summed at the bottom of the table. Columns you add yourself can be
+    removed; the built-in columns can't (but their formulas are fully editable).
+  </div>
+  <div class="addcolbar">
+    <button class="btn primary" id="addColBtn2">+ Add Column</button>
+    <button class="btn ghost" id="addRowBtn2">+ Add Material</button>
+  </div>
+  <table>
+    <thead><tr><th>Label</th><th>Key</th><th>Type</th><th>Formula</th><th>Totals</th><th></th></tr></thead>
+    <tbody id="formulasBody"></tbody>
+  </table>
+</div>
+
+<script>
+/* ============================ COLUMN DEFINITIONS ============================ */
+const BUILTIN_COLUMNS = [
+ {key:'__sr',  label:'#',            group:'id', type:'meta', core:true},
+ {key:'material', label:'Material',       group:'id', type:'input', dtype:'text', core:true},
+ {key:'spec',     label:'Specification',  group:'id', type:'input', dtype:'text', core:true, hiddenHeader:true},
+ {key:'origin',   label:'Origin',         group:'id', type:'input', dtype:'text', core:true},
+ {key:'uom',      label:'UOM',            group:'id', type:'input', dtype:'text', core:true},
+
+ {key:'qty',        label:'Qty/Module',     group:'core', type:'input', dtype:'number', core:true},
+ {key:'wastage',    label:'Wastage %',      group:'core', type:'input', dtype:'number', core:true},
+ {key:'consumption',label:'Consum./Module', group:'core', type:'calc', core:true, decimals:4,
+   formula:'qty * (1 + wastage/100)'},
+
+ {key:'base',      label:'Base $/unit', group:'price', type:'input', dtype:'number', core:true},
+ {key:'priceINR',  label:'Base ₹/unit', group:'price', type:'calc', core:true, decimals:2, fmt:'inr',
+   formula:'base * G.fx'},
+ {key:'costUSD',   label:'Cost $/Module', group:'price', type:'calc', core:true, decimals:4, fmt:'usd', summable:true,
+   formula:'consumption * base'},
+ {key:'costINR',   label:'Cost ₹/Module', group:'price', type:'calc', core:true, decimals:2, fmt:'inr', summable:true,
+   formula:'costUSD * G.fx'},
+
+ {key:'contQty',    label:'Container Qty',              group:'freight', type:'input', dtype:'number', core:true},
+ {key:'freightOv',  label:'Freight $/Cntr (override)',  group:'freight', type:'input', dtype:'number', core:true, optional:true, defaultKey:'freight'},
+ {key:'freightCntr',label:'Freight $/Cntr (used)',      group:'freight', type:'calc', core:true, hidden:true, decimals:0, fmt:'usd',
+   formula:'(freightOv===null||freightOv===""||freightOv===undefined)?G.freight:Number(freightOv)'},
+ {key:'freightUnit',label:'Freight $/unit', group:'freight', type:'calc', core:true, decimals:4, fmt:'usd',
+   formula:'freightCntr / contQty'},
+ {key:'duty',       label:'Duty %',    group:'freight', type:'input', dtype:'number', core:true},
+ {key:'dutyUnit',   label:'Duty $/unit', group:'freight', type:'calc', core:true, decimals:4, fmt:'usd',
+   formula:'base * duty/100'},
+ {key:'lc',         label:'LC %',      group:'freight', type:'input', dtype:'number', core:true},
+ {key:'lcUnit',     label:'LC $/unit', group:'freight', type:'calc', core:true, decimals:4, fmt:'usd',
+   formula:'base * lc/100'},
+ {key:'localOv',    label:'Loc.Frt ₹/Cntr (override)', group:'freight', type:'input', dtype:'number', core:true, optional:true, defaultKey:'localfreight'},
+ {key:'localCntr',  label:'Local Frt ₹/Cntr (used)', group:'freight', type:'calc', core:true, hidden:true, decimals:0, fmt:'inr',
+   formula:'(localOv===null||localOv===""||localOv===undefined)?G.localfreight:Number(localOv)'},
+ {key:'localUnit',  label:'Local Frt $/unit', group:'freight', type:'calc', core:true, hidden:true, decimals:4, fmt:'usd',
+   formula:'(localCntr / G.fx) / contQty'},
+ {key:'landedUSD',  label:'Landed $/unit', group:'freight', type:'calc', core:true, decimals:4, fmt:'usd',
+   formula:'base + freightUnit + dutyUnit + lcUnit + localUnit'},
+
+ {key:'landedModUSD', label:'Landed $/Mod', group:'price2', type:'calc', core:true, decimals:4, fmt:'usd', summable:true,
+   formula:'landedUSD * consumption'},
+ {key:'landedModINR', label:'Landed ₹/Mod', group:'price2', type:'calc', core:true, decimals:2, fmt:'inr', summable:true,
+   formula:'landedModUSD * G.fx'},
+ {key:'perW',         label:'$/W', group:'price2', type:'calc', core:true, decimals:4, fmt:'usd',
+   formula:'landedModUSD / G.wattage'},
+
+ {key:'totalQty',        label:'Total Qty Reqd', group:'scale', type:'calc', core:true, decimals:0, fmt:'int',
+   formula:'consumption * G.nummodules'},
+ {key:'containers',      label:'Containers', group:'scale', type:'calc', core:true, decimals:0, fmt:'int', summable:true,
+   formula:'Math.ceil(totalQty / contQty)'},
+ {key:'totalFreightCost',label:'Freight Cost $', group:'scale', type:'calc', core:true, decimals:0, fmt:'usd', summable:true,
+   formula:'containers * freightCntr'},
+ {key:'totalValUSD',     label:'Value $', group:'scale', type:'calc', core:true, decimals:0, fmt:'usd', summable:true,
+   formula:'landedModUSD * G.nummodules'},
+ {key:'totalValINR',     label:'Value ₹', group:'scale', type:'calc', core:true, decimals:0, fmt:'inr', summable:true,
+   formula:'totalValUSD * G.fx'},
+
+ {key:'__del', label:'', group:'id', type:'meta', core:true},
+];
+const GROUP_LABEL = {id:'Material', core:'Consumption', price:'Ex-works Price & Cost',
+  freight:'Freight, Duty & Landed Cost / Unit', price2:'Cost / Module', scale:'Production Run'};
+const GROUP_CSS = {id:'grp-id', core:'grp-core', price:'grp-price', price2:'grp-price', freight:'grp-freight', scale:'grp-scale'};
+const GROUP_BG  = {id:'core', core:'core', price:'core', price2:'core', freight:'freight', scale:'scale'};
+
+const DEFAULT_GLOBALS = { wattage:620, fx:96, freight:1000, localfreight:100000, nummodules:1000000 };
+
+const DEFAULT_ROWS_RAW = [
+ {material:"Solar Cells",                 spec:"TopCon M10 182.2×210mm, 9.66W, >25.3% Eff", origin:"Indonesia · Yingfa", uom:"Nos", qty:66,      wastage:1.5, base:0.393,  contQty:1108800, freightOv:null, duty:0,    lc:1.5, localOv:null},
+ {material:"Solar Glass — Front",          spec:"Low-Iron tempered ARC glass 2376×1128×2mm", origin:"China · Topray",   uom:"Nos", qty:1,       wastage:0.2, base:6.968,  contQty:1800,    freightOv:null, duty:5.5,  lc:3,   localOv:null},
+ {material:"Solar Glass — Back (White)",   spec:"ARC glass 2376×1128×2mm, 3-hole pattern",   origin:"China · Topray",   uom:"Nos", qty:1,       wastage:0.2, base:6.968,  contQty:1800,    freightOv:null, duty:5.5,  lc:3,   localOv:null},
+ {material:"EPE — Front side",             spec:"Encapsulant film, 480 GSM",                 origin:"Vietnam · First",  uom:"SQM", qty:2.681,   wastage:0.5, base:0.99,   contQty:48000,   freightOv:null, duty:0,    lc:0,   localOv:null},
+ {material:"EPE — Back side",              spec:"Encapsulant film, 480 GSM",                 origin:"Vietnam · First",  uom:"SQM", qty:2.681,   wastage:0.5, base:0.99,   contQty:48000,   freightOv:null, duty:0,    lc:0,   localOv:null},
+ {material:"Cell Connector — Ribbon",      spec:"Sn/Pb 60/40, dia 0.26mm",                   origin:"China · Telison",  uom:"Kg",  qty:0.201,   wastage:1.5, base:17.00,  contQty:21000,   freightOv:null, duty:3.5,  lc:0,   localOv:null},
+ {material:"String Connector — Busbar 7mm",spec:"Sn/Pb 60/40, 7mm × 0.35mm",                 origin:"China · Telison",  uom:"Kg",  qty:0.025,   wastage:0.5, base:16.00,  contQty:21000,   freightOv:null, duty:3.5,  lc:0,   localOv:null},
+ {material:"String Connector — Busbar 4mm",spec:"Sn/Pb 60/40, 4mm × 0.35mm",                 origin:"China · Telison",  uom:"Kg",  qty:0.0245,  wastage:0.5, base:16.00,  contQty:21000,   freightOv:null, duty:3.5,  lc:0,   localOv:null},
+ {material:"RTV (Junction Box + Frame)",   spec:"White RTV sealant",                         origin:"China · Huitian",  uom:"Kg",  qty:0.41,    wastage:1,   base:1.47,   contQty:21000,   freightOv:null, duty:11,   lc:0,   localOv:null},
+ {material:"Junction Box",                 spec:"3-Split JB, IP68, 1500V, 30A diode, 1.4m cable", origin:"China · Sunter", uom:"Set", qty:1,      wastage:0.2, base:2.60,   contQty:50400,   freightOv:null, duty:8.25, lc:0,   localOv:null},
+ {material:"Potting Material — Part A",    spec:"2-part silicone potting compound",          origin:"China · Huitian",  uom:"Kg",  qty:0.02167, wastage:2,   base:2.65,   contQty:21000,   freightOv:null, duty:11,   lc:0,   localOv:null},
+ {material:"Potting Material — Part B",    spec:"2-part silicone potting compound",          origin:"China · Huitian",  uom:"Kg",  qty:0.00433, wastage:2,   base:2.65,   contQty:21000,   freightOv:null, duty:11,   lc:0,   localOv:null},
+ {material:"Aluminium Frame — Long",       spec:"2382 × 30 × 30mm, 6005-T6",                 origin:"China · Uplus",    uom:"Pcs", qty:2,       wastage:0.5, base:10.50,  contQty:10000,   freightOv:null, duty:11,   lc:1.5, localOv:null},
+ {material:"Aluminium Frame — Short",      spec:"1134 × 30 × 15mm, 6005-T6",                 origin:"China · Uplus",    uom:"Pcs", qty:2,       wastage:0.5, base:5.50,   contQty:10000,   freightOv:null, duty:11,   lc:1.5, localOv:null},
+ {material:"Fluxing Agent",                spec:"Low-solids, no-clean flux",                 origin:"Kester",           uom:"Ltr", qty:0.03,    wastage:0.5, base:3.125,  contQty:20000,   freightOv:null, duty:0,    lc:0,   localOv:null},
+ {material:"Cell Fixing Tape",             spec:"Anti-UV PET tape, 10mm — Tesa 4134",        origin:"Tesa",             uom:"m",   qty:0.00530, wastage:1,   base:0.044,  contQty:50000,   freightOv:null, duty:0,    lc:0,   localOv:null},
+];
+
+let COLUMNS = BUILTIN_COLUMNS.map(c=>({...c}));
+let G = {...DEFAULT_GLOBALS};
+let ROWS = [];
+let mwEditing = false;
+
+/* ============================ HELPERS ============================ */
+function n(v,d=2){ if(v===null||v===undefined||isNaN(v)) return "–"; return Number(v).toLocaleString('en-IN',{minimumFractionDigits:d,maximumFractionDigits:d}); }
+function usd(v,d=2){ return v===null||isNaN(v) ? "–" : "$"+n(v,d); }
+function inr(v,d=2){ return v===null||isNaN(v) ? "–" : "₹"+n(v,d); }
+function int(v){ return v===null||isNaN(v) ? "–" : Math.round(v).toLocaleString('en-IN'); }
+function $id(id){ return document.getElementById(id); }
+function esc(s){ return String(s===undefined||s===null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function fmtVal(col, v){
+  if(col.type==='meta') return '';
+  if(col.dtype==='text') return v;
+  if(v===null||v===undefined||Number.isNaN(v)) return 'ERR';
+  const d = col.decimals ?? 2;
+  if(col.fmt==='usd') return usd(v,d);
+  if(col.fmt==='inr') return inr(v,d);
+  if(col.fmt==='int') return int(v);
+  return n(v,d);
+}
+function makeRow(base){
+  const row = {__ov:{}};
+  COLUMNS.forEach(col=>{
+    if(col.type==='input'){
+      row[col.key] = (base && (col.key in base)) ? base[col.key] : (col.dtype==='text' ? '' : 0);
+    }
+  });
+  return row;
+}
+
+/* ============================ FORMULA ENGINE ============================ */
+function computeRow(row){
+  const ctx = {};
+  COLUMNS.forEach(col=>{
+    if(col.type==='input') ctx[col.key] = row[col.key];
+  });
+  COLUMNS.forEach(col=>{
+    if(col.type!=='calc') return;
+    const formula = (row.__ov && row.__ov[col.key]!==undefined) ? row.__ov[col.key] : col.formula;
+    try{
+      const keys = Object.keys(ctx);
+      const fn = new Function('G', ...keys, `"use strict"; return (${formula});`);
+      ctx[col.key] = fn(G, ...keys.map(k=>ctx[k]));
+      if(typeof ctx[col.key] !== 'number' || Number.isNaN(ctx[col.key])) throw new Error('bad');
+      ctx.__err = ctx.__err || {};
+    }catch(e){
+      ctx[col.key] = NaN;
+      ctx.__err = ctx.__err || {}; ctx.__err[col.key] = true;
+    }
+  });
+  return ctx;
+}
+
+/* ============================ TABLE RENDER (structure) ============================ */
+function visibleCols(){ return COLUMNS.filter(c=>!c.hidden); }
+
+function renderHeader(){
+  const cols = visibleCols();
+  let grp='', hdr='';
+  let i=0;
+  while(i<cols.length){
+    const c = cols[i];
+    if(c.type==='meta'){ grp += `<th class="grp-id"></th>`; hdr += `<th class="left">${c.label}</th>`; i++; continue; }
+    const g = c.group; let span=1;
+    while(i+span<cols.length && cols[i+span].group===g && cols[i+span].type!=='meta') span++;
+    grp += `<th class="${GROUP_CSS[g]}" colspan="${span}">${GROUP_LABEL[g]||g}</th>`;
+    for(let k=0;k<span;k++){
+      const cc = cols[i+k];
+      hdr += `<th class="${cc.dtype==='text'?'left':''}">${cc.label}</th>`;
+    }
+    i+=span;
+  }
+  $id('grpRow').innerHTML = grp;
+  $id('hdrRow').innerHTML = hdr;
+}
+
+function renderTable(){
+  renderHeader();
+  const cols = visibleCols();
+  const tb = $id('tbody');
+  tb.innerHTML = ROWS.map((r,i)=>{
+    return `<tr data-idx="${i}">` + cols.map(col=>{
+      if(col.key==='__sr') return `<td class="left core"><span class="srbadge">${i+1}</span></td>`;
+      if(col.key==='__del') return `<td class="core"><button class="delbtn" data-del="${i}" title="Remove row">✕</button></td>`;
+      const bg = GROUP_BG[col.group];
+      if(col.key==='material'){
+        return `<td class="left ${bg}">
+          <input class="cell left" style="color:var(--ink);text-align:left;font-family:inherit;font-weight:600" data-f="material" data-i="${i}" value="${esc(r.material)}">
+          <span class="matsub" title="${esc(r.spec)}">${esc(r.spec)}</span>
+        </td>`;
+      }
+      if(col.type==='input'){
+        if(col.dtype==='text'){
+          return `<td class="left ${bg}"><input class="cell left" style="color:var(--ink-dim);text-align:left;font-family:inherit" data-f="${col.key}" data-i="${i}" value="${esc(r[col.key])}"></td>`;
+        }
+        if(col.optional){
+          const ph = G[col.defaultKey];
+          const val = (r[col.key]===null||r[col.key]===undefined) ? '' : r[col.key];
+          return `<td class="${bg}"><input class="cell opt" type="number" step="any" data-f="${col.key}" data-i="${i}" value="${val}" placeholder="${ph}"></td>`;
+        }
+        return `<td class="${bg}"><input class="cell" type="number" step="any" data-f="${col.key}" data-i="${i}" value="${r[col.key]}"></td>`;
+      }
+      // calc
+      return `<td class="${bg} calc" id="c-${col.key}-${i}" data-key="${col.key}" data-idx="${i}"></td>`;
+    }).join('') + `</tr>`;
+  }).join('');
+}
+
+/* ============================ UPDATE VALUES (fast path) ============================ */
+function updateAll(){
+  const cols = visibleCols();
+  const sums = {};
+  cols.forEach(c=>{ if(c.summable) sums[c.key]=0; });
+  let sumLandedModUSD=0, sumCostUSD=0;
+
+  ROWS.forEach((r,i)=>{
+    const c = computeRow(r);
+    cols.forEach(col=>{
+      if(col.type!=='calc') return;
+      const cell = $id(`c-${col.key}-${i}`);
+      if(!cell) return;
+      const hasOv = r.__ov && r.__ov[col.key]!==undefined;
+      const isErr = c.__err && c.__err[col.key];
+      cell.textContent = isErr ? 'ERR' : fmtVal(col, c[col.key]);
+      cell.className = `${GROUP_BG[col.group]} calc` + (hasOv?' overridden':'') + (isErr?' err':'');
+      cell.title = hasOv ? ('Custom formula: '+r.__ov[col.key]+'  (double-click to edit)') : 'Double-click to give this cell a custom formula';
+      if(col.summable && !isErr) sums[col.key] += (c[col.key]||0);
+    });
+    sumLandedModUSD += (c.landedModUSD||0);
+    sumCostUSD += (c.costUSD||0);
+    // refresh placeholders for override inputs
+    cols.forEach(col=>{
+      if(col.optional){
+        const inp = document.querySelector(`input[data-f="${col.key}"][data-i="${i}"]`);
+        if(inp) inp.placeholder = G[col.defaultKey];
+      }
+    });
+  });
+
+  // total row
+  let labelDone = false;
+  const totalHTML = cols.map(col=>{
+    if(col.key==='__sr') return `<td></td>`;
+    if(col.key==='__del') return `<td></td>`;
+    if(col.key==='material' && !labelDone){ labelDone=true; return `<td class="left" style="text-align:left">TOTAL — per module (all ${ROWS.length} materials)</td>`; }
+    if(col.summable) return `<td>${fmtVal(col, sums[col.key])}</td>`;
+    if(col.key==='perW') return `<td>${usd(sumLandedModUSD/G.wattage,4)}</td>`;
+    return `<td></td>`;
+  }).join('');
+  $id('totalRow').innerHTML = totalHTML;
+
+  const perWTotal = sumLandedModUSD / G.wattage;
+  const mw = (G.nummodules * G.wattage) / 1e6;
+
+  $id('d_mw').textContent = n(mw,2)+" MW";
+  $id('d_costmodule').textContent = usd(sumCostUSD,3);
+  $id('d_landedmodule').textContent = usd(sumLandedModUSD,3);
+  $id('d_perw').textContent = usd(perWTotal,4)+"/W";
+  $id('d_containers').textContent = int(sums.containers);
+  $id('d_freightspend').textContent = usd(sums.totalFreightCost,0);
+  $id('d_totalusd').textContent = usd(sums.totalValUSD,0);
+  $id('d_totalinr').textContent = inr(sums.totalValINR,0);
+  $id('d_baseusd').textContent = usd(sumCostUSD*G.nummodules,0);
+  $id('d_baseinr').textContent = inr(sumCostUSD*G.nummodules*G.fx,0);
+
+  if(!mwEditing) $id('g_mw').value = round(mw,4);
+}
+function round(v,d){ const m=Math.pow(10,d); return Math.round(v*m)/m; }
+
+/* ============================ CELL FORMULA OVERRIDE (double-click) ============================ */
+document.getElementById('tbody').addEventListener('dblclick', (e)=>{
+  const cell = e.target.closest('td.calc');
+  if(!cell) return;
+  const key = cell.dataset.key, i = parseInt(cell.dataset.idx,10);
+  const col = COLUMNS.find(c=>c.key===key);
+  const row = ROWS[i];
+  const current = (row.__ov && row.__ov[key]!==undefined) ? row.__ov[key] : col.formula;
+  const val = prompt(
+    `Custom formula for "${col.label}" — row ${i+1} ("${row.material}") only.\n`+
+    `Use other column keys directly (e.g. base, qty, consumption) and globals as G.wattage, G.fx, G.freight, G.localfreight, G.nummodules.\n`+
+    `Clear the box and press OK to remove the override and use the normal column formula again.`,
+    current);
+  if(val===null) return;
+  if(!row.__ov) row.__ov = {};
+  if(val.trim()==='') delete row.__ov[key];
+  else row.__ov[key] = val;
+  updateAll();
+});
+
+/* ============================ GLOBAL INPUTS SYNC ============================ */
+function syncGlobalInputs(){
+  $id('g_wattage').value = G.wattage;
+  $id('g_fx').value = G.fx;
+  $id('g_freight').value = G.freight;
+  $id('g_localfreight').value = G.localfreight;
+  $id('g_nummodules').value = G.nummodules;
+  $id('g_mw').value = round((G.nummodules*G.wattage)/1e6, 4);
+}
+document.querySelectorAll('.gnum').forEach(inp=>{
+  inp.addEventListener('input', ()=>{
+    G.wattage      = parseFloat($id('g_wattage').value)||0;
+    G.fx           = parseFloat($id('g_fx').value)||0;
+    G.freight      = parseFloat($id('g_freight').value)||0;
+    G.localfreight = parseFloat($id('g_localfreight').value)||0;
+    G.nummodules   = parseFloat($id('g_nummodules').value)||0;
+    updateAll();
+  });
+});
+$id('g_mw').addEventListener('focus', ()=> mwEditing=true);
+$id('g_mw').addEventListener('blur',  ()=> mwEditing=false);
+$id('g_mw').addEventListener('input', ()=>{
+  const mwVal = parseFloat($id('g_mw').value)||0;
+  if(G.wattage>0){ G.nummodules = (mwVal*1e6)/G.wattage; $id('g_nummodules').value = round(G.nummodules,2); }
+  updateAll();
+});
+
+/* ============================ ROW INPUT DELEGATION ============================ */
+document.getElementById('tbody').addEventListener('input', (e)=>{
+  const t = e.target;
+  if(!t.matches('input.cell')) return;
+  const i = parseInt(t.dataset.i,10);
+  const f = t.dataset.f;
+  const col = COLUMNS.find(c=>c.key===f);
+  if(col && col.dtype==='text'){ ROWS[i][f] = t.value; return; }
+  if(col && col.optional){ ROWS[i][f] = t.value===''? null : parseFloat(t.value); }
+  else { ROWS[i][f] = parseFloat(t.value)||0; }
+  updateAll();
+});
+document.getElementById('tbody').addEventListener('click', (e)=>{
+  const t = e.target;
+  if(t.matches('button[data-del]')){
+    const i = parseInt(t.dataset.del,10);
+    ROWS.splice(i,1);
+    renderTable(); updateAll();
+  }
+});
+
+/* ============================ FORMULAS TAB ============================ */
+function renderFormulasTab(){
+  const el = $id('formulasBody');
+  el.innerHTML = COLUMNS.filter(c=>c.type!=='meta').map(col=>{
+    const isCalc = col.type==='calc';
+    return `<tr>
+      <td>${esc(col.label)}</td>
+      <td style="color:var(--ink-dim);font-family:Consolas,monospace">${col.key}</td>
+      <td>${isCalc? '<span class="tag calc">Formula</span>' : '<span class="tag input">Input</span>'}</td>
+      <td>${isCalc
+          ? `<input class="fxedit" data-fk="${col.key}" value="${esc(col.formula)}">`
+          : `<span style="color:var(--ink-dim)">raw value — edit directly in the Table tab${col.optional?` (blank = inherit global ${col.defaultKey})`:''}</span>`}</td>
+      <td>${isCalc ? `<label style="font-size:11px;color:var(--ink-dim);white-space:nowrap"><input type="checkbox" data-sumk="${col.key}" ${col.summable?'checked':''}> include in TOTAL</label>` : ''}</td>
+      <td>${col.core ? '' : `<button class="delbtn" data-delcol="${col.key}" title="Remove this column">✕</button>`}</td>
+    </tr>`;
+  }).join('');
+}
+document.getElementById('formulasBody').addEventListener('change', (e)=>{
+  const t = e.target;
+  if(t.matches('input[data-fk]')){
+    const col = COLUMNS.find(c=>c.key===t.dataset.fk);
+    col.formula = t.value;
+    updateAll();
+  } else if(t.matches('input[data-sumk]')){
+    const col = COLUMNS.find(c=>c.key===t.dataset.sumk);
+    col.summable = t.checked;
+    updateAll();
+  }
+});
+document.getElementById('formulasBody').addEventListener('click', (e)=>{
+  const t = e.target;
+  if(t.matches('button[data-delcol]')){
+    const key = t.dataset.delcol;
+    if(!confirm(`Remove column "${key}"? Any formulas in other columns referencing it will show ERR until fixed.`)) return;
+    COLUMNS = COLUMNS.filter(c=>c.key!==key);
+    ROWS.forEach(r=>{ delete r[key]; if(r.__ov) delete r.__ov[key]; });
+    renderTable(); renderFormulasTab(); updateAll();
+  }
+});
+
+/* ============================ ADD COLUMN ============================ */
+function addColumn(){
+  const label = prompt('New column name (e.g. "Insurance %", "Packaging Cost"):');
+  if(!label) return;
+  const key = 'c_' + label.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'') + '_' + Date.now().toString(36).slice(-4);
+  const isFormula = confirm('Click OK to make this a FORMULA column (auto-calculated).\nClick Cancel to make it a plain INPUT column (you type a number per row).');
+  let col;
+  if(isFormula){
+    const existingKeys = COLUMNS.filter(c=>c.type!=='meta').map(c=>c.key).join(', ');
+    const formula = prompt('Formula (JS expression). Reference any existing column by its key, and globals as G.wattage / G.fx / G.freight / G.localfreight / G.nummodules.\n\nExisting keys:\n'+existingKeys, 'base * 0');
+    if(formula===null) return;
+    col = {key, label, group:'scale', type:'calc', formula, decimals:4, fmt:'usd', summable:false, core:false};
+  } else {
+    col = {key, label, group:'core', type:'input', dtype:'number', core:false};
+    ROWS.forEach(r=>{ r[key]=0; });
+  }
+  const delIdx = COLUMNS.findIndex(c=>c.key==='__del');
+  COLUMNS.splice(delIdx, 0, col);
+  renderTable(); renderFormulasTab(); updateAll();
+}
+$id('addColBtn').addEventListener('click', addColumn);
+$id('addColBtn2').addEventListener('click', addColumn);
+
+/* ============================ ADD ROW / RESET ============================ */
+function addRow(){
+  ROWS.push(makeRow({material:"New Material", spec:"Add specification here", origin:"Origin", uom:"Nos",
+    qty:1, wastage:0, base:1, contQty:10000, freightOv:null, duty:0, lc:0, localOv:null}));
+  renderTable(); updateAll();
+}
+$id('addRowBtn').addEventListener('click', addRow);
+$id('addRowBtn2').addEventListener('click', addRow);
+
+$id('resetBtn').addEventListener('click', ()=>{
+  if(!confirm('Reset all materials, columns and global inputs to default values? Custom columns and overrides will be lost.')) return;
+  COLUMNS = BUILTIN_COLUMNS.map(c=>({...c}));
+  G = {...DEFAULT_GLOBALS};
+  ROWS = DEFAULT_ROWS_RAW.map(r=>makeRow(r));
+  syncGlobalInputs(); renderTable(); renderFormulasTab(); updateAll();
+});
+
+/* ============================ TABS ============================ */
+$id('tabTableBtn').addEventListener('click', ()=>{
+  $id('tableView').style.display='block'; $id('formulasView').style.display='none';
+  $id('tabTableBtn').classList.add('active'); $id('tabFormulasBtn').classList.remove('active');
+});
+$id('tabFormulasBtn').addEventListener('click', ()=>{
+  renderFormulasTab(); // always refresh on open, so a stale/empty tab can never be shown
+  $id('tableView').style.display='none'; $id('formulasView').style.display='block';
+  $id('tabFormulasBtn').classList.add('active'); $id('tabTableBtn').classList.remove('active');
+});
+
+/* ============================ EXPORT EXCEL (colorful, live formulas) ============================ */
+const XL_PALETTE = {
+  navy:'FF12213A', navy2:'FF1B2E4C',
+  gold:'FFE3A53D', goldDark:'FFB07C1F', goldSoft:'FFFFF3DF',
+  teal:'FF2FBE9C', tealDark:'FF1C7E68', tealSoft:'FFDDEFE9',
+  slate:'FF41556D', slateDark:'FF2E3E52',
+  blue:'FF4A6FA8', blueDark:'FF35507A', blueSoft:'FFEAF1FF',
+  purple:'FF9B6FD9', purpleSoft:'FFF1E9FB',
+  white:'FFFFFFFF', ink:'FF1B2430', inkSoft:'FF56637A',
+  bandA:'FFFFFFFF', bandB:'FFF3F6FA', headBand:'FFE9EEF4',
+};
+const XL_GROUP_COLORS = {id:XL_PALETTE.slate, core:XL_PALETTE.blue, price:XL_PALETTE.blueDark,
+  freight:XL_PALETTE.goldDark, price2:XL_PALETTE.blueDark, scale:XL_PALETTE.tealDark};
+const XL_GMAP = {wattage:'WATTAGE', fx:'FX', freight:'FREIGHT', localfreight:'LOCALFREIGHT', nummodules:'NUMMODULES'};
+const XL_FMT = {usd:'"$"#,##0.0000', inr:'"₹"#,##0.00', int:'#,##0', num:'#,##0.0000'};
+
+function xlColLetter(n){ let s=''; while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26); } return s; }
+
+// Best-effort JS-expression -> Excel-formula translator. Handles the shapes used
+// by every built-in column, plus simple custom columns added via "+ Add Column".
+function jsToXl(jsFormula, rowNum, colMap){
+  let f = String(jsFormula).trim();
+  const tern = f.match(/^(.*?)\?(.*):(.*)$/);
+  if(tern) f = `IF(${tern[1].trim()},${tern[2].trim()},${tern[3].trim()})`;
+  f = f.replace(/\(?\s*([A-Za-z_]\w*)\s*===\s*null\s*\|\|\s*\1\s*===\s*""\s*\|\|\s*\1\s*===\s*undefined\s*\)?/g, '$1=""');
+  f = f.replace(/===/g,'=').replace(/!==/g,'<>');
+  f = f.replace(/Math\.ceil\(([^)]+)\)/g,'CEILING.MATH($1)');
+  f = f.replace(/Math\.round\(([^)]+)\)/g,'ROUND($1,0)');
+  f = f.replace(/Math\.floor\(([^)]+)\)/g,'FLOOR.MATH($1)');
+  f = f.replace(/Number\(([^)]+)\)/g,'$1');
+  f = f.replace(/G\.(\w+)/g, (m,k)=> XL_GMAP[k]||m);
+  const keys = Object.keys(colMap).sort((a,b)=>b.length-a.length);
+  keys.forEach(k=>{
+    const re = new RegExp('\\b'+k+'\\b','g');
+    f = f.replace(re, colMap[k]+rowNum);
+  });
+  return f;
+}
+
+async function buildWorkbook(){
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Module BOM · Freight · MW Costing Sheet';
+  wb.created = new Date();
+
+  /* ---------- GLOBALS SHEET ---------- */
+  const gs = wb.addWorksheet('Globals', {properties:{tabColor:{argb:XL_PALETTE.gold}}});
+  gs.columns = [{width:36},{width:18},{width:12}];
+  gs.mergeCells('A1:C1');
+  const gTitle = gs.getCell('A1');
+  gTitle.value = '☀  Global Inputs';
+  gTitle.font = {bold:true, size:14, color:{argb:XL_PALETTE.white}};
+  gTitle.fill = {type:'pattern', pattern:'solid', fgColor:{argb:XL_PALETTE.navy}};
+  gTitle.alignment = {vertical:'middle', indent:1};
+  gs.getRow(1).height = 26;
+  gs.mergeCells('A2:C2');
+  const gSub = gs.getCell('A2');
+  gSub.value = 'Change any blue value below and every formula in Globals / BOM & Costing / Dashboard recalculates.';
+  gSub.font = {italic:true, size:9, color:{argb:XL_PALETTE.inkSoft}};
+  gSub.alignment = {indent:1};
+
+  const globalDefs = [
+    ['Module Wattage','WATTAGE',G.wattage,'Wp'],
+    ['FX Rate','FX',G.fx,'INR/USD'],
+    ['Freight — Default / Container','FREIGHT',G.freight,'USD'],
+    ['Local Freight — Default / Container','LOCALFREIGHT',G.localfreight,'INR'],
+    ['Production Run — Modules to Build','NUMMODULES',G.nummodules,'Nos'],
+  ];
+  let gr = 4;
+  globalDefs.forEach(([label,name,val])=>{
+    const l = gs.getCell(`A${gr}`); l.value = label; l.font = {color:{argb:XL_PALETTE.inkSoft}, bold:true, size:10};
+    const c = gs.getCell(`B${gr}`);
+    c.value = val; c.font = {color:{argb:'FF1E66E0'}, bold:true, size:12};
+    c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:XL_PALETTE.blueSoft}};
+    c.numFmt = '#,##0.####'; c.border = {left:{style:'medium', color:{argb:XL_PALETTE.gold}}};
+    const u = gs.getCell(`C${gr}`); u.value = globalDefs.find(x=>x[1]===name)[3]; u.font = {color:{argb:XL_PALETTE.inkSoft}, italic:true, size:9};
+    wb.definedNames.add(`Globals!$B$${gr}`, name);
+    gr++;
+  });
+  const mwLbl = gs.getCell(`A${gr}`); mwLbl.value = 'MW Output (computed)'; mwLbl.font = {color:{argb:XL_PALETTE.inkSoft}, bold:true, size:10};
+  const mwCell = gs.getCell(`B${gr}`);
+  mwCell.value = {formula:'(NUMMODULES*WATTAGE)/1000000'};
+  mwCell.font = {color:{argb:XL_PALETTE.goldDark}, bold:true, size:12};
+  mwCell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:XL_PALETTE.goldSoft}};
+  mwCell.numFmt = '#,##0.00'; mwCell.border = {left:{style:'medium', color:{argb:XL_PALETTE.teal}}};
+  gs.getCell(`C${gr}`).value = 'MW'; gs.getCell(`C${gr}`).font = {color:{argb:XL_PALETTE.inkSoft}, italic:true, size:9};
+  wb.definedNames.add(`Globals!$B$${gr}`, 'MWOUT');
+
+  /* ---------- BOM & COSTING SHEET ---------- */
+  const cols = COLUMNS.filter(c=>c.type!=='meta');
+  const bs = wb.addWorksheet('BOM & Costing', {properties:{tabColor:{argb:XL_PALETTE.teal}}, views:[{state:'frozen', xSplit:2, ySplit:3}]});
+  const colMap = {};
+  cols.forEach((c,i)=>{ colMap[c.key] = xlColLetter(i+2); }); // data cols start at B, A = Sr#
+  const lastLetter = xlColLetter(cols.length+1);
+
+  bs.getColumn(1).width = 5;
+  cols.forEach((c,i)=>{
+    const idxNum = i+2;
+    let w = 12;
+    if(c.dtype==='text') w = c.key==='material' ? 26 : (c.key==='spec' ? 30 : 16);
+    bs.getColumn(idxNum).width = w;
+    if(c.hidden) bs.getColumn(idxNum).hidden = true;
+  });
+
+  bs.mergeCells(`A1:${lastLetter}1`);
+  const bTitle = bs.getCell('A1');
+  bTitle.value = '☀  Module BOM · Freight · MW Costing Sheet — G12R / M10 TopCon';
+  bTitle.font = {bold:true, size:13, color:{argb:XL_PALETTE.white}};
+  bTitle.fill = {type:'pattern', pattern:'solid', fgColor:{argb:XL_PALETTE.navy}};
+  bTitle.alignment = {vertical:'middle', indent:1};
+  bs.getRow(1).height = 24;
+
+  bs.getCell('A2').fill = {type:'pattern', pattern:'solid', fgColor:{argb:XL_PALETTE.slate}};
+  let gi=0;
+  while(gi < cols.length){
+    const g = cols[gi].group;
+    let span=1;
+    while(gi+span<cols.length && cols[gi+span].group===g) span++;
+    const startL = colMap[cols[gi].key], endL = colMap[cols[gi+span-1].key];
+    if(startL!==endL) bs.mergeCells(`${startL}2:${endL}2`);
+    const gc = bs.getCell(`${startL}2`);
+    gc.value = GROUP_LABEL[g] || g;
+    gc.font = {bold:true, size:9, color:{argb:XL_PALETTE.white}};
+    gc.fill = {type:'pattern', pattern:'solid', fgColor:{argb:XL_GROUP_COLORS[g]||XL_PALETTE.blueDark}};
+    gc.alignment = {horizontal:'center', vertical:'middle'};
+    gi += span;
+  }
+  bs.getRow(2).height = 18;
+
+  const hA3 = bs.getCell('A3'); hA3.value='#';
+  hA3.font = {bold:true, size:9, color:{argb:XL_PALETTE.inkSoft}}; hA3.fill = {type:'pattern', pattern:'solid', fgColor:{argb:XL_PALETTE.headBand}};
+  hA3.alignment = {horizontal:'center', vertical:'middle'};
+  cols.forEach(c=>{
+    const cell = bs.getCell(`${colMap[c.key]}3`);
+    cell.value = c.label;
+    cell.font = {bold:true, size:9, color:{argb:XL_PALETTE.inkSoft}};
+    cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:XL_PALETTE.headBand}};
+    cell.alignment = {horizontal:'center', vertical:'middle', wrapText:true};
+  });
+  bs.getRow(3).height = 30;
+
+  const startRow = 4;
+  ROWS.forEach((rowData,i)=>{
+    const rn = startRow+i;
+    const srCell = bs.getCell(`A${rn}`); srCell.value = i+1;
+    srCell.font = {size:9, color:{argb:XL_PALETTE.inkSoft}}; srCell.alignment = {horizontal:'center'};
+    srCell.fill = {type:'pattern', pattern:'solid', fgColor:{argb: i%2? XL_PALETTE.bandB : XL_PALETTE.bandA}};
+    cols.forEach(c=>{
+      const cell = bs.getCell(`${colMap[c.key]}${rn}`);
+      const band = i%2? XL_PALETTE.bandB : XL_PALETTE.bandA;
+      if(c.type==='input'){
+        const v = rowData[c.key];
+        cell.value = (v===null||v===undefined||v==='') ? null : v;
+        cell.font = {color:{argb:'FF1E66E0'}, size:10};
+        cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:band}};
+        if(c.dtype==='text') cell.alignment = {horizontal:'left', vertical:'middle'};
+        if(c.optional) cell.numFmt = '#,##0.####;;;"(default)"';
+      } else {
+        const hasOv = rowData.__ov && rowData.__ov[c.key]!==undefined;
+        const jsExpr = hasOv ? rowData.__ov[c.key] : c.formula;
+        cell.value = {formula: jsToXl(jsExpr, rn, colMap)};
+        cell.font = {color:{argb: hasOv? XL_PALETTE.purple : XL_PALETTE.ink}, size:10, italic:hasOv};
+        cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb: hasOv? XL_PALETTE.purpleSoft : band}};
+        if(XL_FMT[c.fmt]) cell.numFmt = XL_FMT[c.fmt];
+      }
+    });
+  });
+
+  const endRow = startRow + ROWS.length - 1;
+  const totalRow = endRow + 1;
+  bs.getCell(`A${totalRow}`).fill = {type:'pattern', pattern:'solid', fgColor:{argb:XL_PALETTE.tealSoft}};
+  let labelPlaced = false;
+  cols.forEach(c=>{
+    const cell = bs.getCell(`${colMap[c.key]}${totalRow}`);
+    cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:XL_PALETTE.tealSoft}};
+    cell.border = {top:{style:'medium', color:{argb:XL_PALETTE.teal}}};
+    cell.font = {bold:true, size:10, color:{argb:XL_PALETTE.tealDark}};
+    if(c.key==='material' && !labelPlaced){
+      labelPlaced = true;
+      cell.value = `TOTAL — per module (${ROWS.length} materials)`;
+      cell.alignment = {horizontal:'left', vertical:'middle'};
+    } else if(c.summable){
+      cell.value = {formula:`SUM(${colMap[c.key]}${startRow}:${colMap[c.key]}${endRow})`};
+      if(XL_FMT[c.fmt]) cell.numFmt = XL_FMT[c.fmt];
+    } else if(c.key==='perW'){
+      cell.value = {formula:`${colMap.landedModUSD}${totalRow}/WATTAGE`};
+      cell.numFmt = XL_FMT.usd;
+    }
+  });
+  bs.autoFilter = {from:{row:3,column:1}, to:{row:3, column:cols.length+1}};
+
+  /* ---------- DASHBOARD SHEET ---------- */
+  const ds = wb.addWorksheet('Dashboard', {properties:{tabColor:{argb:XL_PALETTE.navy}}});
+  ds.columns = Array.from({length:13}, ()=>({width:11}));
+  ds.mergeCells('A1:M1');
+  const dTitle = ds.getCell('A1');
+  dTitle.value = '☀  Module BOM · Freight · MW Costing — Dashboard';
+  dTitle.font = {bold:true, size:15, color:{argb:XL_PALETTE.white}};
+  dTitle.fill = {type:'pattern', pattern:'solid', fgColor:{argb:XL_PALETTE.navy}};
+  dTitle.alignment = {vertical:'middle', indent:1};
+  ds.getRow(1).height = 30;
+  ds.mergeCells('A2:M2');
+  const dSub = ds.getCell('A2');
+  dSub.value = 'Every figure below is a live formula pulling from the Globals and BOM & Costing sheets.';
+  dSub.font = {italic:true, size:10, color:{argb:XL_PALETTE.inkSoft}};
+  dSub.alignment = {indent:1};
+
+  const T = `'BOM & Costing'!`;
+  const kpis = [
+    {label:'MW OUTPUT', formula:'MWOUT', sub:'Modules × Wattage ÷ 10⁶', fmt:'#,##0.00 "MW"', color:XL_PALETTE.goldDark, bg:XL_PALETTE.goldSoft},
+    {label:'BOM COST / MODULE', formula:`${T}${colMap.costUSD}${totalRow}`, sub:'ex-works, before freight', fmt:XL_FMT.usd, color:XL_PALETTE.ink, bg:XL_PALETTE.bandB},
+    {label:'LANDED COST / MODULE', formula:`${T}${colMap.landedModUSD}${totalRow}`, sub:'incl. freight, duty, LC', fmt:XL_FMT.usd, color:XL_PALETTE.ink, bg:XL_PALETTE.bandB},
+    {label:'BLENDED $ / WATT', formula:`${T}${colMap.landedModUSD}${totalRow}/WATTAGE`, sub:'landed BOM ÷ Wp', fmt:'"$"#,##0.0000"/W"', color:XL_PALETTE.goldDark, bg:XL_PALETTE.goldSoft},
+    {label:'CONTAINERS REQUIRED', formula:`${T}${colMap.containers}${totalRow}`, sub:'sum across all materials', fmt:'#,##0', color:XL_PALETTE.tealDark, bg:XL_PALETTE.tealSoft},
+    {label:'TOTAL FREIGHT SPEND', formula:`${T}${colMap.totalFreightCost}${totalRow}`, sub:'for full production run', fmt:XL_FMT.usd, color:XL_PALETTE.tealDark, bg:XL_PALETTE.tealSoft},
+    {label:'TOTAL MATERIAL VALUE $', formula:`${T}${colMap.totalValUSD}${totalRow}`, sub:'full production run', fmt:XL_FMT.usd, color:XL_PALETTE.ink, bg:XL_PALETTE.blueSoft},
+    {label:'TOTAL MATERIAL VALUE ₹', formula:`${T}${colMap.totalValINR}${totalRow}`, sub:'full production run', fmt:XL_FMT.inr, color:XL_PALETTE.ink, bg:XL_PALETTE.blueSoft},
+  ];
+
+  const cardColSpan = 3, gapCol = 1, cardsPerRow = 4, rowStart0 = 4, cardRowSpan = 3, gapRow = 1;
+  kpis.forEach((k,idx)=>{
+    const rowIdx = Math.floor(idx/cardsPerRow), colIdx = idx%cardsPerRow;
+    const startCol = 1 + colIdx*(cardColSpan+gapCol);
+    const startL = xlColLetter(startCol), endL = xlColLetter(startCol+cardColSpan-1);
+    const r0 = rowStart0 + rowIdx*(cardRowSpan+gapRow);
+    ds.mergeCells(`${startL}${r0}:${endL}${r0}`);
+    ds.mergeCells(`${startL}${r0+1}:${endL}${r0+1}`);
+    ds.mergeCells(`${startL}${r0+2}:${endL}${r0+2}`);
+    const lab = ds.getCell(`${startL}${r0}`); lab.value = k.label;
+    lab.font = {size:9, bold:true, color:{argb:XL_PALETTE.inkSoft}};
+    lab.fill = {type:'pattern', pattern:'solid', fgColor:{argb:k.bg}}; lab.alignment = {indent:1, vertical:'middle'};
+    const val = ds.getCell(`${startL}${r0+1}`); val.value = {formula:k.formula};
+    val.font = {size:18, bold:true, color:{argb:k.color}}; val.numFmt = k.fmt;
+    val.fill = {type:'pattern', pattern:'solid', fgColor:{argb:k.bg}}; val.alignment = {indent:1, vertical:'middle'};
+    val.border = {left:{style:'medium', color:{argb:k.color}}};
+    const sub = ds.getCell(`${startL}${r0+2}`); sub.value = k.sub;
+    sub.font = {size:8, italic:true, color:{argb:XL_PALETTE.inkSoft}};
+    sub.fill = {type:'pattern', pattern:'solid', fgColor:{argb:k.bg}}; sub.alignment = {indent:1};
+    ds.getRow(r0+1).height = 26;
+  });
+
+  const noteRow = rowStart0 + 2*(cardRowSpan+gapRow) + 1;
+  ds.mergeCells(`A${noteRow}:M${noteRow}`);
+  const note = ds.getCell(`A${noteRow}`);
+  note.value = 'Blue cells = editable inputs · Grey/white = live formulas · Purple = row has a one-off formula override · Edit any input on the Globals or BOM & Costing sheet and every number here updates.';
+  note.font = {size:9, color:{argb:XL_PALETTE.inkSoft}, italic:true};
+  note.alignment = {wrapText:true, vertical:'middle'};
+  ds.getRow(noteRow).height = 28;
+
+  wb.views = [{activeTab:0}];
+  return wb;
+}
+
+$id('exportBtn').addEventListener('click', async ()=>{
+  const btn = $id('exportBtn');
+  const original = btn.textContent;
+  btn.textContent = '⏳ Building workbook…';
+  btn.disabled = true;
+  try{
+    const wb = await buildWorkbook();
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'module_bom_freight_mw_costing.xlsx';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }catch(err){
+    alert('Could not build the Excel file: ' + err.message);
+  }finally{
+    btn.textContent = original;
+    btn.disabled = false;
+  }
+});
+
+/* ============================ IMPORT EXCEL (Book1-style BOM layout) ============================ */
+$id('importBtn').addEventListener('click', ()=> $id('importFile').click());
+$id('importFile').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt)=>{
+    try{
+      const data = new Uint8Array(evt.target.result);
+      const wb = XLSX.read(data, {type:'array', cellFormula:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const grid = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
+      const newRows = [];
+      for(let r=3; r<grid.length; r++){
+        const row = grid[r];
+        if(!row || row[2]===null || row[2]===undefined || String(row[2]).trim()==='') continue;
+        const material = String(row[2]).trim();
+        const origin   = row[3]? String(row[3]).trim() : '';
+        const make     = row[4]? String(row[4]).trim() : '';
+        let spec       = row[5]? String(row[5]).trim() : '';
+        if(row[6]!==null && row[6]!==undefined && typeof row[6]==='string') spec += (spec?' · ':'') + row[6];
+        const uom      = row[8]? String(row[8]).trim() : 'Nos';
+        const qty      = parseFloat(row[9])  || 0;
+        const wastage  = parseFloat(row[10]) || 0;
+
+        let base = parseFloat(row[18]);           // col S — $/pcs
+        if(!base || isNaN(base)) base = parseFloat(row[15]); // col P — $/Unit (Item)
+        if((!base || isNaN(base)) && row[13] && G.fx) base = parseFloat(row[13]) / G.fx; // col N (INR/unit) / FX
+        if(!base || isNaN(base)) base = 0;
+
+        let contQty = 10000, duty = 0, lc = 0;
+        const tCell = ws[XLSX.utils.encode_cell({r:r,c:19})]; // T = freight formula, holds container qty as denominator
+        if(tCell && tCell.f){ const m = tCell.f.match(/\/\s*([\d.]+)\s*\)?\s*$/); if(m) contQty = parseFloat(m[1]) || contQty; }
+        const uCell = ws[XLSX.utils.encode_cell({r:r,c:20})]; // U = duty formula
+        if(uCell && uCell.f){ const m = uCell.f.match(/([\d.]+)\s*%/); if(m) duty = parseFloat(m[1]) || 0; }
+        const vCell = ws[XLSX.utils.encode_cell({r:r,c:21})]; // V = LC formula
+        if(vCell && vCell.f){ const m = vCell.f.match(/([\d.]+)\s*%/); if(m) lc = parseFloat(m[1]) || 0; }
+
+        newRows.push(makeRow({
+          material: material, spec: spec, origin: origin + (make? ' · '+make : ''), uom: uom || 'Nos',
+          qty, wastage, base, contQty, freightOv:null, duty, lc, localOv:null
+        }));
+      }
+      if(newRows.length===0){
+        alert('No material rows were detected. Expected the standard BOM layout (Sr No., RM, Material, Country, Make, Spec… starting row 4, material name in column C).');
+        return;
+      }
+      ROWS = newRows;
+      renderTable(); updateAll();
+      alert(`Imported ${ROWS.length} materials from "${file.name}".\n\nBase $/unit, Duty %, LC % and Container Qty are inferred from the workbook's formulas — please double-check them against the source file, they're all editable in the Table tab.`);
+    }catch(err){
+      alert('Could not read this file as the expected BOM layout: ' + err.message);
+    }
+    e.target.value = '';
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+/* ============================ INIT ============================ */
+ROWS = DEFAULT_ROWS_RAW.map(r=>makeRow(r));
+syncGlobalInputs();
+renderTable();
+renderFormulasTab();
+updateAll();
+</script>
+</body>
+</html>
