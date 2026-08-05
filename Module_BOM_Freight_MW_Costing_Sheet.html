@@ -4,23 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>G12R / M10 Module — Live BOM, Freight &amp; MW Costing Sheet</title>
-<script>
-/* Access guard — this sheet is restricted to the admin and the "sohil" user.
-   Reads the SCM Ease session (same-origin, set by the parent dashboard). Client-side
-   convenience gate that mirrors the tab-level permission; not a server-enforced boundary. */
-(function(){
-  function guard(){
-    try{
-      var u=(sessionStorage.getItem('siteUser')||'').toLowerCase();
-      var ok = !!sessionStorage.getItem('adminToken') || u==='sohil' || u==='admin';
-      if(!ok){
-        document.body.innerHTML='<div style="font-family:system-ui,Segoe UI,sans-serif;color:#e8edf2;background:#0d1117;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px;gap:12px"><div style="font-size:44px">&#128274;</div><div style="font-size:18px;font-weight:700">Restricted costing sheet</div><div style="font-size:13px;color:#8fa1b3;max-width:440px;line-height:1.6">This module is available only to the administrator and authorised users. Please open it from the SCM Ease dashboard after signing in.</div></div>';
-      }
-    }catch(e){}
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',guard); else guard();
-})();
-</script>
+<!-- Viewing is open to all signed-in users. Save & Deploy is gated to the admin and the "sohil"
+     user (plus anyone the admin grants the Costing Deploy permission) — enforced on the worker,
+     and the Save & Deploy button below is hidden for users who cannot deploy. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <style>
@@ -1098,6 +1084,24 @@ async function saveCostingToServer(){
   finally{ btn.disabled = false; btn.innerHTML = orig; }
 }
 $id('saveDeployBtn').addEventListener('click', saveCostingToServer);
+
+/* Everyone can VIEW the sheet; only the admin, the "sohil" user, or a user granted the
+   "Costing Deploy" permission may Save & Deploy. Hide the button for everyone else. */
+function costingCanSave(){
+  try{
+    if(sessionStorage.getItem('adminToken')) return true;
+    const u = (sessionStorage.getItem('siteUser')||'').toLowerCase();
+    if(u==='sohil' || u==='admin') return true;
+    const p = JSON.parse(sessionStorage.getItem('userPermissions')||'{}');
+    return p.costing === true;
+  }catch(e){ return false; }
+}
+function applyCostingSaveGate(){
+  const btn = $id('saveDeployBtn');
+  if(costingCanSave()){ if(btn) btn.style.display=''; }
+  else { if(btn) btn.style.display='none'; setSaveStatus('View only — only the admin and authorised users can Save & Deploy.'); }
+}
+applyCostingSaveGate();
 
 /* ============================ INIT ============================ */
 ROWS = DEFAULT_ROWS_RAW.map(r=>makeRow(r));

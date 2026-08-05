@@ -2461,7 +2461,7 @@
       <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.4"/><path d="M6 10v4M18 10v4"/></svg>
       <span class="nav-label">Vendor Pay</span>
     </button>
-    <button class="mode-btn nav-item" id="modeCosting" style="display:none" title="Module BOM, Freight &amp; MW Costing Sheet">
+    <button class="mode-btn nav-item" id="modeCosting" title="Module BOM, Freight &amp; MW Costing Sheet">
       <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6a2 2 0 0 1 2 2v16l-3-2-2 2-2-2-3 2V4a2 2 0 0 1 2-2z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="13" y2="15"/></svg>
       <span class="nav-label">Costing Sheet</span>
     </button>
@@ -4153,7 +4153,7 @@ const VENDOR_SHEETS = {
               <th>Pending PO</th>
               <th>MSL Panel</th>
               <th>Vendor Pay</th>
-              <th>Costing</th>
+              <th>Costing Deploy</th>
             </tr>
             <tr class="filter-row" id="filterRow-permBody">
               <th><div class="cf-wrap" data-col="0" data-tbody="permBody"><button class="cf-btn" onclick="cfToggle(this)">▼ All</button></div></th>
@@ -10581,7 +10581,6 @@ loadAnalysisState();
     document.getElementById('adminLoginBtn').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span style="color:#10b981">Admin ✓</span>';
     document.getElementById('modeLog').style.display = '';
     document.getElementById('modeUsers').style.display = '';
-    var mCost = document.getElementById('modeCosting'); if (mCost) mCost.style.display = '';
     // Admin has all deploy permissions
     sessionStorage.setItem('calcChangesPerm', '1');
     sessionStorage.setItem('planChangesPerm', '1');
@@ -10601,7 +10600,6 @@ loadAnalysisState();
     document.getElementById('adminLoginBtn').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Admin</span>';
     document.getElementById('modeLog').style.display = 'none';
     document.getElementById('modeUsers').style.display = 'none';
-    var mCostX = document.getElementById('modeCosting'); if (mCostX) mCostX.style.display = 'none';
     // Reset deploy permissions to user level
     sessionStorage.setItem('calcChangesPerm', '0');
     sessionStorage.setItem('planChangesPerm', '0');
@@ -12456,7 +12454,7 @@ window.umSwitchTab = function(tab) {
     vendor: 'Vendor View',
     vendor_edit: 'Vendor Edit',
     explorer: '3D Explorer',
-    costing: 'Costing Sheet'
+    costing: 'Costing Deploy'
   };
   const UM_COLORS = ['#0b6e4f','#1d6fbf','#7c3aed','#d97706','#dc2626','#0891b2','#4f46e5','#059669','#b45309','#6d28d9'];
 
@@ -12575,8 +12573,7 @@ window.umSwitchTab = function(tab) {
     explorer: 'mode3D',
     po: 'modePO',
     mslpanel: 'modeMslPanel',
-    ap: 'modeAP',
-    costing: 'modeCosting'
+    ap: 'modeAP'
   };
 
   window.applyUserPermissions = async function(userName) {
@@ -12591,17 +12588,15 @@ window.umSwitchTab = function(tab) {
       const d = await r.json();
       if (!r.ok) return;
       const perms = d.permissions || {};
-      // "costing" is opt-in (restricted): only the admin (handled via enterAdminMode) and the
-      // "sohil" user get it by default. Everyone else stays hidden unless the admin grants it.
-      if ((userName || '').toLowerCase() === 'sohil') perms.costing = true;
-      // Store for reference
+      // Store for reference. Note: the Costing tab is visible to everyone; perms.costing only
+      // controls whether the user may Save & Deploy the shared costing sheet (enforced on the
+      // costing page + the worker), so it is intentionally NOT part of the tab-visibility map.
       sessionStorage.setItem('userPermissions', JSON.stringify(perms));
       // Hide/show tabs based on permissions
       for (const [key, btnId] of Object.entries(TAB_MAP)) {
         const btn = document.getElementById(btnId);
         if (btn) {
-          const vis = (key === 'costing') ? (perms[key] === true) : (perms[key] !== false);
-          btn.style.display = vis ? '' : 'none';
+          btn.style.display = perms[key] !== false ? '' : 'none';
         }
       }
       // Enforce plan edit permission
@@ -12616,8 +12611,7 @@ window.umSwitchTab = function(tab) {
       const activeBtn = document.querySelector('.mode-btn.active');
       if (activeBtn && activeBtn.style.display === 'none') {
         for (const [key, btnId] of Object.entries(TAB_MAP)) {
-          const vis = (key === 'costing') ? (perms[key] === true) : (perms[key] !== false);
-          if (vis) {
+          if (perms[key] !== false) {
             const btn = document.getElementById(btnId);
             if (btn) { btn.click(); break; }
           }
