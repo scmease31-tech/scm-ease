@@ -1142,7 +1142,138 @@ function buildWorkbook(RAW, opts){
   }
   ca.autoFilter='A2:'+colL(compareDate?32:22)+'2';
 
+  addVendorSheets(wb, RAW, XLJS, refDate);
   return wb;
+}
+
+// One sheet per vendor — BUSINESS DONE (item-wise, year-filtered) + PAYMENT DETAILS (per invoice,
+// colour-coded bucket) + VENDOR SUMMARY, matching the consolidated vendor-business workbook layout.
+function addVendorSheets(wb, RAW, XLJS, refDate){
+  if(!RAW || !RAW.length) return;
+  var NAVY='FF1F3864', BLUE='FF2E75B6', LBLUE='FFDDEBF7', GREY='FFE7E6E6', WHITE='FFFFFFFF', INKC='FF1B2430', ARIAL='Arial', LINE='FFBFBFBF';
+  var MONEY='"$"#,##0.00', INT='#,##0', DT='dd-mmm-yyyy';
+  var BSTYLE={
+    'Settled on time':{fill:'FFC6EFCE',font:'FF006100'},
+    'Paid late':{fill:'FFFFEB9C',font:'FF9C6500'},
+    'Overdue':{fill:'FFFFC7CE',font:'FF9C0006'},
+    'Not yet due':{fill:'FFD9E1F2',font:'FF1F3864'},
+    'Verify':{fill:'FFFCE4D6',font:'FF833C00'}
+  };
+  function block(ws,r,c1,c2,value,o){
+    o=o||{}; var row=ws.getRow(r);
+    for(var c=c1;c<=c2;c++){
+      var cell=row.getCell(c);
+      if(c===c1 && value!==undefined && value!==null && value!=='') cell.value=value;
+      cell.font={name:ARIAL,size:o.size||10,bold:!!o.bold,italic:!!o.italic,color:{argb:o.fontC||INKC}};
+      if(o.fillC) cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:o.fillC}};
+      if(o.nf) cell.numFmt=o.nf;
+      cell.alignment={horizontal:o.al||'left',vertical:'middle',wrapText:!!o.wrap};
+      if(o.border){ var s={style:'thin',color:{argb:LINE}}; cell.border={top:s,left:s,bottom:s,right:s}; }
+    }
+    if(c2>c1){ try{ ws.mergeCells(r,c1,r,c2); }catch(e){} }
+  }
+  function bkt(r,c){
+    if(c.settled){ var pd=r.pd?parseD(r.pd):null; var late=pd&&c.effDue&&pd.getTime()>c.effDue.getTime(); return late?'Paid late':'Settled on time'; }
+    if(c.overdueAmt>0.005){ return c.flagged?'Verify':'Overdue'; }
+    return 'Not yet due';
+  }
+  // dominant calendar year among BL dates (Business Done is filtered to it)
+  var yc={}, YEAR=refDate.getFullYear(), best=-1;
+  RAW.forEach(function(r){ if(r.bl){ var y=+String(r.bl).slice(0,4); if(y){ yc[y]=(yc[y]||0)+1; } } });
+  Object.keys(yc).forEach(function(y){ if(yc[y]>best){ best=yc[y]; YEAR=+y; } });
+  // group rows by vendor, vendors alphabetical
+  var byV={}; RAW.forEach(function(r){ (byV[r.v]=byV[r.v]||[]).push(r); });
+  var vendors=Object.keys(byV).sort(function(a,b){ return String(a).localeCompare(String(b)); });
+  var used={};
+  function sheetName(v){ var n=String(v).replace(/[\\\/\?\*\[\]:]/g,' ').replace(/\s+/g,' ').trim().slice(0,31)||'Vendor'; var base=n,i=2; while(used[n.toLowerCase()]){ n=(base.slice(0,27)+' ('+i+')'); i++; } used[n.toLowerCase()]=1; return n; }
+
+  vendors.forEach(function(v){
+    var invs=byV[v];
+    var ws=wb.addWorksheet(sheetName(v), {views:[{showGridLines:false}]});
+    [30,34,12,9,13,12,13,15,12,13,14].forEach(function(w,i){ ws.getColumn(i+1).width=w; });
+
+    block(ws,1,1,11,String(v),{fillC:NAVY,fontC:WHITE,bold:true,size:15,al:'left'}); ws.getRow(1).height=25.5;
+    var origin=''; for(var k=0;k<invs.length;k++){ if(invs[k].origin){ origin=invs[k].origin; break; } }
+    block(ws,2,1,11,'Country of Origin: '+(origin||'\u2014'),{fillC:BLUE,fontC:WHITE,italic:true,size:9,al:'left'}); ws.getRow(2).height=12;
+
+    block(ws,4,1,11,'BUSINESS DONE \u2014 Calendar Year '+YEAR+' (Invoice/BL Date)',{fillC:BLUE,fontC:WHITE,bold:true,size:11,al:'left'}); ws.getRow(4).height=14.25;
+    block(ws,5,1,2,'Item / Material Description',{fillC:NAVY,fontC:WHITE,bold:true,al:'center',wrap:true,border:true});
+    block(ws,5,3,3,'Qty',{fillC:NAVY,fontC:WHITE,bold:true,al:'center',wrap:true,border:true});
+    block(ws,5,4,4,'UOM',{fillC:NAVY,fontC:WHITE,bold:true,al:'center',wrap:true,border:true});
+    block(ws,5,5,7,'Amount (USD)',{fillC:NAVY,fontC:WHITE,bold:true,al:'center',wrap:true,border:true});
+    block(ws,5,8,11,'No. of Invoices',{fillC:NAVY,fontC:WHITE,bold:true,al:'center',wrap:true,border:true});
+    ws.getRow(5).height=18;
+    var bdMap={}, bdOrder=[];
+    invs.forEach(function(r){ var y=r.bl?+String(r.bl).slice(0,4):null; if(y!==YEAR) return; var key=(r.it||'(unspecified)'); if(!bdMap[key]){ bdMap[key]={it:r.it||'(unspecified)',qty:0,uom:r.uom||'',amt:0,n:0}; bdOrder.push(key); } var g=bdMap[key]; g.qty+=(+r.qty||0); g.amt+=(+r.amt||0); g.n++; if(!g.uom&&r.uom)g.uom=r.uom; });
+    var bdFirst=6, ri=6;
+    bdOrder.forEach(function(key){ var g=bdMap[key];
+      block(ws,ri,1,2,g.it,{al:'left',border:true});
+      block(ws,ri,3,3,g.qty,{al:'center',nf:INT,border:true});
+      block(ws,ri,4,4,g.uom,{al:'center',border:true});
+      block(ws,ri,5,7,g.amt,{al:'right',nf:MONEY,border:true});
+      block(ws,ri,8,11,g.n,{al:'center',nf:INT,border:true});
+      ws.getRow(ri).height=14.25; ri++;
+    });
+    var bdLast=ri-1, bdTot=ri, hasBD=bdOrder.length>0;
+    block(ws,bdTot,1,2,'TOTAL',{fillC:LBLUE,bold:true,al:'left',border:true});
+    block(ws,bdTot,3,3,hasBD?{formula:'SUM(C'+bdFirst+':C'+bdLast+')'}:0,{fillC:LBLUE,bold:true,al:'center',nf:INT,border:true});
+    block(ws,bdTot,4,4,'',{fillC:LBLUE,bold:true,al:'center',border:true});
+    block(ws,bdTot,5,7,hasBD?{formula:'SUM(E'+bdFirst+':E'+bdLast+')'}:0,{fillC:LBLUE,bold:true,al:'right',nf:MONEY,border:true});
+    block(ws,bdTot,8,11,hasBD?{formula:'SUM(H'+bdFirst+':H'+bdLast+')'}:0,{fillC:LBLUE,bold:true,al:'center',nf:INT,border:true});
+    ws.getRow(bdTot).height=14.25;
+
+    var paySec=bdTot+2;
+    block(ws,paySec,1,11,'PAYMENT DETAILS \u2014 All Invoices',{fillC:BLUE,fontC:WHITE,bold:true,size:11,al:'left'}); ws.getRow(paySec).height=14.25;
+    var payHdr=paySec+1;
+    ['Invoice','Item','BL Date','Amount (USD)','Status','Due Date','Payment Date','Outstanding (USD)','Overdue Days','Interest (USD)','Bucket'].forEach(function(h,i){ block(ws,payHdr,i+1,i+1,h,{fillC:NAVY,fontC:WHITE,bold:true,al:'center',wrap:true,border:true}); });
+    ws.getRow(payHdr).height=25.5;
+    var pFirst=payHdr+1, pr=pFirst;
+    invs.forEach(function(r){ var c=computeRow(r, refDate); var label=bkt(r,c); var bs=BSTYLE[label]||{};
+      block(ws,pr,1,1,r.inv||'',{al:'left',border:true});
+      block(ws,pr,2,2,r.it||'',{al:'left',border:true});
+      block(ws,pr,3,3,r.bl?parseD(r.bl):'',{al:'center',nf:DT,border:true});
+      block(ws,pr,4,4,(+r.amt||0),{al:'right',nf:MONEY,border:true});
+      block(ws,pr,5,5,r.st||'',{al:'center',border:true});
+      block(ws,pr,6,6,c.effDue?new Date(c.effDue.getFullYear(),c.effDue.getMonth(),c.effDue.getDate()):'',{al:'center',nf:DT,border:true});
+      block(ws,pr,7,7,r.pd?parseD(r.pd):'',{al:'center',nf:DT,border:true});
+      block(ws,pr,8,8,(c.outstanding||0),{al:'right',nf:MONEY,border:true});
+      block(ws,pr,9,9,(c.overdueDays||0),{al:'center',nf:INT,border:true});
+      block(ws,pr,10,10,(c.interest||0),{al:'right',nf:MONEY,border:true});
+      block(ws,pr,11,11,label,{fillC:bs.fill,fontC:bs.font,bold:true,al:'center',border:true});
+      ws.getRow(pr).height=14.25; pr++;
+    });
+    var pLast=pr-1, payTot=pr;
+    block(ws,payTot,1,1,'TOTAL',{fillC:LBLUE,bold:true,al:'left',border:true});
+    [2,3,5,6,7,9].forEach(function(c){ block(ws,payTot,c,c,'',{fillC:LBLUE,al:'center',border:true}); });
+    block(ws,payTot,4,4,{formula:'SUM(D'+pFirst+':D'+pLast+')'},{fillC:LBLUE,bold:true,al:'right',nf:MONEY,border:true});
+    block(ws,payTot,8,8,{formula:'SUM(H'+pFirst+':H'+pLast+')'},{fillC:LBLUE,bold:true,al:'right',nf:MONEY,border:true});
+    block(ws,payTot,10,10,{formula:'SUM(J'+pFirst+':J'+pLast+')'},{fillC:LBLUE,bold:true,al:'right',nf:MONEY,border:true});
+    block(ws,payTot,11,11,{formula:'COUNTA(K'+pFirst+':K'+pLast+')'},{fillC:LBLUE,bold:true,al:'center',nf:INT,border:true});
+    ws.getRow(payTot).height=14.25;
+
+    var sumSec=payTot+2;
+    block(ws,sumSec,1,11,'VENDOR SUMMARY',{fillC:NAVY,fontC:WHITE,bold:true,size:11,al:'left'}); ws.getRow(sumSec).height=14.25;
+    var K1='K'+pFirst+':K'+pLast, A1='A'+pFirst+':A'+pLast;
+    var srows=[
+      [YEAR+' Business Done (USD)', hasBD?{formula:'E'+bdTot}:0, MONEY],
+      [YEAR+' Invoice Count', hasBD?{formula:'H'+bdTot}:0, INT],
+      ['Total Payable \u2014 All Invoices (USD)', {formula:'D'+payTot}, MONEY],
+      ['Outstanding Now (USD)', {formula:'H'+payTot}, MONEY],
+      ['Interest Incurred (USD)', {formula:'J'+payTot}, MONEY],
+      ['Total Invoices (Payments)', {formula:'COUNTA('+A1+')'}, INT],
+      ['  \u2022 Settled on time', {formula:'COUNTIF('+K1+',"Settled on time")'}, INT],
+      ['  \u2022 Paid late', {formula:'COUNTIF('+K1+',"Paid late")'}, INT],
+      ['  \u2022 Overdue', {formula:'COUNTIF('+K1+',"Overdue")'}, INT],
+      ['  \u2022 Not yet due', {formula:'COUNTIF('+K1+',"Not yet due")'}, INT],
+      ['  \u2022 Verify', {formula:'COUNTIF('+K1+',"Verify")'}, INT]
+    ];
+    var sr=sumSec+1;
+    srows.forEach(function(row){
+      block(ws,sr,1,5,row[0],{fillC:GREY,al:'left',border:true});
+      block(ws,sr,6,8,row[1],{bold:true,al:'right',nf:row[2],border:true});
+      ws.getRow(sr).height=14.25; sr++;
+    });
+  });
 }
 /*__BW_END__*/
 
@@ -1403,7 +1534,10 @@ const FIELD_ALIASES = {
   amt:['amount','invoice amount','amt','value','total','invoice value','amount (usd)','payable amount','total amount','total value'],
   st:['status','payment status','st'],
   pd:['payment date','paid date','pd','date paid'],
-  out:['outstanding','outstanding amount','balance','outstanding balance','out','open balance','amount due','outstanding (usd)']
+  out:['outstanding','outstanding amount','balance','outstanding balance','out','open balance','amount due','outstanding (usd)'],
+  qty:['qty','quantity','order qty','order quantity','total qty','total quantity','qty (nos)','qty nos','quantity (nos)','pcs','pieces','nos'],
+  uom:['uom','unit','units','unit of measure','u.o.m','uom.','unit (uom)'],
+  origin:['country of origin','origin','country','coo','made in','country/origin','source country']
 };
 function normHeader(h){ return String(h||'').trim().toLowerCase().replace(/\s+/g,' '); }
 function buildHeaderMap(headers){ const map={}, normed=headers.map(normHeader); Object.keys(FIELD_ALIASES).forEach(f=>{ for(const a of FIELD_ALIASES[f]){ const i=normed.indexOf(a); if(i!==-1){ map[f]=headers[i]; return; } } }); return map; }
@@ -1430,7 +1564,7 @@ function mapUploadedRows(json, headerMap){
     const pd=headerMap.pd?toISODate(r[headerMap.pd]):null;
     let out=(headerMap.out!=null && r[headerMap.out]!==undefined && r[headerMap.out]!=='')?num(r[headerMap.out]):(/paid|yes/i.test(st)?0:amt);
     const gs=(f)=>headerMap[f]?String(r[headerMap[f]]==null?'':r[headerMap[f]]).trim():'';
-    rows.push({v:String(vendor).trim(),po:gs('po'),pod:headerMap.pod?toISODate(r[headerMap.pod]):null,inv:gs('inv'),it:gs('it'),blno:gs('blno'),bl,cd:cd||0,due,cqty:gs('cqty'),ship:gs('ship'),pterm:gs('pterm'),amt,st,pd,out});
+    rows.push({v:String(vendor).trim(),po:gs('po'),pod:headerMap.pod?toISODate(r[headerMap.pod]):null,inv:gs('inv'),it:gs('it'),blno:gs('blno'),bl,cd:cd||0,due,cqty:gs('cqty'),ship:gs('ship'),pterm:gs('pterm'),amt,st,pd,out,qty:headerMap.qty?num(r[headerMap.qty]):0,uom:gs('uom'),origin:gs('origin')});
   });
   return {rows,error:null};
 }
