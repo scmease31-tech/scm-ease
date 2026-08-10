@@ -1224,9 +1224,6 @@
     transition: max-height 0.24s ease, margin 0.2s ease;
   }
   .sb-submenu.open { max-height: 640px; overflow-y: auto; margin: 3px 0 6px; }
-  /* Expand-on-hover: peek any section's sub-menu by hovering its nav item */
-  .mode-btn.nav-item:hover + .sb-submenu,
-  .sb-submenu:hover { max-height: 640px; overflow-y: auto; margin: 3px 0 6px; }
   .sb-subitem {
     display: flex; align-items: center; gap: 8px;
     width: 100%; height: 33px; padding: 0 10px 0 30px; flex-shrink: 0;
@@ -2499,7 +2496,7 @@
       <span class="sb-collapse-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></span>
       <span class="nav-label">Collapse</span>
     </button>
-    <div class="sb-build-tag" style="font:700 9.5px 'JetBrains Mono',monospace; color:var(--solar-1); background:var(--solar-bg); border-radius:6px; text-align:center; padding:3px 0; margin-top:4px; letter-spacing:.3px;" title="App build version — tells you if you are on the latest deploy">build 2026-08-10-2</div>
+    <div class="sb-build-tag" style="font:700 9.5px 'JetBrains Mono',monospace; color:var(--solar-1); background:var(--solar-bg); border-radius:6px; text-align:center; padding:3px 0; margin-top:4px; letter-spacing:.3px;" title="App build version — tells you if you are on the latest deploy">build 2026-08-10-3</div>
   </div>
 </aside>
 <script>
@@ -12953,18 +12950,6 @@ window.umSwitchTab = function(tab) {
         btn._sbWired = true;
         btn.addEventListener('click', function(){ openSubmenuFor(id); });
       }
-    });
-    // Expand-on-hover: clicking a sub-item in a peeked (non-active) section
-    // first activates that section so its page opens correctly.
-    document.querySelectorAll('.sb-submenu[data-parent]').forEach(function(menu){
-      if(menu._hoverNavWired) return; menu._hoverNavWired = true;
-      var parentId = menu.getAttribute('data-parent');
-      menu.addEventListener('click', function(e){
-        if(e.target.closest('.sb-sub-del')) return;            // ignore delete handles
-        if(!e.target.closest('.sb-subitem')) return;
-        var pb = document.getElementById(parentId);
-        if(pb && !pb.classList.contains('active')) pb.click();  // switch to that section first
-      }, true);                                                 // capture phase → runs before the item's own click
     });
     var act = document.querySelector('.mode-btn.nav-item.active');
     if(act) openSubmenuFor(act.id);
